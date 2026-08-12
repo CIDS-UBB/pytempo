@@ -70,6 +70,12 @@ def assign_roles(dimensions: list, details: dict) -> None:
             d.role = "alt"
 
 
+def is_locality_dimension(dimension, details: dict) -> bool:
+    """True dacă dimensiunea ține localități, din details sau din label."""
+    return (dimension.dim_code == details.get("nomLoc")
+            or "localit" in _norm(dimension.label))
+
+
 def dimension_levels(dimension, details: dict) -> set:
     """Nivelele acoperite de o singură dimensiune."""
     if not is_territorial(dimension, details):

@@ -80,6 +80,7 @@ Pulling the data:
     m.get(level='judet')         one territorial level only
     m.get(levels=['judet', 'regiune'])   several levels
     m.get(tidy=True)             plus derived columns: SIRUTA, level, type, year
+    m.get(progress=True)         report progress on large indicators
     t.get('FOM101A')             the same, starting from a code
 
 Lists returned by `find`, `domains` and `related` render as a table, in the
@@ -153,11 +154,26 @@ Locality labels arrive as `SIRUTA TYPE NAME`, for example
 prefix, as in `2130 ALBAC`, and are typed `comuna`. Aggregates and counties
 carry no SIRUTA at all.
 
-`get()` refuses to send a request larger than `MAX_CELLS`, currently 100000
-cells, counted as the product of the selected options per dimension. It raises
-`ValueError` saying how large the pull would be. A level filter often brings it
-under the threshold. Larger pulls need request splitting, which does not exist
-yet.
+### Large indicators
+
+A single POST is capped at `MAX_CELLS`, currently 100000 cells, counted as the
+product of the selected options per dimension. Above that, `get()` splits the
+work instead of sending one doomed request.
+
+Indicators that carry a locality dimension are downloaded one county at a time,
+using `parentId`, which ties a locality to its county. The county dimension is
+narrowed to that same county for each request, so a request covers one county
+and its own localities rather than the mostly empty product of all counties
+against a few localities. If a single county still exceeds the threshold, its
+localities are split into groups of `COUNTY_CHUNK`, currently 100. The frames
+are concatenated with `ignore_index=True`. FOM104D takes 43 requests this way.
+
+    df = t.matrix("FOM104D").get(progress=True)
+
+`progress=True` reports each request as it lands, with the row count and the
+running total. Indicators that are over the threshold but have no locality
+dimension to split by, such as SOM101B unfiltered, still raise `ValueError`,
+which names the levels you can filter on instead.
 
 The result is sparse. Combinations with no data are absent as whole rows, not
 present as blanks, and this reflects real administrative history: Ilfov and

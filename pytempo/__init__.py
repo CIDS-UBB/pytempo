@@ -8,7 +8,7 @@ from .catalog import domains, find, load_index, name_dict, overview, search
 from .matrix import Matrix, MatrixList, get, info, matrix
 from .explore import init, browse
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "matrix", "info", "get",
@@ -45,14 +45,16 @@ TRAGI datele
   m.get(level='judet')         doar un nivel teritorial
   m.get(levels=['judet','regiune'])   mai multe nivele
   m.get(tidy=True)             plus coloane derivate: SIRUTA, nivel, tip, an
+  m.get(progress=True)         spune cat s-a tras, la matricele mari
   t.get('FOM101A')             acelasi lucru, pornind de la cod
 
 Datele vin rare: combinatiile fara date lipsesc ca randuri intregi, nu ca
 valori goale. Filtrul pe nivel merge pe matricele cu o singura dimensiune
-teritoriala, cazul obisnuit. Peste 100000 de celule get() se opreste si iti
-spune, in loc sa trimita o cerere condamnata; un filtru pe nivel coboara des
-sub prag. tidy=True doar adauga coloane, nu sterge si nu rearanjeaza nimic:
-denumirea originala ramane, cu prefixul SIRUTA cu tot.
+teritoriala, cazul obisnuit. Matricele care nu incap intr-un singur POST, ca
+FOM104D, se descarca automat judet cu judet si se concateneaza; cele prea mari
+care nu au localitati dupa care sa fie sparte se opresc cu un mesaj clar.
+tidy=True doar adauga coloane, nu sterge si nu rearanjeaza nimic: denumirea
+originala ramane, cu prefixul SIRUTA cu tot.
 
 Listele intoarse de find, domains si related se afiseaza ca tabel si au
 .recent(n), care ordoneaza dupa ultima actualizare doar elementele din set.""")

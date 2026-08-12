@@ -15,12 +15,11 @@ import html
 import re
 from dataclasses import dataclass, field
 
-from . import chunking, client, endpoints, parse, territory
-from .models import Dimension, Node, Option
+import pandas as pd
 
-# pragul peste care un singur POST la pivot nu mai e rezonabil; matricele
-# mari au nevoie de chunking (iteratia 3c)
-MAX_CELLS = 100000
+from . import chunking, client, endpoints, parse, territory
+from .chunking import MAX_CELLS
+from .models import Dimension, Node, Option
 
 _ANCHORS = re.compile(r"<a\b[^>]*>.*?</a>", re.IGNORECASE | re.DOTALL)
 _TAGS = re.compile(r"<[^>]+>")
@@ -278,12 +277,8 @@ class Matrix:
   .options('teritoriu') ce valori are o dimensiune (index, rol sau label)
   .get()               datele, ca DataFrame in format lung
   .get(level='judet')  doar un nivel teritorial
-  .get(tidy=True)      plus coloane derivate: SIRUTA, nivel, tip, an""")
-
-    def _is_locality_dimension(self, dim) -> bool:
-        """Dimensiune de localități, după details sau după label."""
-        return (dim.dim_code == self.details.get("nomLoc")
-                or "localit" in territory._norm(dim.label))
+  .get(tidy=True)      plus coloane derivate: SIRUTA, nivel, tip, an
+  .get(progress=True)  spune cat s-a tras, la matricele mari""")
 
     def _build_selection(self, wanted: list[str]) -> list[list[int]]:
         """nomItemId-urile de trimis, per dimensiune, în ordinea din dimensionsMap.
@@ -310,7 +305,8 @@ class Matrix:
         for d in self.dimensions:
             if d.role != "teritoriu":
                 selection.append([o.nom_item_id for o in d.options])
-            elif self._is_locality_dimension(d) and "localitate" in wanted:
+            elif (territory.is_locality_dimension(d, self.details)
+                  and "localitate" in wanted):
                 selection.append([o.nom_item_id for o in d.options])
             else:
                 selection.append([o.nom_item_id for o in d.options
@@ -318,7 +314,7 @@ class Matrix:
         return selection
 
     def get(self, level: str | None = None, levels: list[str] | None = None,
-            tidy: bool = False):
+            tidy: bool = False, progress: bool = False):
         """Datele indicatorului, ca DataFrame în format lung.
 
         level sau levels restrâng dimensiunea teritorială la nivelele cerute,
@@ -329,33 +325,31 @@ class Matrix:
         nume pentru dimensiunile teritoriale, anul pentru cele de timp. Nu
         șterge nimic, implicit datele rămân exact cum le dă INS.
 
-        TODO 3d: matricele cu județ și localitate ca dimensiuni separate, plus
-        chunking-ul pentru cele care nu încap într-o singură cerere.
+        Matricele care nu încap într-un singur POST se descarcă județ cu județ
+        și se concatenează. progress=True spune cât s-a tras pe parcurs.
+
+        TODO: filtrul pe nivel pentru matricele cu județ și localitate ca
+        dimensiuni separate.
         """
         self._ensure_meta()
         wanted = [level] if isinstance(level, str) else []
         wanted += list(levels or [])
         selection = self._build_selection(wanted)
 
-        celule = 1
-        for codes in selection:
-            celule *= len(codes)
-        if celule > MAX_CELLS:
-            raise ValueError(
-                f"{self.code} ar cere {celule:,} celule intr-un singur POST, "
-                f"peste pragul de {MAX_CELLS:,}. Matricele mari cer chunking, "
-                f"care vine la iteratia 3c. Un filtru pe nivel, ex. "
-                f"get(level='judet'), coboara des sub prag. "
-                f"Nivele disponibile: {self.levels}.")
+        planuri = chunking.plan_requests(self, selection)
+        if progress and len(planuri) > 1:
+            print(f"{self.code}: {len(planuri)} cereri, se descarca pe rand")
 
-        payload = {
-            "language": "ro",
-            "encQuery": chunking.build_encquery(selection),
-            "matCode": self.code,
-            "matMaxDim": self.details.get("matMaxDim"),
-            "matUMSpec": self.details.get("matUMSpec"),
-        }
-        df = parse.pivot_csv_to_dataframe(client.post_pivot(payload), self)
+        cadre = []
+        for i, payload in enumerate(planuri, 1):
+            cadre.append(parse.pivot_csv_to_dataframe(
+                client.post_pivot(payload), self))
+            if progress and len(planuri) > 1:
+                total = sum(len(c) for c in cadre)
+                print(f"  {i}/{len(planuri)}: +{len(cadre[-1])} randuri "
+                      f"(total {total})")
+
+        df = cadre[0] if len(cadre) == 1 else pd.concat(cadre, ignore_index=True)
         return parse.standardize(df, self) if tidy else df
 
     def _repr_html_(self) -> str:
@@ -460,6 +454,7 @@ def info(cod: str) -> dict:
 
 
 def get(cod: str, level: str | None = None, levels: list[str] | None = None,
-        tidy: bool = False):
+        tidy: bool = False, progress: bool = False):
     """Scurtătură: datele unui indicator, ca DataFrame."""
-    return matrix(cod).get(level=level, levels=levels, tidy=tidy)
+    return matrix(cod).get(level=level, levels=levels, tidy=tidy,
+                           progress=progress)

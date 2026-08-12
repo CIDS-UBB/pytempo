@@ -546,7 +546,8 @@ def test_size_guard_blocks_huge_pull(monkeypatch):
     try:
         m.get()
     except ValueError as e:
-        assert "celule" in str(e) and "3c" in str(e)
+        # nu are dimensiune de localitati, deci nu poate fi spart pe judete
+        assert "celule" in str(e) and "localitati" in str(e)
     else:
         raise AssertionError("trebuia ValueError de la paza de marime")
 
@@ -641,6 +642,121 @@ def test_get_tidy(monkeypatch):
     assert "Ani_an" in tidy.columns
     assert list(tidy[f"{terr}_nivel"]) == ["judet", "judet"]
     assert tidy["Ani_an"].tolist() == [2020, 2020]
+
+
+# FOM104D in mic: doua judete, cu localitatile lor legate prin parentId
+FOM104D_MIC = dict(
+    FOM104D,
+    dimensionsMap=[
+        {"dimCode": 1, "label": "Judete", "options": [
+            {"label": "TOTAL", "nomItemId": 112, "offset": 1, "parentId": None},
+            {"label": "Alba", "nomItemId": 3064, "offset": 2, "parentId": None},
+            {"label": "Arad", "nomItemId": 3065, "offset": 3, "parentId": None},
+        ]},
+        {"dimCode": 2, "label": "Localitati", "options": [
+            {"label": "TOTAL", "nomItemId": 112, "offset": 0, "parentId": 112},
+            {"label": "1017 MUNICIPIUL ALBA IULIA", "nomItemId": 113,
+             "offset": 2, "parentId": 3064},
+            {"label": "1151 ORAS ABRUD", "nomItemId": 114, "offset": 3,
+             "parentId": 3064},
+            {"label": "2130 ALBAC", "nomItemId": 115, "offset": 4,
+             "parentId": 3064},
+            {"label": "3000 MUNICIPIUL ARAD", "nomItemId": 116, "offset": 5,
+             "parentId": 3065},
+        ]},
+        {"dimCode": 3, "label": "Ani", "options": [
+            {"label": "Anul 2023", "nomItemId": 4247, "offset": 1,
+             "parentId": None},
+            {"label": "Anul 2024", "nomItemId": 4266, "offset": 2,
+             "parentId": None},
+        ]},
+        {"dimCode": 4, "label": "UM: Numar persoane", "options": [
+            {"label": "Numar persoane", "nomItemId": 9685, "offset": 1,
+             "parentId": None}]},
+    ],
+)
+
+CSV_FOM104D = (
+    "Judete, Localitati, Ani, UM: Numar persoane, Valoare\n"
+    "Alba, 1017 MUNICIPIUL ALBA IULIA, Anul 2024, Numar persoane, 31.5\n"
+    "Alba, 2130 ALBAC, Anul 2024, Numar persoane, 1.2\n"
+)
+
+
+def _plan_for(m, max_cells):
+    selection = [[o.nom_item_id for o in d.options] for d in m.dimensions]
+    return chunking.plan_requests(m, selection, max_cells=max_cells)
+
+
+def test_plan_requests_single_payload_when_small(monkeypatch):
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): FOM104D_MIC})
+    m = t.matrix("FOM104D")
+    planuri = _plan_for(m, max_cells=MAX_CELLS)
+    assert len(planuri) == 1
+    assert planuri[0]["matCode"] == "FOM104D"
+
+
+def test_plan_requests_one_payload_per_county(monkeypatch):
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): FOM104D_MIC})
+    m = t.matrix("FOM104D")
+    # 3 judete x 5 localitati x 2 ani = 30, deci pragul 10 forteaza spargerea
+    planuri = _plan_for(m, max_cells=10)
+    assert len(planuri) == 3  # TOTAL, Alba, Arad
+
+    pe_judet = {}
+    for p in planuri:
+        blocuri = p["encQuery"].split(":")
+        pe_judet[blocuri[0]] = blocuri[1]
+    # fiecare cerere are un singur judet si doar localitatile lui
+    assert pe_judet["112"] == "112"
+    assert pe_judet["3064"] == "113,114,115"
+    assert pe_judet["3065"] == "116"
+    # celelalte dimensiuni raman intregi
+    assert all(p["encQuery"].split(":")[2] == "4247,4266" for p in planuri)
+
+
+def test_plan_requests_splits_a_big_county(monkeypatch):
+    """Un singur judet peste prag se mai sparge in grupuri."""
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): FOM104D_MIC})
+    m = t.matrix("FOM104D")
+    # cu prag 2, judetul Alba (3 localitati x 2 ani = 6) nu incape intreg
+    planuri = _plan_for(m, max_cells=2)
+    alba = [p for p in planuri if p["encQuery"].startswith("3064:")]
+    assert len(alba) == 1  # 3 localitati intr-un grup de 100
+    monkeypatch.setattr(chunking, "COUNTY_CHUNK", 2)
+    alba = [p for p in _plan_for(m, max_cells=2)
+            if p["encQuery"].startswith("3064:")]
+    assert [p["encQuery"].split(":")[1] for p in alba] == ["113,114", "115"]
+
+
+def test_get_concatenates_chunked_results(monkeypatch):
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): FOM104D_MIC})
+    cereri = []
+
+    def fake_post(payload, **kw):
+        cereri.append(payload)
+        return CSV_FOM104D
+
+    monkeypatch.setattr(client, "post_pivot", fake_post)
+    monkeypatch.setattr(chunking, "MAX_CELLS", 10)
+
+    df = t.matrix("FOM104D").get()
+    assert len(cereri) == 3
+    # doua randuri per cerere, nimic pierdut la concatenare
+    assert len(df) == 6
+    assert list(df.index) == list(range(6))
+
+
+def test_get_chunked_tidy_keeps_siruta(monkeypatch):
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): FOM104D_MIC})
+    monkeypatch.setattr(client, "post_pivot", lambda payload, **kw: CSV_FOM104D)
+    monkeypatch.setattr(chunking, "MAX_CELLS", 10)
+
+    df = t.matrix("FOM104D").get(tidy=True)
+    assert df["Localitati_siruta"].tolist()[:2] == [1017, 2130]
+    assert df["Localitati_tip"].tolist()[:2] == ["municipiu", "comuna"]
+    assert df["Localitati"][0] == "1017 MUNICIPIUL ALBA IULIA"
+    assert df["Ani_an"].tolist()[:2] == [2024, 2024]
 
 
 def test_matrix_unknown_code(monkeypatch):
