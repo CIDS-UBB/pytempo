@@ -26,4 +26,4 @@ class Dimension:
     dim_code: int
     dim_index: int            # poziția în dimensionsMap; CONTEAZĂ pentru ordinea din encQuery
     options: list[Option] = field(default_factory=list)
-    role: str = "alt"         # 'judet' | 'localitate' | 'timp' | 'caen' | 'um' | 'alt'
+    role: str = "alt"         # 'teritoriu' | 'timp' | 'caen' | 'um' | 'alt'

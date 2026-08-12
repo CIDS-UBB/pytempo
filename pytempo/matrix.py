@@ -137,7 +137,7 @@ class Matrix:
     @property
     def levels(self) -> list[str]:
         """Nivelele teritoriale prezente, de la general la specific."""
-        return territory.levels_present(self.dimensions)
+        return territory.levels_present(self.dimensions, self.details)
 
     @property
     def has_siruta(self) -> bool:
@@ -205,12 +205,18 @@ class Matrix:
             return self.dimensions[dimension]
 
         want = _clean(str(dimension)).lower()
-        # 'teritoriu' e alias pentru cea mai fina dimensiune teritoriala prezenta
-        if want == "teritoriu":
-            for role in ("localitate", "judet", "national"):
-                hit = [d for d in self.dimensions if d.role == role]
-                if hit:
-                    return hit[0]
+        terr = [d for d in self.dimensions if d.role == "teritoriu"]
+        # 'teritoriu' da cea mai fina dimensiune teritoriala prezenta
+        if want == "teritoriu" and terr:
+            fine = [d for d in terr
+                    if "localitate" in territory.dimension_levels(d, self.details)]
+            return (fine or terr)[0]
+        # un nivel ('judet', 'localitate', ...) da dimensiunea care il acopera
+        if want in territory._LEVEL_ORDER:
+            hit = [d for d in terr
+                   if want in territory.dimension_levels(d, self.details)]
+            if hit:
+                return hit[0]
         hit = [d for d in self.dimensions if d.role == want]
         if hit:
             return hit[0]
@@ -263,9 +269,9 @@ class Matrix:
   .info()              aceleasi metadate, ca dictionar
   .where()             breadcrumb-ul de domeniu
   .related()           ceilalti indicatori din acelasi nod
-  .levels              nivelele teritoriale, ex. ['judet', 'localitate']
+  .levels              nivele, ex. ['national', 'judet', 'localitate']
   .has_siruta          True daca localitatile poarta prefix SIRUTA
-  .options('Judete')   ce valori are o dimensiune (index, rol sau label)""")
+  .options('teritoriu') ce valori are o dimensiune (index, rol sau label)""")
 
     def get(self, level: str | None = None, levels: list[str] | None = None):
         """Datele indicatorului, ca DataFrame, cu filtru opțional pe nivel. Iterația 3."""

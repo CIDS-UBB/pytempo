@@ -33,7 +33,7 @@ be `pip install pytempo-ins`, still with `import pytempo`.
 
     m = t.matrix("FOM104D")       # fetch one indicator's metadata
     m.show()                      # readable summary
-    m.levels                      # ['judet', 'localitate']
+    m.levels                      # ['national', 'judet', 'localitate']
     m.has_siruta                  # True when locality labels carry a SIRUTA prefix
     m.where()                     # A. STATISTICA SOCIALA > FORTA DE MUNCA > SALARIATI
     m.related()                   # the other indicators under the same node
@@ -66,9 +66,9 @@ Understanding an indicator:
     t.info('FOM104D')            the same metadata, as a dict
     m.where()                    the domain breadcrumb
     m.related()                  the other indicators under the same node
-    m.levels                     territorial levels, e.g. ['judet', 'localitate']
+    m.levels                     levels, e.g. ['national', 'judet', 'localitate']
     m.has_siruta                 True when localities carry a SIRUTA prefix
-    m.options('Judete')          what values a dimension can take
+    m.options('teritoriu')       what values a dimension can take
     m.help()                     this guide, for one indicator
 
 Lists returned by `find`, `domains` and `related` render as a table, in the
@@ -79,23 +79,45 @@ of requests.
 
 ### Dimension roles and territorial levels
 
-Each dimension of an indicator gets a role. Roles are derived from the `details`
-block of the API response, which maps a known key to the `dimCode` of the
-dimension that plays that role: `nomJud` gives `judet`, `nomLoc` gives
-`localitate`, `matTime` gives `timp`, `matCaen1` and `matCaen2` give `caen`. A
-dimension whose label starts with `UM:` is the unit of measure, `um`. Anything
-else is `alt`.
+Each dimension gets a role: `teritoriu`, `timp`, `caen`, `um` or `alt`. A
+dimension counts as territorial if the `details` block says so, through
+`nomJud`, `nomLoc` or `matRegJ` pointing at its `dimCode`, or if its label
+mentions counties, localities, regions or macroregions. Both routes matter.
+Indicators built on the county plus locality nomenclator, such as FOM104D,
+are marked in `details`, but the common case is a single hierarchical
+dimension holding macroregions, regions and counties together, and there
+`details` is sometimes silent. `matTime` gives `timp`, `matCaen1` and
+`matCaen2` give `caen`, a label starting with `UM:` gives `um`.
 
-`m.levels` lists the territorial roles present, from coarse to fine. FOM104D has
-two separate territorial dimensions and so reports `['judet', 'localitate']`.
+`m.levels` lists the territorial levels present, from coarse to fine, out of
+`national`, `macroregiune`, `regiune`, `judet` and `localitate`. Levels come
+from the option labels of a territorial dimension: `TOTAL` is national,
+`MACROREGIUNEA ...` is a macroregion, `REGIUNEA ...` is a region, anything else
+is a county. A locality dimension reports `localitate` directly.
 
-This is deliberately literal: an indicator whose `details` has `nomJud` set to 0
-reports no territorial level, even when one of its dimensions mentions counties
-in its label. SOM101B is such a case.
+    t.matrix("FOM104D").levels   # ['national', 'judet', 'localitate']
+    t.matrix("SOM101B").levels   # ['national', 'macroregiune', 'regiune', 'judet']
 
-`m.options(dimension)` accepts a dimension index, a role (`timp`, `judet`,
-`localitate`, and `teritoriu` for the finest territorial one present), or a
-label such as `Judete`.
+`m.options(dimension)` accepts a dimension index, a label such as `Judete`, a
+role such as `timp`, a level such as `judet` or `localitate`, or `teritoriu`
+for the finest territorial dimension present.
+
+## Development
+
+Install the library in editable mode, so your edits take effect without
+reinstalling:
+
+    pip install -e ".[dev]"
+
+To use your working copy from another project while you develop, install it
+editable into that project's own environment, pointing at your local path:
+
+    pip install -e C:/PROJECTS/Tempo/pytempo
+
+In a notebook, reload edited modules without restarting the kernel:
+
+    %load_ext autoreload
+    %autoreload 2
 
 ## Contributing
 

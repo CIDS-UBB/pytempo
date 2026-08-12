@@ -8,7 +8,7 @@ from .catalog import domains, find, load_index, name_dict, overview, search
 from .matrix import Matrix, MatrixList, get, info, matrix
 from .explore import init, browse
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "matrix", "info", "get",
@@ -35,9 +35,9 @@ INTELEGI un indicator
   t.info('FOM104D')            aceleasi metadate, ca dictionar
   m.where()                    breadcrumb-ul de domeniu
   m.related()                  ceilalti indicatori din acelasi nod
-  m.levels                     nivelele teritoriale, ex. ['judet', 'localitate']
+  m.levels                     nivele, ex. ['national', 'judet', 'localitate']
   m.has_siruta                 True daca localitatile poarta prefix SIRUTA
-  m.options('Judete')          ce valori are o dimensiune
+  m.options('teritoriu')       ce valori are o dimensiune (index, rol sau label)
   m.help()                     acest ghid, dar pentru un indicator
 
 Listele intoarse de find, domains si related se afiseaza ca tabel si au

@@ -23,7 +23,7 @@ FOM104D = {
     ],
     "details": {
         "nomJud": 1, "nomLoc": 2, "matTime": 3,
-        "matCaen1": 0, "matCaen2": 0,
+        "matCaen1": 0, "matCaen2": 0, "matRegJ": 0,
         "matSiruta": 1, "matMaxDim": 4,
     },
     "dimensionsMap": [
@@ -47,8 +47,18 @@ FOM104D = {
     ],
 }
 
-# SOM101B: nomJud si nomLoc sunt 0, desi o dimensiune contine judete.
-# Regula determinista din details nu ii da nivel teritorial.
+# optiunile unei dimensiuni teritoriale ierarhice, ca in API-ul real:
+# TOTAL, apoi macroregiuni, apoi regiuni, apoi judete
+_IERARHIC = [
+    {"label": "TOTAL", "nomItemId": 1, "offset": 1, "parentId": None},
+    {"label": "MACROREGIUNEA UNU", "nomItemId": 2, "offset": 2, "parentId": 1},
+    {"label": "Regiunea NORD-VEST", "nomItemId": 3, "offset": 3, "parentId": 2},
+    {"label": "Bihor", "nomItemId": 4, "offset": 4, "parentId": 3},
+    {"label": "Cluj", "nomItemId": 5, "offset": 5, "parentId": 3},
+]
+
+# SOM101B: nomJud si nomLoc sunt 0, dar matRegJ arata spre dimensiunea 3.
+# Detectia vine din details.
 SOM101B = {
     "matrixName": "Somerii inregistrati pe sexe, macroregiuni si judete",
     "definitie": "", "metodologie": "", "observatii": "",
@@ -61,14 +71,36 @@ SOM101B = {
         {"name": "SOMAJ", "code": "1520"},
     ],
     "details": {"nomJud": 0, "nomLoc": 0, "matTime": 4, "matCaen1": 0,
-                "matCaen2": 0, "matSiruta": 0, "matMaxDim": 5},
+                "matCaen2": 0, "matSiruta": 0, "matRegJ": 3, "matMaxDim": 5},
     "dimensionsMap": [
         {"dimCode": 3, "label": "Macroregiuni, regiuni de dezvoltare si judete",
-         "options": [{"label": "TOTAL", "nomItemId": 1, "offset": 1, "parentId": None}]},
+         "options": _IERARHIC},
         {"dimCode": 4, "label": "Ani", "options": [
-            {"label": "Anul 2020", "nomItemId": 2, "offset": 1, "parentId": None}]},
+            {"label": "Anul 2020", "nomItemId": 20, "offset": 1, "parentId": None}]},
         {"dimCode": 5, "label": "UM: Numar persoane", "options": [
-            {"label": "Numar persoane", "nomItemId": 3, "offset": 1, "parentId": None}]},
+            {"label": "Numar persoane", "nomItemId": 30, "offset": 1, "parentId": None}]},
+    ],
+}
+
+# FOM101A: matRegJ = 2, deci tot din details. Fixture fidel realitatii.
+FOM101A = {
+    "matrixName": "Resurse de munca pe sexe, macroregiuni, regiuni de dezvoltare si judete",
+    "definitie": "", "metodologie": "", "observatii": "",
+    "ultimaActualizare": "30-09-2025",
+    "periodicitati": ["Anuala"],
+    "surseDeDate": [],
+    "ancestors": [{"name": "A. STATISTICA SOCIALA", "code": "1"}],
+    "details": {"nomJud": 0, "nomLoc": 0, "matTime": 3, "matCaen1": 0,
+                "matCaen2": 0, "matSiruta": 0, "matRegJ": 2, "matMaxDim": 4},
+    "dimensionsMap": [
+        {"dimCode": 1, "label": "Sexe", "options": [
+            {"label": "Total", "nomItemId": 40, "offset": 1, "parentId": None}]},
+        {"dimCode": 2, "label": "Macroregiuni, regiuni de dezvoltare si judete",
+         "options": _IERARHIC},
+        {"dimCode": 3, "label": "Ani", "options": [
+            {"label": "Anul 2020", "nomItemId": 41, "offset": 1, "parentId": None}]},
+        {"dimCode": 4, "label": "UM: Mii persoane", "options": [
+            {"label": "Mii persoane", "nomItemId": 42, "offset": 1, "parentId": None}]},
     ],
 }
 
@@ -137,7 +169,7 @@ def test_search_offline(monkeypatch):
     assert len(hits) == 1 and hits[0].code == "FOM104D"
 
 
-def _fake_index(monkeypatch, codes=("FOM104D", "SOM101B")):
+def _fake_index(monkeypatch, codes=("FOM104D", "SOM101B", "FOM101A")):
     """Catalogul, injectat: matrix() verifica in el inainte de fetch."""
     monkeypatch.setattr(catalog, "_INDEX",
                         [{"code": c, "name": c} for c in codes])
@@ -155,6 +187,7 @@ def _fake_api(monkeypatch, extra=None):
     routes = {
         endpoints.matrix("FOM104D"): FOM104D,
         endpoints.matrix("SOM101B"): SOM101B,
+        endpoints.matrix("FOM101A"): FOM101A,
         endpoints.context(""): CONTEXT_ROOT,
         endpoints.context("1513"): CONTEXT_1513,
     }
@@ -171,7 +204,8 @@ def _fake_api(monkeypatch, extra=None):
 def test_roles_from_details(monkeypatch):
     _fake_matrix(monkeypatch)
     m = t.matrix("FOM104D")
-    assert [d.role for d in m.dimensions] == ["judet", "localitate", "timp", "um"]
+    assert [d.role for d in m.dimensions] == [
+        "teritoriu", "teritoriu", "timp", "um"]
     # dim_index pastreaza ordinea din dimensionsMap
     assert [d.dim_index for d in m.dimensions] == [0, 1, 2, 3]
 
@@ -179,8 +213,43 @@ def test_roles_from_details(monkeypatch):
 def test_levels_and_siruta(monkeypatch):
     _fake_matrix(monkeypatch)
     m = t.matrix("FOM104D")
-    assert m.levels == ["judet", "localitate"]
+    assert m.levels == ["national", "judet", "localitate"]
     assert m.has_siruta is True
+
+
+def test_option_level():
+    assert territory.option_level("TOTAL") == "national"
+    assert territory.option_level("MACROREGIUNEA UNU") == "macroregiune"
+    assert territory.option_level("Regiunea NORD-VEST") == "regiune"
+    assert territory.option_level("Bistrita-Nasaud") == "judet"
+    assert territory.option_level("") == "judet"
+
+
+def test_levels_hierarchical_from_details(monkeypatch):
+    """SOM101B: nomJud si nomLoc sunt 0, dar matRegJ marcheaza dimensiunea."""
+    _fake_api(monkeypatch)
+    m = t.matrix("SOM101B")
+    assert m.levels == ["national", "macroregiune", "regiune", "judet"]
+    assert [d.role for d in m.dimensions] == ["teritoriu", "timp", "um"]
+
+
+def test_levels_hierarchical_from_label(monkeypatch):
+    """Acelasi rezultat cand details tace: detectia vine din label.
+
+    FOM101A real are matRegJ = 2, deci l-ar prinde details. Il punem pe 0
+    ca sa ramana doar label-ul care sa faca treaba.
+    """
+    fara_details = dict(FOM101A, details=dict(FOM101A["details"], matRegJ=0))
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM101A"): fara_details})
+    m = t.matrix("FOM101A")
+    assert m.levels == ["national", "macroregiune", "regiune", "judet"]
+    assert m.dimensions[1].role == "teritoriu"
+
+
+def test_levels_fom101a_as_published(monkeypatch):
+    _fake_api(monkeypatch)
+    assert t.matrix("FOM101A").levels == [
+        "national", "macroregiune", "regiune", "judet"]
 
 
 def test_siruta_from_label():
@@ -205,10 +274,10 @@ def test_info_dict(monkeypatch):
     assert d["name"].startswith("Numarul mediu")
     assert d["last_updated"] == "20-11-2025"
     assert d["periodicity"] == ["Anuala"]
-    assert d["levels"] == ["judet", "localitate"]
+    assert d["levels"] == ["national", "judet", "localitate"]
     assert d["has_siruta"] is True
     assert d["dimensions"][1] == {
-        "index": 1, "code": 2, "label": "Localitati", "role": "localitate",
+        "index": 1, "code": 2, "label": "Localitati", "role": "teritoriu",
         "n_options": 3}
 
 
@@ -315,11 +384,24 @@ def test_get_json_non_json_response(monkeypatch):
         raise AssertionError("trebuia ValueError")
 
 
-def test_roles_without_territory(monkeypatch):
-    """Fara nomJud/nomLoc in details nu se inventeaza nivele teritoriale."""
-    data = dict(FOM104D, details=dict(FOM104D["details"], nomJud=0, nomLoc=0,
-                                      matSiruta=0))
+def test_no_levels_when_nothing_is_territorial(monkeypatch):
+    """Nici details, nici labelurile nu spun teritoriu, deci niciun nivel."""
+    data = dict(
+        FOM104D,
+        details={"nomJud": 0, "nomLoc": 0, "matRegJ": 0, "matTime": 3,
+                 "matCaen1": 0, "matCaen2": 0, "matSiruta": 0, "matMaxDim": 3},
+        dimensionsMap=[
+            {"dimCode": 1, "label": "Sexe", "options": [
+                {"label": "Masculin", "nomItemId": 1, "offset": 1, "parentId": None}]},
+            {"dimCode": 3, "label": "Ani", "options": [
+                {"label": "Anul 2020", "nomItemId": 2, "offset": 1, "parentId": None}]},
+            {"dimCode": 9, "label": "UM: Numar persoane", "options": [
+                {"label": "Numar persoane", "nomItemId": 3, "offset": 1,
+                 "parentId": None}]},
+        ],
+    )
     _fake_matrix(monkeypatch, data)
     m = t.matrix("FOM104D")
     assert m.levels == []
+    assert [d.role for d in m.dimensions] == ["alt", "timp", "um"]
     assert m.has_siruta is False

@@ -1,49 +1,90 @@
-"""Rolurile dimensiunilor și nivelele teritoriale, derivate din blocul details.
+"""Rolurile dimensiunilor și nivelele teritoriale.
 
-Principiu de corectitudine: rolul unei dimensiuni vine DETERMINIST din details,
-nu din label. details mapează o cheie cunoscută (nomJud, nomLoc, matTime,
-matCaen1, matCaen2) la dimCode-ul dimensiunii care joacă acel rol. Labelurile
-variază între matrice, dimCode-urile nu. Label-ul se folosește doar ca fallback
-pentru unitatea de măsură ('UM: ...').
+O dimensiune e teritorială dacă o spune details SAU dacă o spune label-ul.
+Ambele căi sunt necesare: matricele cu nomenclator de județe plus localități
+(FOM104D) se recunosc din details, dar cazul obișnuit e o singură dimensiune
+ierarhică, cu macroregiune, regiune și județ la un loc, iar acolo cheia din
+details lipsește uneori.
+
+Nivelul unei opțiuni se citește din prefixul denumirii: TOTAL e national,
+MACROREGIUNEA e macroregiune, REGIUNEA e regiune, restul sunt județe.
 
 Atenție: details.matMaxDim e numărul de dimensiuni, nu o limită de celule.
 """
 
-_ROLE_KEYS = (("nomJud", "judet"), ("nomLoc", "localitate"),
-              ("matTime", "timp"), ("matCaen1", "caen"), ("matCaen2", "caen"))
+_TERRITORY_KEYS = ("nomJud", "nomLoc", "matRegJ")
 
-# ordinea de la general la specific; doar acestea sunt nivele teritoriale
-_LEVEL_ORDER = ("national", "judet", "localitate")
+# de la general la specific
+_LEVEL_ORDER = ("national", "macroregiune", "regiune", "judet", "localitate")
+
+# cuvinte care tradeaza o dimensiune teritoriala cand details tace
+_LABEL_HINTS = ("judet", "localit", "macroregiun", "regiun")
+
+
+def _norm(s: str) -> str:
+    """Minuscule, fără diacritice, ca 'județe' să prindă 'judete'."""
+    repl = str.maketrans("ăâîșşțţ", "aaisstt")
+    return (s or "").lower().translate(repl)
+
+
+def option_level(label: str) -> str:
+    """Nivelul unei opțiuni teritoriale, după prefixul denumirii."""
+    u = (label or "").strip().upper()
+    if u.startswith("TOTAL"):
+        return "national"
+    if u.startswith("MACROREGIUNEA"):
+        return "macroregiune"
+    if u.startswith("REGIUNEA"):
+        return "regiune"
+    return "judet"
+
+
+def _territory_dimcodes(details: dict) -> set:
+    """dimCode-urile marcate teritorial în details. Valorile 0 nu contează."""
+    return {details[k] for k in _TERRITORY_KEYS if details.get(k)}
+
+
+def is_territorial(dimension, details: dict) -> bool:
+    """True dacă dimensiunea e teritorială, din details sau din label."""
+    if dimension.dim_code in _territory_dimcodes(details):
+        return True
+    lab = _norm(dimension.label)
+    return any(k in lab for k in _LABEL_HINTS)
 
 
 def assign_roles(dimensions: list, details: dict) -> None:
-    """Atribuie d.role fiecărei dimensiuni, pe loc.
-
-    details dă dimCode-ul pentru rolurile cunoscute. Cheile absente sau 0
-    înseamnă că matricea nu are acel rol.
-    """
-    role_by_code = {}
-    for key, role in _ROLE_KEYS:
-        code = details.get(key)
-        if code:
-            role_by_code[code] = role
+    """Atribuie d.role fiecărei dimensiuni, pe loc."""
+    time_code = details.get("matTime")
+    caen = {details.get("matCaen1"), details.get("matCaen2")} - {0, None}
     for d in dimensions:
-        if d.dim_code in role_by_code:
-            d.role = role_by_code[d.dim_code]
+        if is_territorial(d, details):
+            d.role = "teritoriu"
+        elif time_code and d.dim_code == time_code:
+            d.role = "timp"
+        elif d.dim_code in caen:
+            d.role = "caen"
         elif d.label.strip().lower().startswith("um:"):
             d.role = "um"
         else:
             d.role = "alt"
 
 
-def levels_present(dimensions: list) -> list[str]:
-    """Nivelele teritoriale ale matricei, de la general la specific.
+def dimension_levels(dimension, details: dict) -> set:
+    """Nivelele acoperite de o singură dimensiune."""
+    if not is_territorial(dimension, details):
+        return set()
+    lab = _norm(dimension.label)
+    if dimension.dim_code == details.get("nomLoc") or "localit" in lab:
+        return {"localitate"}
+    return {option_level(o.label) for o in dimension.options}
 
-    O matrice poate avea două dimensiuni teritoriale separate (FOM104D are
-    'Judete' și 'Localitati'), caz în care întoarce ['judet', 'localitate'].
-    """
-    present = {d.role for d in dimensions}
-    return [lvl for lvl in _LEVEL_ORDER if lvl in present]
+
+def levels_present(dimensions: list, details: dict) -> list[str]:
+    """Nivelele teritoriale ale matricei, de la general la specific."""
+    found = set()
+    for d in dimensions:
+        found |= dimension_levels(d, details)
+    return [x for x in _LEVEL_ORDER if x in found]
 
 
 def siruta_from_label(label: str) -> int | None:
