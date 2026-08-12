@@ -3,7 +3,7 @@
 # fiindcă "pytempo" e deja luat pe PyPI (o extensie Web3, fără legătură). Pentru uz
 # propriu instalezi din GitHub și "import pytempo" merge oricum.
 name = "pytempo-ins"
-version = "0.1.0"
+version = "0.2.0"
 description = "Bibliotecă Python pentru accesul la datele INS TEMPO Online"
 readme = "README.md"
 requires-python = ">=3.10"
