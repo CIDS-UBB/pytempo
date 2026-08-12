@@ -1,10 +1,13 @@
-"""Indexul de matrice (dicționarul de nume) și căutarea în el.
+"""Indexul de matrice (dicționarul de nume), căutarea și arborele de domenii.
 
-load_index / name_dict / search: IMPLEMENTATE (iterația 1), fără fuzzy și fără
-filtru pe nivel deocamdată. Filtrul pe nivel vine la iterația 2, fuzzy după.
+search / find: fără fuzzy și fără filtru pe nivel deocamdată.
+
+Cost: load_index e un singur apel, cache-uit. domains e tot un singur apel.
+overview NU aduce metadatele indicatorilor: ar fi mii de apeluri.
 """
 from . import client, endpoints
-from .matrix import Matrix
+from .matrix import Matrix, MatrixList, _clean
+from .models import Node
 
 _INDEX = None
 
@@ -27,7 +30,7 @@ def name_dict(refresh: bool = False) -> dict[str, str]:
 
 
 def search(query: str, level: str | None = None, fuzzy: bool = False,
-           limit: int = 25) -> list[Matrix]:
+           limit: int = 25) -> MatrixList:
     """Caută indicatori după cuvânt cheie, în nume sau cod.
 
     query : unul sau mai multe cuvinte; se potrivesc TOATE (în nume sau cod),
@@ -49,7 +52,38 @@ def search(query: str, level: str | None = None, fuzzy: bool = False,
             out.append(Matrix(code=row["code"], name=row["name"]))
         if len(out) >= limit:
             break
-    return out
+    return MatrixList(out)
+
+
+def find(query: str, limit: int = 25) -> MatrixList:
+    """Numele prietenos al căutării: t.find('salariati')."""
+    return search(query, limit=limit)
+
+
+def domains() -> MatrixList:
+    """Domeniile statistice de sus (A ... H), dintr-un singur apel.
+
+    context('') întoarce tot arborele aplatizat; cele de sus au level 0.
+    """
+    tree = client.get_json(endpoints.context("")) or []
+    out = [
+        Node(code=row["context"]["code"], name=_clean(row["context"]["name"]))
+        for row in tree if row.get("level") == 0
+    ]
+    # API-ul le da neordonat (H inaintea lui G); numele incep cu A. ... H.
+    out.sort(key=lambda nod: nod.name)
+    return MatrixList(out)
+
+
+def overview() -> None:
+    """Panorama ieftină: cât e catalogul și de unde începi.
+
+    Două apeluri, amândouă cache-uite. Nu atinge metadatele indicatorilor.
+    """
+    n = len(load_index())
+    doms = domains()
+    print(f"pytempo: {n} indicatori TEMPO, in {len(doms)} domenii de sus.")
+    print("Incepe cu find('salariati') sau domains(). t.help() da ghidul complet.")
 
 
 def _norm(s: str) -> str:

@@ -3,6 +3,13 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class Node:
+    """Un nod din arborele de domenii (nu e indicator, nu are dimensiuni)."""
+    code: str
+    name: str = ""
+
+
+@dataclass
 class Option:
     """O opțiune a unei dimensiuni (ex. 'Cluj', 'Anul 2020')."""
     label: str
