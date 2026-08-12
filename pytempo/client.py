@@ -32,7 +32,15 @@ def get_json(url: str, use_cache: bool = True, timeout: int = DEFAULT_TIMEOUT):
 
     resp = requests.get(url, timeout=timeout)
     resp.raise_for_status()
-    data = resp.json()
+    try:
+        data = resp.json()
+    except ValueError:
+        # INS raspunde 200 cu pagina goala pentru coduri inexistente; nu lasam
+        # JSONDecodeError-ul brut din requests sa iasa la suprafata
+        raise ValueError(
+            f"Raspunsul de la {url} nu e JSON. Cel mai des inseamna ca resursa "
+            f"nu exista. Verifica codul cu t.find(...)."
+        ) from None
 
     if use_cache:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)

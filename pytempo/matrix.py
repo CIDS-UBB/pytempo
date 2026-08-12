@@ -58,28 +58,20 @@ class TextList(list):
 class MatrixList(list):
     """Rezultatele unei căutări sau ale unei liste de noduri, ca tabel.
 
-    Ține fie Matrix, fie Node. Coloana de nivele e goală pentru indicatorii
-    ale căror metadate nu au fost aduse; nu le aduce singură, ar fi scump.
+    Ține fie Matrix, fie Node. Arată doar cod și nume: domeniile nu au nivele,
+    iar pentru indicatori nivelele cer metadatele fiecăruia, adică un apel per
+    rând. Nivelele se văd pe cardul unui singur indicator, unde chiar le avem.
     """
 
     def _rows(self) -> list[tuple]:
-        rows = []
-        for it in self:
-            lv = ", ".join(getattr(it, "levels", []) or [])
-            rows.append((it.code, _clean(it.name), lv))
-        return rows
+        return [(it.code, _clean(it.name)) for it in self]
 
     def __repr__(self) -> str:
         if not self:
             return "niciun rezultat"
         rows = self._rows()
         wcode = max(len(r[0]) for r in rows)
-        out = []
-        for code, name, lv in rows:
-            line = f"{code:<{wcode}}  {name[:90]}"
-            if lv:
-                line += f"  [{lv}]"
-            out.append(line)
+        out = [f"{code:<{wcode}}  {name[:90]}" for code, name in rows]
         out.append(f"({len(rows)} rezultate)")
         return "\n".join(out)
 
@@ -88,11 +80,11 @@ class MatrixList(list):
             return "<p>niciun rezultat</p>"
         cells = "".join(
             f"<tr><td><code>{html.escape(c)}</code></td>"
-            f"<td>{html.escape(n)}</td><td>{html.escape(lv)}</td></tr>"
-            for c, n, lv in self._rows()
+            f"<td>{html.escape(n)}</td></tr>"
+            for c, n in self._rows()
         )
         return (
-            "<table><thead><tr><th>cod</th><th>nume</th><th>nivele</th></tr>"
+            "<table><thead><tr><th>cod</th><th>nume</th></tr>"
             f"</thead><tbody>{cells}</tbody></table>"
             f"<p>{len(self)} rezultate</p>"
         )
@@ -279,6 +271,40 @@ class Matrix:
         """Datele indicatorului, ca DataFrame, cu filtru opțional pe nivel. Iterația 3."""
         raise NotImplementedError("iterația 3")
 
+    def _repr_html_(self) -> str:
+        """Cardul unui singur indicator. Aici nivelele chiar sunt disponibile.
+
+        Nu aduce metadate de la sine: un Matrix venit din search se afișează cu
+        ce are, ca simpla afișare într-un notebook să nu declanșeze un GET.
+        """
+        rows = []
+        if self.levels:
+            rows.append(("nivele", ", ".join(self.levels)))
+        if self.last_updated:
+            rows.append(("actualizat", self.last_updated))
+        if self.periodicity:
+            rows.append(("periodicitate", ", ".join(self.periodicity)))
+        if self.ancestors:
+            rows.append(("unde", repr(self.where())))
+        meta = "".join(
+            f"<tr><th align='left'>{html.escape(k)}</th>"
+            f"<td>{html.escape(v)}</td></tr>" for k, v in rows
+        )
+        dims = "".join(
+            f"<tr><td>{d.dim_index}</td><td>{html.escape(_clean(d.label))}</td>"
+            f"<td>{html.escape(d.role)}</td><td>{len(d.options)}</td></tr>"
+            for d in self.dimensions
+        )
+        out = [f"<p><code>{html.escape(self.code)}</code> "
+               f"<b>{html.escape(_clean(self.name))}</b></p>"]
+        if meta:
+            out.append(f"<table><tbody>{meta}</tbody></table>")
+        if dims:
+            out.append(
+                "<table><thead><tr><th>#</th><th>dimensiune</th><th>rol</th>"
+                f"<th>optiuni</th></tr></thead><tbody>{dims}</tbody></table>")
+        return "".join(out)
+
     def __repr__(self) -> str:
         return f"Matrix({self.code!r}, {self.name!r})"
 
@@ -325,7 +351,17 @@ def _build(cod: str, data: dict) -> Matrix:
 
 
 def matrix(cod: str) -> Matrix:
-    """Construiește un Matrix aducând metadatele (GET matrix/{cod})."""
+    """Construiește un Matrix aducând metadatele (GET matrix/{cod}).
+
+    Verifică întâi codul în catalog, care e cache-uit: pentru un cod inexistent
+    INS întoarce non-JSON, iar mesajul brut nu ajută pe nimeni.
+    """
+    from . import catalog  # local: catalog importa matrix, altfel ciclu
+
+    cod = (cod or "").strip().upper()
+    if cod not in catalog.name_dict():
+        raise ValueError(
+            f"Codul '{cod}' nu exista in TEMPO. Cauta cu t.find(...).")
     return _build(cod, client.get_json(endpoints.matrix(cod)))
 
 

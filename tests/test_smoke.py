@@ -137,13 +137,21 @@ def test_search_offline(monkeypatch):
     assert len(hits) == 1 and hits[0].code == "FOM104D"
 
 
+def _fake_index(monkeypatch, codes=("FOM104D", "SOM101B")):
+    """Catalogul, injectat: matrix() verifica in el inainte de fetch."""
+    monkeypatch.setattr(catalog, "_INDEX",
+                        [{"code": c, "name": c} for c in codes])
+
+
 def _fake_matrix(monkeypatch, data=FOM104D):
     """Injecteaza raspunsul matrix/{cod}. t.matrix e functia, nu modulul."""
+    _fake_index(monkeypatch)
     monkeypatch.setattr(client, "get_json", lambda url, **kw: data)
 
 
 def _fake_api(monkeypatch, extra=None):
     """Ruteaza dupa URL: matrix/{cod}, context('') si context(nod)."""
+    _fake_index(monkeypatch)
     routes = {
         endpoints.matrix("FOM104D"): FOM104D,
         endpoints.matrix("SOM101B"): SOM101B,
@@ -255,11 +263,56 @@ def test_matrixlist_recent(monkeypatch):
     assert [m.code for m in lst.recent()] == ["FOM104D", "SOM101B"]
 
 
-def test_matrixlist_html(monkeypatch):
+def test_matrixlist_html_has_no_levels_column(monkeypatch):
+    """In liste nu aratam nivele: domeniile n-au, iar indicatorii ar cere
+    cate un apel per rand."""
     _fake_api(monkeypatch)
     html_out = t.MatrixList([t.matrix("FOM104D")])._repr_html_()
-    assert "<table>" in html_out and "FOM104D" in html_out
+    assert "FOM104D" in html_out
+    assert "<tr><th>cod</th><th>nume</th></tr>" in html_out
+    assert "<th>nivele</th>" not in html_out
+
+
+def test_matrix_card_html_has_levels(monkeypatch):
+    """Pe cardul unui singur indicator nivelele chiar sunt disponibile."""
+    _fake_api(monkeypatch)
+    html_out = t.matrix("FOM104D")._repr_html_()
     assert "judet, localitate" in html_out
+    assert "Localitati" in html_out
+
+
+def test_matrix_unknown_code(monkeypatch):
+    _fake_api(monkeypatch)
+    try:
+        t.matrix("FOM101B")
+    except ValueError as e:
+        assert "FOM101B" in str(e) and "t.find" in str(e)
+    else:
+        raise AssertionError("trebuia ValueError pentru cod inexistent")
+
+
+def test_matrix_code_is_normalized(monkeypatch):
+    _fake_api(monkeypatch)
+    assert t.matrix("  fom104d ").code == "FOM104D"
+
+
+def test_get_json_non_json_response(monkeypatch):
+    """INS raspunde 200 cu non-JSON; iese ValueError clar, nu JSONDecodeError."""
+    class FakeResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            raise ValueError("Expecting value: line 1 column 1 (char 0)")
+
+    monkeypatch.setattr(client.requests, "get", lambda url, **kw: FakeResp())
+    try:
+        client.get_json("http://exemplu/nimic", use_cache=False)
+    except ValueError as e:
+        assert type(e) is ValueError
+        assert "nu e JSON" in str(e) and "http://exemplu/nimic" in str(e)
+    else:
+        raise AssertionError("trebuia ValueError")
 
 
 def test_roles_without_territory(monkeypatch):

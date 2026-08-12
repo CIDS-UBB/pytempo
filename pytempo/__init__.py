@@ -8,7 +8,7 @@ from .catalog import domains, find, load_index, name_dict, overview, search
 from .matrix import Matrix, MatrixList, get, info, matrix
 from .explore import init, browse
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "matrix", "info", "get",
