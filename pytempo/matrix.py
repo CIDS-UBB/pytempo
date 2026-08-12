@@ -15,7 +15,7 @@ import html
 import re
 from dataclasses import dataclass, field
 
-from . import client, endpoints, territory
+from . import chunking, client, endpoints, parse, territory
 from .models import Dimension, Node, Option
 
 _ANCHORS = re.compile(r"<a\b[^>]*>.*?</a>", re.IGNORECASE | re.DOTALL)
@@ -271,11 +271,26 @@ class Matrix:
   .related()           ceilalti indicatori din acelasi nod
   .levels              nivele, ex. ['national', 'judet', 'localitate']
   .has_siruta          True daca localitatile poarta prefix SIRUTA
-  .options('teritoriu') ce valori are o dimensiune (index, rol sau label)""")
+  .options('teritoriu') ce valori are o dimensiune (index, rol sau label)
+  .get()               datele, ca DataFrame in format lung""")
 
     def get(self, level: str | None = None, levels: list[str] | None = None):
-        """Datele indicatorului, ca DataFrame, cu filtru opțional pe nivel. Iterația 3."""
-        raise NotImplementedError("iterația 3")
+        """Datele indicatorului, ca DataFrame în format lung.
+
+        Ia toate opțiunile fiecărei dimensiuni, într-un singur POST la pivot.
+        TODO 3b: level și levels sunt acceptați dar ignorați deocamdată, la fel
+        chunking-ul pentru matricele care nu încap într-o singură cerere.
+        """
+        self._ensure_meta()
+        selection = [[o.nom_item_id for o in d.options] for d in self.dimensions]
+        payload = {
+            "language": "ro",
+            "encQuery": chunking.build_encquery(selection),
+            "matCode": self.code,
+            "matMaxDim": self.details.get("matMaxDim"),
+            "matUMSpec": self.details.get("matUMSpec"),
+        }
+        return parse.pivot_csv_to_dataframe(client.post_pivot(payload), self)
 
     def _repr_html_(self) -> str:
         """Cardul unui singur indicator. Aici nivelele chiar sunt disponibile.
@@ -377,5 +392,5 @@ def info(cod: str) -> dict:
 
 
 def get(cod: str, level: str | None = None, levels: list[str] | None = None):
-    """Scurtătură: datele unui indicator. Iterația 3."""
-    raise NotImplementedError("iterația 3")
+    """Scurtătură: datele unui indicator, ca DataFrame."""
+    return matrix(cod).get(level=level, levels=levels)

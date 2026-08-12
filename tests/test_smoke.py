@@ -1,6 +1,6 @@
 """Teste offline: import, API public, căutare pe un index injectat."""
 import pytempo as t
-from pytempo import catalog, client, endpoints, territory
+from pytempo import catalog, chunking, client, endpoints, parse, territory
 from pytempo.chunking import split_options
 
 # fixture dupa structura reala a lui FOM104D: doua dimensiuni teritoriale
@@ -91,7 +91,8 @@ FOM101A = {
     "surseDeDate": [],
     "ancestors": [{"name": "A. STATISTICA SOCIALA", "code": "1"}],
     "details": {"nomJud": 0, "nomLoc": 0, "matTime": 3, "matCaen1": 0,
-                "matCaen2": 0, "matSiruta": 0, "matRegJ": 2, "matMaxDim": 4},
+                "matCaen2": 0, "matSiruta": 0, "matRegJ": 2, "matMaxDim": 4,
+                "matUMSpec": 0},
     "dimensionsMap": [
         {"dimCode": 1, "label": "Sexe", "options": [
             {"label": "Total", "nomItemId": 40, "offset": 1, "parentId": None}]},
@@ -348,6 +349,101 @@ def test_matrix_card_html_has_levels(monkeypatch):
     html_out = t.matrix("FOM104D")._repr_html_()
     assert "judet, localitate" in html_out
     assert "Localitati" in html_out
+
+
+# CSV ca de la pivot: spatiu dupa fiecare virgula, zecimala punct, fara
+# ghilimele, un intreg fara parte zecimala (13544). Rar: combinatia
+# (Feminin, Ilfov, Anul 1990) lipseste ca rand intreg, nu ca valoare goala.
+CSV_FOM101A = (
+    "Sexe, Macroregiuni  regiuni de dezvoltare si judete, Ani, UM: Mii persoane, Valoare\n"
+    "Total, TOTAL, Anul 1990, Mii persoane, 13216.9\n"
+    "Total, TOTAL, Anul 2003, Mii persoane, 13544\n"
+    "Total, Ilfov, Anul 1990, Mii persoane, 102.4\n"
+    "Feminin, TOTAL, Anul 1990, Mii persoane, 6512.3\n"
+    "Feminin, Vrancea, Anul 2024, Mii persoane, 96.1\n"
+)
+
+
+def test_parse_pivot_csv(monkeypatch):
+    _fake_api(monkeypatch)
+    m = t.matrix("FOM101A")
+    df = parse.pivot_csv_to_dataframe(CSV_FOM101A, m)
+
+    assert df.shape == (5, 5)
+    assert df.shape[1] == len(m.dimensions) + 1
+    # numele vin din dimensiuni, nu din antetul curatat de INS
+    assert df.columns.tolist() == [
+        "Sexe", "Macroregiuni, regiuni de dezvoltare si judete", "Ani",
+        "UM: Mii persoane", "Valoare"]
+    assert str(df["Valoare"].dtype) == "float64"
+    assert df["Valoare"].tolist() == [13216.9, 13544.0, 102.4, 6512.3, 96.1]
+    # pandas 2 da 'object' pentru text, pandas 3 da 'str'; conteaza doar ca
+    # nu e numeric
+    assert str(df["Sexe"].dtype) in ("object", "str")
+    assert df["Sexe"].tolist()[0] == "Total"
+
+
+def test_parse_sparse_rows_are_absent_not_nan(monkeypatch):
+    """Combinatia lipsa nu produce NaN, pur si simplu nu exista ca rand."""
+    _fake_api(monkeypatch)
+    df = parse.pivot_csv_to_dataframe(CSV_FOM101A, t.matrix("FOM101A"))
+    assert df["Valoare"].isna().sum() == 0
+    lipsa = df[(df["Sexe"] == "Feminin")
+               & (df["Macroregiuni, regiuni de dezvoltare si judete"] == "Ilfov")]
+    assert len(lipsa) == 0
+
+
+def test_parse_wrong_column_count(monkeypatch):
+    _fake_api(monkeypatch)
+    stricat = "A, B, Valoare\nx, y, 1.0\n"
+    try:
+        parse.pivot_csv_to_dataframe(stricat, t.matrix("FOM101A"))
+    except ValueError as e:
+        assert "3 coloane" in str(e) and "asteptate 5" in str(e)
+    else:
+        raise AssertionError("trebuia ValueError la numar gresit de coloane")
+
+
+def test_parse_value_column_not_numeric(monkeypatch):
+    _fake_api(monkeypatch)
+    text = (
+        "Sexe, Terr, Ani, UM, Valoare\n"
+        "Total, TOTAL, Anul 1990, Mii persoane, nu e numar\n"
+    )
+    try:
+        parse.pivot_csv_to_dataframe(text, t.matrix("FOM101A"))
+    except ValueError as e:
+        assert "nu e numerica" in str(e)
+    else:
+        raise AssertionError("trebuia ValueError la Valoare ne-numerica")
+
+
+def test_build_encquery():
+    assert chunking.build_encquery([[105, 106], [112], [4247, 4266]]) == \
+        "105,106:112:4247,4266"
+    assert chunking.build_encquery([[1]]) == "1"
+
+
+def test_get_builds_payload_and_parses(monkeypatch):
+    """get() ia toate optiunile, in ordinea din dimensionsMap."""
+    _fake_api(monkeypatch)
+    trimis = {}
+
+    def fake_post(payload, **kw):
+        trimis.update(payload)
+        return CSV_FOM101A
+
+    monkeypatch.setattr(client, "post_pivot", fake_post)
+    df = t.matrix("FOM101A").get()
+
+    assert trimis["matCode"] == "FOM101A"
+    assert trimis["language"] == "ro"
+    assert trimis["matMaxDim"] == 4
+    assert trimis["matUMSpec"] == 0
+    # patru dimensiuni, deci trei separatori de dimensiune
+    assert trimis["encQuery"].count(":") == 3
+    assert trimis["encQuery"].split(":")[1] == "1,2,3,4,5"
+    assert df.shape == (5, 5)
 
 
 def test_matrix_unknown_code(monkeypatch):

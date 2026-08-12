@@ -39,6 +39,8 @@ be `pip install pytempo-ins`, still with `import pytempo`.
     m.related()                   # the other indicators under the same node
     m.options("Judete")           # what values that dimension can take
 
+    df = t.matrix("FOM101A").get()  # the data, as a long format DataFrame
+
     t.info("FOM104D")             # the same metadata as a plain dict
     t.load_index()                # every indicator: [{code, name}, ...]
     t.name_dict()                 # {code: name}
@@ -71,6 +73,11 @@ Understanding an indicator:
     m.options('teritoriu')       what values a dimension can take
     m.help()                     this guide, for one indicator
 
+Pulling the data:
+
+    df = m.get()                 all of it, as a long format DataFrame
+    t.get('FOM101A')             the same, starting from a code
+
 Lists returned by `find`, `domains` and `related` render as a table, in the
 terminal and in a notebook, and carry `.recent(n)`, which orders by last update
 date. `.recent(n)` fetches metadata only for the items already in that list, so
@@ -101,6 +108,25 @@ is a county. A locality dimension reports `localitate` directly.
 `m.options(dimension)` accepts a dimension index, a label such as `Judete`, a
 role such as `timp`, a level such as `judet` or `localitate`, or `teritoriu`
 for the finest territorial dimension present.
+
+### The shape of the data
+
+`m.get()` posts every option of every dimension in one request and returns a
+long format DataFrame: one text column per dimension, in `dimensionsMap` order,
+plus a numeric `Valoare` column.
+
+The result is sparse. Combinations with no data are absent as whole rows, not
+present as blanks, and this reflects real administrative history: Ilfov and
+Municipiul Bucuresti do not appear before 1996, and the combined
+`Mun. Bucuresti -incl. SAI` unit does not appear after 1995. So do not validate
+a pull by counting rows against the cartesian product of the dimensions, and do
+not assume a complete grid when reshaping.
+
+Column names come from `matrix.dimensions`, not from the CSV header. The API
+replaces commas inside a dimension label with spaces, so the header for
+`Macroregiuni, regiuni de dezvoltare si judete` arrives with the comma gone.
+The parser checks the column count against the number of dimensions plus one
+and raises if they disagree, which is the guard against that fragility.
 
 ## Development
 

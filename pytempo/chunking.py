@@ -1,8 +1,11 @@
 """Construirea interogării și spargerea dimensiunilor mari. Portat din pachetul R.
 
 Când o dimensiune are prea multe opțiuni (localitățile unui județ mare), se sparge
-în grupuri de 100 de nomItemId, se trimit POST-uri multiple la pivot și se
-concatenează CSV-urile. details.matMaxDim parametrizează limita.
+în grupuri de nomItemId, se trimit POST-uri multiple la pivot și se concatenează
+CSV-urile.
+
+Atenție: details.matMaxDim e numărul de dimensiuni, nu o limită de celule. Nu îl
+folosi ca prag de spargere.
 """
 
 
@@ -14,7 +17,7 @@ def split_options(codes: list[int], size: int = 100) -> list[list[int]]:
 def build_encquery(selection_per_dim: list[list[int]]) -> str:
     """Construiește encQuery: coduri separate prin virgulă în fiecare dimensiune,
     dimensiunile separate prin ':'. ORDINEA e cea din dimensionsMap (dim_index)."""
-    raise NotImplementedError("iterația 3")
+    return ":".join(",".join(str(c) for c in dim) for dim in selection_per_dim)
 
 
 def plan_requests(matrix, selection) -> list[dict]:

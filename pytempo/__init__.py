@@ -8,7 +8,7 @@ from .catalog import domains, find, load_index, name_dict, overview, search
 from .matrix import Matrix, MatrixList, get, info, matrix
 from .explore import init, browse
 
-__version__ = "0.4.2"
+__version__ = "0.5.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "matrix", "info", "get",
@@ -39,6 +39,13 @@ INTELEGI un indicator
   m.has_siruta                 True daca localitatile poarta prefix SIRUTA
   m.options('teritoriu')       ce valori are o dimensiune (index, rol sau label)
   m.help()                     acest ghid, dar pentru un indicator
+
+TRAGI datele
+  df = m.get()                 toate datele, ca DataFrame in format lung
+  t.get('FOM101A')             acelasi lucru, pornind de la cod
+
+Datele vin rare: combinatiile fara date lipsesc ca randuri intregi, nu ca
+valori goale. Deocamdata get() aduce tot, fara filtru pe nivel.
 
 Listele intoarse de find, domains si related se afiseaza ca tabel si au
 .recent(n), care ordoneaza dupa ultima actualizare doar elementele din set.""")

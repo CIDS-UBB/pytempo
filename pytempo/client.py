@@ -57,6 +57,13 @@ def url_ok(url: str, timeout: int = DEFAULT_TIMEOUT) -> bool:
         return False
 
 
-def post_pivot(payload: dict) -> str:
-    """POST la endpoints.pivot(), întoarce textul CSV brut. Iterația 3."""
-    raise NotImplementedError("iterația 3")
+def post_pivot(payload: dict, timeout: int = DEFAULT_TIMEOUT) -> str:
+    """POST la endpoints.pivot(), întoarce textul CSV brut. Fără parsare aici."""
+    resp = requests.post(
+        endpoints.pivot(),
+        json=payload,
+        headers={"Content-Type": "application/json"},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    return resp.text
