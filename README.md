@@ -28,6 +28,7 @@ be `pip install pytempo-ins`, still with `import pytempo`.
     t.help()                      # the navigation guide, same content as below
 
     t.find("salariati")           # search by keyword, in name or code
+    t.find("salariati", level="localitate")   # only those reaching localities
     t.search("someri", limit=5)   # the same thing, longer name
     t.domains()                   # the 8 top level statistical domains
 
@@ -49,6 +50,13 @@ be `pip install pytempo-ins`, still with `import pytempo`.
 Search matches all the words you give it, in the name or the code, case
 insensitively and ignoring Romanian diacritics, so `someri` finds `Șomerii`.
 
+`find(level=...)` keeps only the indicators that reach that territorial level.
+Be aware of the cost: levels are only known from an indicator's metadata, so
+this fetches metadata for each name match in turn, one request each, until it
+has `limit` results that pass. Without `level`, search answers instantly from
+the name index and fetches nothing. Because the survivors already carry their
+metadata, their levels are available without further requests.
+
 A quick check that the live endpoints answer:
 
     python examples/check_links.py
@@ -58,6 +66,7 @@ A quick check that the live endpoints answer:
 Finding an indicator:
 
     t.find('salariati')          search by keyword, in name or code
+    t.find('salariati', level='localitate')   only those reaching localities
     t.search('someri', limit=5)  the same thing, longer name
     t.domains()                  the 8 top level statistical domains
     t.overview()                 how big the catalogue is and where to start
@@ -98,8 +107,13 @@ mentions counties, localities, regions or macroregions. Both routes matter.
 Indicators built on the county plus locality nomenclator, such as FOM104D,
 are marked in `details`, but the common case is a single hierarchical
 dimension holding macroregions, regions and counties together, and there
-`details` is sometimes silent. `matTime` gives `timp`, `matCaen1` and
-`matCaen2` give `caen`, a label starting with `UM:` gives `um`.
+`details` is sometimes silent. `matTime` gives `timp`, and a label starting with `UM:` gives `um`.
+
+CAEN works the same way, from either source: `matCaen1` or `matCaen2` pointing
+at the `dimCode`, or the label containing `caen`. The label route is not
+optional here either. FOM104F carries a dimension called
+`CAEN Rev.2 (activitati ale economiei nationale)` while both CAEN flags in its
+`details` are 0.
 
 `m.levels` lists the territorial levels present, from coarse to fine, out of
 `national`, `macroregiune`, `regiune`, `judet` and `localitate`. Levels come

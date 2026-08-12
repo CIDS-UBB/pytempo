@@ -5,8 +5,8 @@ search / find: fără fuzzy și fără filtru pe nivel deocamdată.
 Cost: load_index e un singur apel, cache-uit. domains e tot un singur apel.
 overview NU aduce metadatele indicatorilor: ar fi mii de apeluri.
 """
-from . import client, endpoints
-from .matrix import Matrix, MatrixList, _clean
+from . import client, endpoints, territory
+from .matrix import Matrix, MatrixList, _clean, matrix
 from .models import Node
 
 _INDEX = None
@@ -36,32 +36,45 @@ def search(query: str, level: str | None = None, fuzzy: bool = False,
     query : unul sau mai multe cuvinte; se potrivesc TOATE (în nume sau cod),
             fără diacritice, insensibil la majuscule.
     limit : numărul maxim de rezultate.
-    level : filtru pe nivel teritorial. NEIMPLEMENTAT în search; ar cere
-            metadatele fiecărui indicator din catalog, adică mii de apeluri.
-            Filtrul pe nivel există la Matrix.get(level=...).
+    level : păstrează doar indicatorii care au acel nivel teritorial.
+            ATENȚIE la cost: nivelele se știu doar din metadate, deci filtrul
+            aduce metadatele potrivirilor, un apel pe rând, până adună limit
+            rezultate. Fără level, răspunsul vine doar din indexul de nume.
     fuzzy : potrivire aproximativă. NEIMPLEMENTATĂ.
     """
     if fuzzy:
         raise NotImplementedError("fuzzy: neimplementat (deocamdata fuzzy=False)")
-    if level is not None:
-        raise NotImplementedError(
-            "filtru pe nivel in search: neimplementat, ar cere metadatele "
-            "fiecarui indicator. Foloseste Matrix.get(level=...).")
+    if level is not None and level not in territory._LEVEL_ORDER:
+        raise ValueError(
+            f"Nivel necunoscut: {level!r}. "
+            f"Disponibile: {list(territory._LEVEL_ORDER)}.")
 
     tokens = [_norm(t) for t in query.split()]
     out = []
     for row in load_index():
         hay = _norm(row["name"] + " " + row["code"])
-        if all(tok in hay for tok in tokens):
+        if not all(tok in hay for tok in tokens):
+            continue
+
+        if level is None:
             out.append(Matrix(code=row["code"], name=row["name"]))
+        else:
+            # aici se plateste: un GET de metadate per potrivire
+            try:
+                m = matrix(row["code"])
+            except Exception:
+                continue
+            if level in m.levels:
+                out.append(m)
+
         if len(out) >= limit:
             break
     return MatrixList(out)
 
 
-def find(query: str, limit: int = 25) -> MatrixList:
+def find(query: str, level: str | None = None, limit: int = 25) -> MatrixList:
     """Numele prietenos al căutării: t.find('salariati')."""
-    return search(query, limit=limit)
+    return search(query, level=level, limit=limit)
 
 
 def domains() -> MatrixList:

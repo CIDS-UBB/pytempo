@@ -8,7 +8,7 @@ from .catalog import domains, find, load_index, name_dict, overview, search
 from .matrix import Matrix, MatrixList, get, info, matrix
 from .explore import init, browse
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "matrix", "info", "get",
@@ -25,6 +25,7 @@ def help() -> None:
 
 GASESTI un indicator
   t.find('salariati')          cauta dupa cuvinte, in nume sau cod
+  t.find('salariati', level='localitate')   doar cei care coboara acolo
   t.search('someri', limit=5)  acelasi lucru, numele lung
   t.domains()                  cele 8 domenii statistice de sus
   t.overview()                 cat e catalogul si de unde incepi
@@ -55,6 +56,10 @@ FOM104D, se descarca automat judet cu judet si se concateneaza; cele prea mari
 care nu au localitati dupa care sa fie sparte se opresc cu un mesaj clar.
 tidy=True doar adauga coloane, nu sterge si nu rearanjeaza nimic: denumirea
 originala ramane, cu prefixul SIRUTA cu tot.
+
+find(level=...) e mai lent decat find simplu: nivelele se stiu doar din
+metadate, deci aduce metadatele potrivirilor, un apel pe rand, pana aduna
+limit rezultate. Fara level raspunde instant, din indexul de nume.
 
 Listele intoarse de find, domains si related se afiseaza ca tabel si au
 .recent(n), care ordoneaza dupa ultima actualizare doar elementele din set.""")

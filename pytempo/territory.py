@@ -53,16 +53,31 @@ def is_territorial(dimension, details: dict) -> bool:
     return any(k in lab for k in _LABEL_HINTS)
 
 
+def is_caen(dimension, details: dict) -> bool:
+    """True dacă dimensiunea e o clasificare CAEN, din details sau din label.
+
+    Simetric cu is_territorial: INS nu semnalează mereu CAEN-ul în details.
+    FOM104F are matCaen1 și matCaen2 pe 0, deși are o dimensiune
+    'CAEN Rev.2 (activitati ale economiei nationale)'.
+    """
+    coduri = {details.get("matCaen1"), details.get("matCaen2")} - {0, None}
+    if dimension.dim_code in coduri:
+        return True
+    return "caen" in _norm(dimension.label)
+
+
 def assign_roles(dimensions: list, details: dict) -> None:
-    """Atribuie d.role fiecărei dimensiuni, pe loc."""
+    """Atribuie d.role fiecărei dimensiuni, pe loc.
+
+    Ordinea contează: teritoriu, timp, caen, um, apoi alt.
+    """
     time_code = details.get("matTime")
-    caen = {details.get("matCaen1"), details.get("matCaen2")} - {0, None}
     for d in dimensions:
         if is_territorial(d, details):
             d.role = "teritoriu"
         elif time_code and d.dim_code == time_code:
             d.role = "timp"
-        elif d.dim_code in caen:
+        elif is_caen(d, details):
             d.role = "caen"
         elif d.label.strip().lower().startswith("um:"):
             d.role = "um"

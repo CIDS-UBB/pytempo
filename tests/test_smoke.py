@@ -173,7 +173,8 @@ def test_search_offline(monkeypatch):
     assert len(hits) == 1 and hits[0].code == "FOM104D"
 
 
-def _fake_index(monkeypatch, codes=("FOM104D", "SOM101B", "FOM101A")):
+def _fake_index(monkeypatch,
+                codes=("FOM104D", "SOM101B", "FOM101A", "FOM104F")):
     """Catalogul, injectat: matrix() verifica in el inainte de fetch."""
     monkeypatch.setattr(catalog, "_INDEX",
                         [{"code": c, "name": c} for c in codes])
@@ -952,6 +953,126 @@ def test_show_runs(monkeypatch, capsys):
     t.matrix("FOM104D").show()
     iesire = capsys.readouterr().out
     assert "FOM104D" in iesire and "dimensiuni" in iesire
+
+
+# FOM104F: matCaen1 si matCaen2 sunt 0, dar dimensiunea 1 e clar CAEN.
+# Rolul trebuie prins din label, exact ca la teritoriu.
+FOM104F = {
+    "matrixName": "Numarul mediu al salariatilor pe activitati ale economiei nationale",
+    "definitie": "", "metodologie": "", "observatii": "",
+    "ultimaActualizare": "20-11-2025",
+    "periodicitati": ["Anuala"], "surseDeDate": [],
+    "ancestors": [{"name": "A. STATISTICA SOCIALA", "code": "1"}],
+    "details": {"nomJud": 0, "nomLoc": 0, "matTime": 4, "matCaen1": 0,
+                "matCaen2": 0, "matSiruta": 0, "matRegJ": 3, "matMaxDim": 5,
+                "matUMSpec": 0},
+    "dimensionsMap": [
+        {"dimCode": 1, "label": "CAEN Rev.2  (activitati ale economiei nationale)",
+         "options": [{"label": "TOTAL", "nomItemId": 50, "offset": 1,
+                      "parentId": None}]},
+        {"dimCode": 2, "label": "Sexe", "options": [
+            {"label": "Total", "nomItemId": 51, "offset": 1, "parentId": None}]},
+        {"dimCode": 3, "label": "Macroregiuni, regiuni de dezvoltare si judete",
+         "options": _IERARHIC},
+        {"dimCode": 4, "label": "Ani", "options": [
+            {"label": "Anul 2024", "nomItemId": 52, "offset": 1,
+             "parentId": None}]},
+        {"dimCode": 5, "label": "UM: Numar persoane", "options": [
+            {"label": "Numar persoane", "nomItemId": 53, "offset": 1,
+             "parentId": None}]},
+    ],
+}
+
+
+def test_caen_role_from_label(monkeypatch):
+    """Fara flag in details, CAEN-ul se prinde din label."""
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM104F"): FOM104F})
+    m = t.matrix("FOM104F")
+    assert [d.role for d in m.dimensions] == [
+        "caen", "alt", "teritoriu", "timp", "um"]
+
+
+def test_caen_role_from_details(monkeypatch):
+    """Cu flagul pus, tot 'caen', chiar daca labelul nu spune nimic."""
+    cu_flag = dict(
+        FOM104F,
+        details=dict(FOM104F["details"], matCaen1=1),
+        dimensionsMap=[dict(FOM104F["dimensionsMap"][0], label="Activitati")]
+        + FOM104F["dimensionsMap"][1:],
+    )
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM104F"): cu_flag})
+    assert t.matrix("FOM104F").dimensions[0].role == "caen"
+
+
+def test_non_caen_dimension_stays_alt(monkeypatch):
+    """Fara 'caen' in label si fara flag, ramane 'alt'."""
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM104F"): FOM104F})
+    m = t.matrix("FOM104F")
+    assert m.dimensions[1].label == "Sexe"
+    assert m.dimensions[1].role == "alt"
+
+
+def _index_and_meta(monkeypatch, meta_by_code):
+    """Index injectat plus metadate per cod; numara apelurile de metadate."""
+    apeluri = []
+    monkeypatch.setattr(catalog, "_INDEX",
+                        [{"code": c, "name": f"Numar mediu salariati {c}"}
+                         for c in meta_by_code])
+
+    def fake_get_json(url, **kw):
+        for cod, date in meta_by_code.items():
+            if url == endpoints.matrix(cod):
+                apeluri.append(cod)
+                return date
+        raise AssertionError(f"URL neasteptat: {url}")
+
+    monkeypatch.setattr(client, "get_json", fake_get_json)
+    return apeluri
+
+
+def test_find_without_level_fetches_no_metadata(monkeypatch):
+    apeluri = _index_and_meta(monkeypatch, {
+        "FOM104D": FOM104D, "SOM101B": SOM101B, "FOM101A": FOM101A})
+    rez = t.find("salariati")
+    assert len(rez) == 3
+    assert apeluri == []          # raspuns doar din indexul de nume
+
+
+def test_find_with_level_filters_and_fetches(monkeypatch):
+    apeluri = _index_and_meta(monkeypatch, {
+        "FOM104D": FOM104D, "SOM101B": SOM101B, "FOM101A": FOM101A})
+    rez = t.find("salariati", level="localitate")
+    # doar FOM104D coboara la localitate
+    assert [m.code for m in rez] == ["FOM104D"]
+    assert set(apeluri) == {"FOM104D", "SOM101B", "FOM101A"}
+    # metadatele sunt deja acolo, deci nivelele se pot afisa fara cost in plus
+    assert rez[0].levels == ["national", "judet", "localitate"]
+
+
+def test_find_with_level_judet(monkeypatch):
+    _index_and_meta(monkeypatch, {
+        "FOM104D": FOM104D, "SOM101B": SOM101B, "FOM101A": FOM101A})
+    rez = t.find("salariati", level="judet")
+    assert sorted(m.code for m in rez) == ["FOM101A", "FOM104D", "SOM101B"]
+
+
+def test_find_with_level_stops_at_limit(monkeypatch):
+    """Nu aduce metadate pentru tot catalogul, se opreste la limit."""
+    apeluri = _index_and_meta(monkeypatch, {
+        "FOM104D": FOM104D, "SOM101B": SOM101B, "FOM101A": FOM101A})
+    rez = t.find("salariati", level="judet", limit=1)
+    assert len(rez) == 1
+    assert len(apeluri) == 1      # s-a oprit dupa prima potrivire
+
+
+def test_find_unknown_level(monkeypatch):
+    _fake_api(monkeypatch)
+    try:
+        t.find("salariati", level="comuna")
+    except ValueError as e:
+        assert "comuna" in str(e) and "Disponibile" in str(e)
+    else:
+        raise AssertionError("trebuia ValueError pentru nivel necunoscut")
 
 
 def test_matrix_unknown_code(monkeypatch):
