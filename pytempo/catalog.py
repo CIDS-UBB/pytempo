@@ -36,13 +36,17 @@ def search(query: str, level: str | None = None, fuzzy: bool = False,
     query : unul sau mai multe cuvinte; se potrivesc TOATE (în nume sau cod),
             fără diacritice, insensibil la majuscule.
     limit : numărul maxim de rezultate.
-    level : filtru pe nivel teritorial. NEIMPLEMENTAT încă (iterația 2).
-    fuzzy : potrivire aproximativă. NEIMPLEMENTAT încă (după iterația 2).
+    level : filtru pe nivel teritorial. NEIMPLEMENTAT în search; ar cere
+            metadatele fiecărui indicator din catalog, adică mii de apeluri.
+            Filtrul pe nivel există la Matrix.get(level=...).
+    fuzzy : potrivire aproximativă. NEIMPLEMENTATĂ.
     """
     if fuzzy:
-        raise NotImplementedError("fuzzy: iterație viitoare (deocamdată fuzzy=False)")
+        raise NotImplementedError("fuzzy: neimplementat (deocamdata fuzzy=False)")
     if level is not None:
-        raise NotImplementedError("filtru pe nivel: iterația 2")
+        raise NotImplementedError(
+            "filtru pe nivel in search: neimplementat, ar cere metadatele "
+            "fiecarui indicator. Foloseste Matrix.get(level=...).")
 
     tokens = [_norm(t) for t in query.split()]
     out = []

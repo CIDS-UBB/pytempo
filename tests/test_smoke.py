@@ -2,6 +2,7 @@
 import pytempo as t
 from pytempo import catalog, chunking, client, endpoints, parse, territory
 from pytempo.chunking import split_options
+from pytempo.matrix import MAX_CELLS
 
 # fixture dupa structura reala a lui FOM104D: doua dimensiuni teritoriale
 # separate (Judete si Localitati), timp si unitate de masura.
@@ -444,6 +445,128 @@ def test_get_builds_payload_and_parses(monkeypatch):
     assert trimis["encQuery"].count(":") == 3
     assert trimis["encQuery"].split(":")[1] == "1,2,3,4,5"
     assert df.shape == (5, 5)
+
+
+# SOM101B din fixture are 3 dimensiuni, deci 4 coloane
+CSV_SOM101B = (
+    "Macroregiuni  regiuni de dezvoltare si judete, Ani, UM: Numar persoane, Valoare\n"
+    "Bihor, Anul 2020, Numar persoane, 12.5\n"
+    "Cluj, Anul 2020, Numar persoane, 18.0\n"
+)
+
+
+def _capture_post(monkeypatch, csv_text=CSV_SOM101B):
+    """Prinde payload-ul trimis la pivot, fara retea."""
+    trimis = {}
+
+    def fake_post(payload, **kw):
+        trimis.update(payload)
+        return csv_text
+
+    monkeypatch.setattr(client, "post_pivot", fake_post)
+    return trimis
+
+
+def _dim_codes(encquery, index):
+    return [int(c) for c in encquery.split(":")[index].split(",")]
+
+
+def test_get_level_judet_filters_options(monkeypatch):
+    """Doar judetele, fara TOTAL, MACROREGIUNEA sau Regiunea."""
+    _fake_api(monkeypatch)
+    trimis = _capture_post(monkeypatch)
+    t.matrix("SOM101B").get(level="judet")
+    # in fixture teritoriul e prima dimensiune, deci primul bloc din encQuery
+    assert _dim_codes(trimis["encQuery"], 0) == [4, 5]  # Bihor, Cluj
+
+
+def test_get_level_macroregiune(monkeypatch):
+    _fake_api(monkeypatch)
+    trimis = _capture_post(monkeypatch)
+    t.matrix("SOM101B").get(level="macroregiune")
+    assert _dim_codes(trimis["encQuery"], 0) == [2]  # MACROREGIUNEA UNU
+
+
+def test_get_levels_list_accumulates(monkeypatch):
+    _fake_api(monkeypatch)
+    trimis = _capture_post(monkeypatch)
+    t.matrix("SOM101B").get(levels=["national", "regiune"])
+    assert _dim_codes(trimis["encQuery"], 0) == [1, 3]  # TOTAL, Regiunea
+
+
+def test_get_other_dimensions_stay_complete(monkeypatch):
+    _fake_api(monkeypatch)
+    trimis = _capture_post(monkeypatch)
+    t.matrix("SOM101B").get(level="judet")
+    parts = trimis["encQuery"].split(":")
+    assert parts[1] == "20"  # Ani, intreaga
+    assert parts[2] == "30"  # UM, intreaga
+
+
+def test_get_unknown_level(monkeypatch):
+    _fake_api(monkeypatch)
+    _capture_post(monkeypatch)
+    try:
+        t.matrix("SOM101B").get(level="localitate")
+    except ValueError as e:
+        assert "localitate" in str(e) and "Disponibile" in str(e)
+    else:
+        raise AssertionError("trebuia ValueError pentru nivel inexistent")
+
+
+def test_get_level_two_territorial_dimensions(monkeypatch):
+    """FOM104D are judet si localitate separate; filtrul vine la 3c."""
+    _fake_api(monkeypatch)
+    _capture_post(monkeypatch)
+    try:
+        t.matrix("FOM104D").get(level="judet")
+    except NotImplementedError as e:
+        assert "iteratia 3c" in str(e)
+    else:
+        raise AssertionError("trebuia NotImplementedError, nu tot setul tacut")
+
+
+def test_size_guard_blocks_huge_pull(monkeypatch):
+    """Fara filtru, o matrice mare nu mai pleaca la drum."""
+    mare = dict(SOM101B, dimensionsMap=[
+        dict(SOM101B["dimensionsMap"][0]),
+        {"dimCode": 4, "label": "Ani", "options": [
+            {"label": f"Anul {an}", "nomItemId": 1000 + an, "offset": 1,
+             "parentId": None} for an in range(1990, 2025)]},
+        {"dimCode": 9, "label": "Categorii", "options": [
+            {"label": f"C{i}", "nomItemId": 2000 + i, "offset": 1,
+             "parentId": None} for i in range(900)]},
+    ])
+    _fake_api(monkeypatch, extra={endpoints.matrix("SOM101B"): mare})
+    _capture_post(monkeypatch)
+    m = t.matrix("SOM101B")
+    assert 5 * 35 * 900 > MAX_CELLS
+    try:
+        m.get()
+    except ValueError as e:
+        assert "celule" in str(e) and "3c" in str(e)
+    else:
+        raise AssertionError("trebuia ValueError de la paza de marime")
+
+    # cu filtru pe nivel coboara sub prag si trece
+    trimis = _capture_post(monkeypatch)
+    m.get(level="judet")
+    assert _dim_codes(trimis["encQuery"], 0) == [4, 5]
+
+
+def test_matrix_refresh_bypasses_cache(monkeypatch):
+    _fake_index(monkeypatch)
+    vazut = {}
+
+    def fake_get_json(url, **kw):
+        vazut["use_cache"] = kw.get("use_cache")
+        return FOM101A
+
+    monkeypatch.setattr(client, "get_json", fake_get_json)
+    t.matrix("FOM101A", refresh=True)
+    assert vazut["use_cache"] is False
+    t.matrix("FOM101A")
+    assert vazut["use_cache"] is True
 
 
 def test_matrix_unknown_code(monkeypatch):

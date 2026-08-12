@@ -18,6 +18,10 @@ from dataclasses import dataclass, field
 from . import chunking, client, endpoints, parse, territory
 from .models import Dimension, Node, Option
 
+# pragul peste care un singur POST la pivot nu mai e rezonabil; matricele
+# mari au nevoie de chunking (iteratia 3c)
+MAX_CELLS = 100000
+
 _ANCHORS = re.compile(r"<a\b[^>]*>.*?</a>", re.IGNORECASE | re.DOTALL)
 _TAGS = re.compile(r"<[^>]+>")
 _EMPTY = re.compile(r"\(\s*\)|\[\s*\]")
@@ -272,17 +276,72 @@ class Matrix:
   .levels              nivele, ex. ['national', 'judet', 'localitate']
   .has_siruta          True daca localitatile poarta prefix SIRUTA
   .options('teritoriu') ce valori are o dimensiune (index, rol sau label)
-  .get()               datele, ca DataFrame in format lung""")
+  .get()               datele, ca DataFrame in format lung
+  .get(level='judet')  doar un nivel teritorial""")
+
+    def _is_locality_dimension(self, dim) -> bool:
+        """Dimensiune de localități, după details sau după label."""
+        return (dim.dim_code == self.details.get("nomLoc")
+                or "localit" in territory._norm(dim.label))
+
+    def _build_selection(self, wanted: list[str]) -> list[list[int]]:
+        """nomItemId-urile de trimis, per dimensiune, în ordinea din dimensionsMap.
+
+        Fără nivele cerute, ia tot. Cu nivele cerute, taie doar dimensiunea
+        teritorială; restul rămân complete.
+        """
+        if not wanted:
+            return [[o.nom_item_id for o in d.options] for d in self.dimensions]
+
+        lipsa = [lv for lv in wanted if lv not in self.levels]
+        if lipsa:
+            raise ValueError(
+                f"Nivelele {lipsa} nu exista la {self.code}. "
+                f"Disponibile: {self.levels}.")
+
+        terr = [d for d in self.dimensions if d.role == "teritoriu"]
+        if len(terr) > 1:
+            raise NotImplementedError(
+                "filtru pe nivel pentru matrice cu judet plus localitate "
+                "separate: iteratia 3c")
+
+        selection = []
+        for d in self.dimensions:
+            if d.role != "teritoriu":
+                selection.append([o.nom_item_id for o in d.options])
+            elif self._is_locality_dimension(d) and "localitate" in wanted:
+                selection.append([o.nom_item_id for o in d.options])
+            else:
+                selection.append([o.nom_item_id for o in d.options
+                                  if territory.option_level(o.label) in wanted])
+        return selection
 
     def get(self, level: str | None = None, levels: list[str] | None = None):
         """Datele indicatorului, ca DataFrame în format lung.
 
-        Ia toate opțiunile fiecărei dimensiuni, într-un singur POST la pivot.
-        TODO 3b: level și levels sunt acceptați dar ignorați deocamdată, la fel
-        chunking-ul pentru matricele care nu încap într-o singură cerere.
+        level sau levels restrâng dimensiunea teritorială la nivelele cerute,
+        pentru cazul obișnuit al unei singure dimensiuni teritoriale ierarhice.
+        Fără ele, ia toate opțiunile fiecărei dimensiuni.
+
+        TODO 3c: matricele cu județ și localitate ca dimensiuni separate, plus
+        chunking-ul pentru cele care nu încap într-o singură cerere.
         """
         self._ensure_meta()
-        selection = [[o.nom_item_id for o in d.options] for d in self.dimensions]
+        wanted = [level] if isinstance(level, str) else []
+        wanted += list(levels or [])
+        selection = self._build_selection(wanted)
+
+        celule = 1
+        for codes in selection:
+            celule *= len(codes)
+        if celule > MAX_CELLS:
+            raise ValueError(
+                f"{self.code} ar cere {celule:,} celule intr-un singur POST, "
+                f"peste pragul de {MAX_CELLS:,}. Matricele mari cer chunking, "
+                f"care vine la iteratia 3c. Un filtru pe nivel, ex. "
+                f"get(level='judet'), coboara des sub prag. "
+                f"Nivele disponibile: {self.levels}.")
+
         payload = {
             "language": "ro",
             "encQuery": chunking.build_encquery(selection),
@@ -371,11 +430,12 @@ def _build(cod: str, data: dict) -> Matrix:
     )
 
 
-def matrix(cod: str) -> Matrix:
+def matrix(cod: str, refresh: bool = False) -> Matrix:
     """Construiește un Matrix aducând metadatele (GET matrix/{cod}).
 
     Verifică întâi codul în catalog, care e cache-uit: pentru un cod inexistent
     INS întoarce non-JSON, iar mesajul brut nu ajută pe nimeni.
+    refresh=True ocolește cache-ul de metadate.
     """
     from . import catalog  # local: catalog importa matrix, altfel ciclu
 
@@ -383,7 +443,8 @@ def matrix(cod: str) -> Matrix:
     if cod not in catalog.name_dict():
         raise ValueError(
             f"Codul '{cod}' nu exista in TEMPO. Cauta cu t.find(...).")
-    return _build(cod, client.get_json(endpoints.matrix(cod)))
+    data = client.get_json(endpoints.matrix(cod), use_cache=not refresh)
+    return _build(cod, data)
 
 
 def info(cod: str) -> dict:

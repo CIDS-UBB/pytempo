@@ -39,7 +39,8 @@ be `pip install pytempo-ins`, still with `import pytempo`.
     m.related()                   # the other indicators under the same node
     m.options("Judete")           # what values that dimension can take
 
-    df = t.matrix("FOM101A").get()  # the data, as a long format DataFrame
+    df = t.matrix("FOM101A").get()             # the data, long format
+    df = t.matrix("FOM101A").get(level="judet")  # counties only
 
     t.info("FOM104D")             # the same metadata as a plain dict
     t.load_index()                # every indicator: [{code, name}, ...]
@@ -76,6 +77,8 @@ Understanding an indicator:
 Pulling the data:
 
     df = m.get()                 all of it, as a long format DataFrame
+    m.get(level='judet')         one territorial level only
+    m.get(levels=['judet', 'regiune'])   several levels
     t.get('FOM101A')             the same, starting from a code
 
 Lists returned by `find`, `domains` and `related` render as a table, in the
@@ -114,6 +117,24 @@ for the finest territorial dimension present.
 `m.get()` posts every option of every dimension in one request and returns a
 long format DataFrame: one text column per dimension, in `dimensionsMap` order,
 plus a numeric `Valoare` column.
+
+`level` or `levels` restrict the territorial dimension to the levels you name,
+which is what you usually want, since a territorial dimension normally mixes
+the country total, macroregions, regions and counties in one column:
+
+    m.get(level="judet")                  # counties only, no TOTAL, no regions
+    m.get(levels=["judet", "regiune"])    # both
+
+Naming a level the indicator does not have raises `ValueError` and lists the
+levels it does have. Indicators built with county and locality as two separate
+dimensions, such as FOM104D, raise `NotImplementedError` rather than quietly
+returning everything.
+
+`get()` refuses to send a request larger than `MAX_CELLS`, currently 100000
+cells, counted as the product of the selected options per dimension. It raises
+`ValueError` saying how large the pull would be. A level filter often brings it
+under the threshold. Larger pulls need request splitting, which does not exist
+yet.
 
 The result is sparse. Combinations with no data are absent as whole rows, not
 present as blanks, and this reflects real administrative history: Ilfov and

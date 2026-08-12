@@ -2,13 +2,13 @@
 
 Punctul de plecare e t.help(), care listează ce se poate face acum.
 Descoperire (find, domains, overview), înțelegere (matrix, info, show, where,
-related, levels, options). Datele propriu-zise vin la iterația 3.
+related, levels, options) și tragerea datelor (get, cu filtru pe nivel).
 """
 from .catalog import domains, find, load_index, name_dict, overview, search
 from .matrix import Matrix, MatrixList, get, info, matrix
 from .explore import init, browse
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "matrix", "info", "get",
@@ -42,10 +42,15 @@ INTELEGI un indicator
 
 TRAGI datele
   df = m.get()                 toate datele, ca DataFrame in format lung
+  m.get(level='judet')         doar un nivel teritorial
+  m.get(levels=['judet','regiune'])   mai multe nivele
   t.get('FOM101A')             acelasi lucru, pornind de la cod
 
 Datele vin rare: combinatiile fara date lipsesc ca randuri intregi, nu ca
-valori goale. Deocamdata get() aduce tot, fara filtru pe nivel.
+valori goale. Filtrul pe nivel merge pe matricele cu o singura dimensiune
+teritoriala, cazul obisnuit. Peste 100000 de celule get() se opreste si iti
+spune, in loc sa trimita o cerere condamnata; un filtru pe nivel coboara des
+sub prag.
 
 Listele intoarse de find, domains si related se afiseaza ca tabel si au
 .recent(n), care ordoneaza dupa ultima actualizare doar elementele din set.""")
