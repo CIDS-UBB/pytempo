@@ -79,6 +79,7 @@ Pulling the data:
     df = m.get()                 all of it, as a long format DataFrame
     m.get(level='judet')         one territorial level only
     m.get(levels=['judet', 'regiune'])   several levels
+    m.get(tidy=True)             plus derived columns: SIRUTA, level, type, year
     t.get('FOM101A')             the same, starting from a code
 
 Lists returned by `find`, `domains` and `related` render as a table, in the
@@ -129,6 +130,28 @@ Naming a level the indicator does not have raises `ValueError` and lists the
 levels it does have. Indicators built with county and locality as two separate
 dimensions, such as FOM104D, raise `NotImplementedError` rather than quietly
 returning everything.
+
+### Standardized columns
+
+`get()` returns the data as INS serves it. `get(tidy=True)` adds derived columns
+on top, and only adds: nothing is dropped, renamed or reordered, and the
+original label keeps its SIRUTA prefix.
+
+For every territorial dimension, using its label as the prefix, so two
+territorial dimensions never collide:
+
+    <label>_siruta    the SIRUTA code, Int64 nullable, NA for aggregates
+    <label>_nivel     national, macroregiune, regiune, judet or localitate
+    <label>_tip       municipiu, oras, comuna or sector, NA above locality
+    <label>_nume      the name without the code and the type prefix
+
+For every time dimension, `<label>_an` holds the year parsed out of labels like
+`Anul 2024`, as Int64, NA when no year is present.
+
+Locality labels arrive as `SIRUTA TYPE NAME`, for example
+`1017 MUNICIPIUL ALBA IULIA` and `1151 ORAS ABRUD`. Communes carry no type
+prefix, as in `2130 ALBAC`, and are typed `comuna`. Aggregates and counties
+carry no SIRUTA at all.
 
 `get()` refuses to send a request larger than `MAX_CELLS`, currently 100000
 cells, counted as the product of the selected options per dimension. It raises

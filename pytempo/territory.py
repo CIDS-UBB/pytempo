@@ -11,6 +11,7 @@ MACROREGIUNEA e macroregiune, REGIUNEA e regiune, restul sunt județe.
 
 Atenție: details.matMaxDim e numărul de dimensiuni, nu o limită de celule.
 """
+import re
 
 _TERRITORY_KEYS = ("nomJud", "nomLoc", "matRegJ")
 
@@ -85,6 +86,42 @@ def levels_present(dimensions: list, details: dict) -> list[str]:
     for d in dimensions:
         found |= dimension_levels(d, details)
     return [x for x in _LEVEL_ORDER if x in found]
+
+
+# prefixele de tip din denumirile de localitate, cele lungi primele
+_TYPE_PREFIXES = (
+    ("MUNICIPIUL", "municipiu"),
+    ("ORASUL", "oras"),
+    ("ORAS", "oras"),
+    ("SECTORUL", "sector"),
+    ("SECTOR", "sector"),
+    ("COMUNA", "comuna"),
+)
+
+_LEADING_CODE = re.compile(r"^(\d+)\s+(.*)$")
+
+
+def parse_territory(label: str) -> tuple:
+    """Desface o denumire teritorială în (siruta, nivel, tip, nume).
+
+    Localitățile vin ca 'SIRUTA TIP NUME': '1017 MUNICIPIUL ALBA IULIA',
+    '1151 ORAS ABRUD'. Comunele vin fără prefix de tip: '2130 ALBAC'.
+    Agregatele și județele nu au SIRUTA: 'TOTAL', 'MACROREGIUNEA UNU',
+    'Regiunea NORD-VEST', 'Cluj'.
+    """
+    text = (label or "").strip()
+    m = _LEADING_CODE.match(text)
+    if not m:
+        return (None, option_level(text), None, text)
+
+    siruta = int(m.group(1))
+    rest = m.group(2).strip()
+    upper = rest.upper()
+    for prefix, tip in _TYPE_PREFIXES:
+        if upper.startswith(prefix + " "):
+            return (siruta, "localitate", tip, rest[len(prefix):].strip())
+    # comunele nu poarta prefix de tip
+    return (siruta, "localitate", "comuna", rest)
 
 
 def siruta_from_label(label: str) -> int | None:

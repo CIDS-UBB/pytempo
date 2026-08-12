@@ -277,7 +277,8 @@ class Matrix:
   .has_siruta          True daca localitatile poarta prefix SIRUTA
   .options('teritoriu') ce valori are o dimensiune (index, rol sau label)
   .get()               datele, ca DataFrame in format lung
-  .get(level='judet')  doar un nivel teritorial""")
+  .get(level='judet')  doar un nivel teritorial
+  .get(tidy=True)      plus coloane derivate: SIRUTA, nivel, tip, an""")
 
     def _is_locality_dimension(self, dim) -> bool:
         """Dimensiune de localități, după details sau după label."""
@@ -316,14 +317,19 @@ class Matrix:
                                   if territory.option_level(o.label) in wanted])
         return selection
 
-    def get(self, level: str | None = None, levels: list[str] | None = None):
+    def get(self, level: str | None = None, levels: list[str] | None = None,
+            tidy: bool = False):
         """Datele indicatorului, ca DataFrame în format lung.
 
         level sau levels restrâng dimensiunea teritorială la nivelele cerute,
         pentru cazul obișnuit al unei singure dimensiuni teritoriale ierarhice.
         Fără ele, ia toate opțiunile fiecărei dimensiuni.
 
-        TODO 3c: matricele cu județ și localitate ca dimensiuni separate, plus
+        tidy=True adaugă coloane derivate peste rezultat: SIRUTA, nivel, tip și
+        nume pentru dimensiunile teritoriale, anul pentru cele de timp. Nu
+        șterge nimic, implicit datele rămân exact cum le dă INS.
+
+        TODO 3d: matricele cu județ și localitate ca dimensiuni separate, plus
         chunking-ul pentru cele care nu încap într-o singură cerere.
         """
         self._ensure_meta()
@@ -349,7 +355,8 @@ class Matrix:
             "matMaxDim": self.details.get("matMaxDim"),
             "matUMSpec": self.details.get("matUMSpec"),
         }
-        return parse.pivot_csv_to_dataframe(client.post_pivot(payload), self)
+        df = parse.pivot_csv_to_dataframe(client.post_pivot(payload), self)
+        return parse.standardize(df, self) if tidy else df
 
     def _repr_html_(self) -> str:
         """Cardul unui singur indicator. Aici nivelele chiar sunt disponibile.
@@ -452,6 +459,7 @@ def info(cod: str) -> dict:
     return matrix(cod).info()
 
 
-def get(cod: str, level: str | None = None, levels: list[str] | None = None):
+def get(cod: str, level: str | None = None, levels: list[str] | None = None,
+        tidy: bool = False):
     """Scurtătură: datele unui indicator, ca DataFrame."""
-    return matrix(cod).get(level=level, levels=levels)
+    return matrix(cod).get(level=level, levels=levels, tidy=tidy)

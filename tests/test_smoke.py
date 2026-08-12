@@ -1,4 +1,6 @@
 """Teste offline: import, API public, căutare pe un index injectat."""
+import pandas as pd
+
 import pytempo as t
 from pytempo import catalog, chunking, client, endpoints, parse, territory
 from pytempo.chunking import split_options
@@ -567,6 +569,78 @@ def test_matrix_refresh_bypasses_cache(monkeypatch):
     assert vazut["use_cache"] is False
     t.matrix("FOM101A")
     assert vazut["use_cache"] is True
+
+
+def test_parse_territory_localities():
+    assert territory.parse_territory("1017 MUNICIPIUL ALBA IULIA") == \
+        (1017, "localitate", "municipiu", "ALBA IULIA")
+    assert territory.parse_territory("1151 ORAS ABRUD") == \
+        (1151, "localitate", "oras", "ABRUD")
+    # comunele vin fara prefix de tip
+    assert territory.parse_territory("2130 ALBAC") == \
+        (2130, "localitate", "comuna", "ALBAC")
+    assert territory.parse_territory("179132 SECTORUL 1") == \
+        (179132, "localitate", "sector", "1")
+
+
+def test_parse_territory_aggregates():
+    assert territory.parse_territory("TOTAL") == (None, "national", None, "TOTAL")
+    assert territory.parse_territory("MACROREGIUNEA UNU") == \
+        (None, "macroregiune", None, "MACROREGIUNEA UNU")
+    assert territory.parse_territory("Regiunea NORD-VEST") == \
+        (None, "regiune", None, "Regiunea NORD-VEST")
+    assert territory.parse_territory("Cluj") == (None, "judet", None, "Cluj")
+
+
+def test_standardize_adds_columns_without_losing_anything(monkeypatch):
+    _fake_api(monkeypatch)
+    m = t.matrix("FOM104D")
+    terr = m.dimensions[1].label.strip()   # 'Localitati'
+    an = m.dimensions[2].label.strip()     # 'Ani'
+    df = pd.DataFrame({
+        m.dimensions[0].label.strip(): ["TOTAL"] * 7,
+        terr: ["1017 MUNICIPIUL ALBA IULIA", "1151 ORAS ABRUD", "2130 ALBAC",
+               "TOTAL", "MACROREGIUNEA UNU", "Regiunea NORD-VEST", "Cluj"],
+        an: ["Anul 2024"] * 6 + ["fara an"],
+        m.dimensions[3].label.strip(): ["Numar persoane"] * 7,
+        "Valoare": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0],
+    })
+    out = parse.standardize(df, m)
+
+    # nimic nu se pierde: aceleasi randuri, aceeasi ordine, coloanele originale
+    assert len(out) == len(df)
+    assert list(out[terr]) == list(df[terr])
+    assert out[terr][0] == "1017 MUNICIPIUL ALBA IULIA"
+    assert list(out["Valoare"]) == list(df["Valoare"])
+
+    assert out[f"{terr}_siruta"].tolist()[:3] == [1017, 1151, 2130]
+    assert out[f"{terr}_siruta"][3] is pd.NA      # TOTAL nu are SIRUTA
+    assert out[f"{terr}_siruta"][6] is pd.NA      # nici judetul Cluj
+    assert list(out[f"{terr}_nivel"]) == [
+        "localitate", "localitate", "localitate",
+        "national", "macroregiune", "regiune", "judet"]
+    assert list(out[f"{terr}_tip"])[:3] == ["municipiu", "oras", "comuna"]
+    assert out[f"{terr}_tip"][3] is pd.NA
+    assert list(out[f"{terr}_nume"])[:3] == ["ALBA IULIA", "ABRUD", "ALBAC"]
+
+    assert out[f"{an}_an"][0] == 2024
+    assert out[f"{an}_an"][6] is pd.NA
+
+
+def test_get_tidy(monkeypatch):
+    _fake_api(monkeypatch)
+    trimis = _capture_post(monkeypatch)
+    brut = t.matrix("SOM101B").get(level="judet")
+    tidy = t.matrix("SOM101B").get(level="judet", tidy=True)
+    assert trimis["matCode"] == "SOM101B"
+    # tidy adauga coloane, nu randuri
+    assert len(tidy) == len(brut)
+    assert tidy.shape[1] > brut.shape[1]
+    terr = "Macroregiuni, regiuni de dezvoltare si judete"
+    assert f"{terr}_nivel" in tidy.columns
+    assert "Ani_an" in tidy.columns
+    assert list(tidy[f"{terr}_nivel"]) == ["judet", "judet"]
+    assert tidy["Ani_an"].tolist() == [2020, 2020]
 
 
 def test_matrix_unknown_code(monkeypatch):
