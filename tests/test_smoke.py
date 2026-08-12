@@ -759,6 +759,201 @@ def test_get_chunked_tidy_keeps_siruta(monkeypatch):
     assert df["Ani_an"].tolist()[:2] == [2024, 2024]
 
 
+# acelasi FOM104D mic, dar dimensiunea de judete are un label neobisnuit.
+# Rolul ii vine din details (nomJud = 1), nu din label, iar _county_index
+# trebuie sa o gaseasca prin potrivirea parentId-urilor.
+FOM104D_LABEL_CIUDAT = dict(
+    FOM104D_MIC,
+    dimensionsMap=[
+        dict(FOM104D_MIC["dimensionsMap"][0], label="Unitati de nivel superior"),
+        FOM104D_MIC["dimensionsMap"][1],
+        FOM104D_MIC["dimensionsMap"][2],
+        FOM104D_MIC["dimensionsMap"][3],
+    ],
+)
+
+
+def test_county_index_found_by_parent_ids_not_by_label(monkeypatch):
+    _fake_api(monkeypatch,
+              extra={endpoints.matrix("FOM104D"): FOM104D_LABEL_CIUDAT})
+    m = t.matrix("FOM104D")
+    assert m.dimensions[0].label == "Unitati de nivel superior"
+    assert m.dimensions[0].role == "teritoriu"   # din details, nomJud = 1
+
+    planuri = _plan_for(m, max_cells=10)
+    pe_judet = {p["encQuery"].split(":")[0]: p["encQuery"].split(":")[1]
+                for p in planuri}
+    assert pe_judet["3064"] == "113,114,115"
+    assert pe_judet["3065"] == "116"
+
+
+def test_county_index_absent_when_no_second_territorial_dimension(monkeypatch):
+    """Fara dimensiune de judete, spargerea se face doar pe localitati."""
+    fara_judete = dict(
+        FOM104D_MIC,
+        details=dict(FOM104D_MIC["details"], nomJud=0),
+        dimensionsMap=FOM104D_MIC["dimensionsMap"][1:],
+    )
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): fara_judete})
+    m = t.matrix("FOM104D")
+    planuri = _plan_for(m, max_cells=4)
+    # cate o cerere per grup de parentId, doar cu localitatile grupului
+    blocuri = sorted(p["encQuery"].split(":")[0] for p in planuri)
+    assert blocuri == ["112", "113,114,115", "116"]
+
+
+def test_chunked_requests_keep_row_order(monkeypatch):
+    """Concatenarea pastreaza toate randurile si ordinea cererilor."""
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): FOM104D_MIC})
+    monkeypatch.setattr(chunking, "MAX_CELLS", 10)
+
+    def fake_post(payload, **kw):
+        judet = payload["encQuery"].split(":")[0]
+        return (
+            "Judete, Localitati, Ani, UM: Numar persoane, Valoare\n"
+            f"J{judet}, 1017 MUNICIPIUL ALBA IULIA, Anul 2024, Numar persoane, 1\n"
+            f"J{judet}, 2130 ALBAC, Anul 2024, Numar persoane, 2\n"
+        )
+
+    monkeypatch.setattr(client, "post_pivot", fake_post)
+    df = t.matrix("FOM104D").get()
+    assert len(df) == 6
+    assert list(df.index) == list(range(6))
+    # ordinea judetelor din plan se pastreaza in rezultat
+    assert df["Judete"].tolist() == [
+        "J112", "J112", "J3064", "J3064", "J3065", "J3065"]
+
+
+def test_big_county_produces_several_requests(monkeypatch):
+    """Un judet ale carui localitati nu incap singure declanseaza split_options."""
+    multe = [{"label": f"{5000 + i} COMUNA{i}", "nomItemId": 200 + i,
+              "offset": i, "parentId": 3064} for i in range(250)]
+    mare = dict(FOM104D_MIC, dimensionsMap=[
+        FOM104D_MIC["dimensionsMap"][0],
+        dict(FOM104D_MIC["dimensionsMap"][1], options=multe),
+        FOM104D_MIC["dimensionsMap"][2],
+        FOM104D_MIC["dimensionsMap"][3],
+    ])
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): mare})
+    m = t.matrix("FOM104D")
+    # un singur judet, 250 localitati x 2 ani = 500 celule, peste pragul 100
+    planuri = _plan_for(m, max_cells=100)
+    assert len(planuri) == 3          # 250 localitati in grupuri de 100
+    bucati = [p["encQuery"].split(":")[1].split(",") for p in planuri]
+    assert [len(b) for b in bucati] == [100, 100, 50]
+    # nicio localitate pierduta, niciuna repetata
+    toate = [c for b in bucati for c in b]
+    assert len(toate) == len(set(toate)) == 250
+
+
+def test_level_filter_runs_before_planning(monkeypatch):
+    """level reduce selectia inainte de planificare, deci nu se mai sparge."""
+    _fake_api(monkeypatch)
+    m = t.matrix("SOM101B")
+    # fara filtru selectia depaseste un prag mic si nu are localitati de spart
+    monkeypatch.setattr(chunking, "MAX_CELLS", 3)
+    try:
+        m.get()
+    except ValueError as e:
+        assert "localitati" in str(e)
+    else:
+        raise AssertionError("trebuia ValueError fara filtru")
+
+    # cu filtru pe nivel incape intr-o singura cerere, deci nu se sparge
+    cereri = []
+
+    def fake_post(payload, **kw):
+        cereri.append(payload)
+        return CSV_SOM101B
+
+    monkeypatch.setattr(client, "post_pivot", fake_post)
+    m.get(level="judet")
+    assert len(cereri) == 1
+    assert cereri[0]["encQuery"].split(":")[0] == "4,5"
+
+
+def test_parse_territory_prefix_needs_a_space():
+    """Potrivirea e pe prefix plus spatiu, nu pe substring.
+
+    'ORASENI DEAL' e o comuna al carei nume incepe cu literele lui ORAS.
+    """
+    assert territory.parse_territory("5000 ORASENI DEAL") == \
+        (5000, "localitate", "comuna", "ORASENI DEAL")
+    assert territory.parse_territory("5001 COMUNESTI") == \
+        (5001, "localitate", "comuna", "COMUNESTI")
+    # prefixul lung castiga fata de cel scurt
+    assert territory.parse_territory("5002 ORASUL NOU")[2] == "oras"
+    assert territory.parse_territory("5002 ORASUL NOU")[3] == "NOU"
+    assert territory.parse_territory("179132 SECTORUL 3") == \
+        (179132, "localitate", "sector", "3")
+    assert territory.parse_territory("179133 SECTOR 4")[2] == "sector"
+
+
+def test_parse_territory_empty_and_blank():
+    """Nu crapa pe gol; fara cifre in fata nu exista SIRUTA."""
+    for gol in ("", "   ", None):
+        siruta, nivel, tip, nume = territory.parse_territory(gol)
+        assert siruta is None and tip is None
+        assert nume == ""
+        assert nivel == "judet"   # option_level nu are alt raspuns pentru gol
+
+
+def test_standardize_malformed_year_gives_na(monkeypatch):
+    _fake_api(monkeypatch)
+    m = t.matrix("FOM101A")
+    an = m.dimensions[2].label.strip()
+    df = pd.DataFrame({
+        m.dimensions[0].label.strip(): ["Total"] * 3,
+        m.dimensions[1].label.strip(): ["Cluj"] * 3,
+        an: ["Anul 2024", "Anul necunoscut", ""],
+        m.dimensions[3].label.strip(): ["Mii persoane"] * 3,
+        "Valoare": [1.0, 2.0, 3.0],
+    })
+    out = parse.standardize(df, m)
+    assert out[f"{an}_an"][0] == 2024
+    assert out[f"{an}_an"][1] is pd.NA
+    assert out[f"{an}_an"][2] is pd.NA
+
+
+def test_standardize_empty_frame(monkeypatch):
+    """Un rezultat fara randuri nu trebuie sa crape standardizarea."""
+    _fake_api(monkeypatch)
+    m = t.matrix("FOM101A")
+    gol = pd.DataFrame({d.label.strip(): [] for d in m.dimensions} |
+                       {"Valoare": []})
+    out = parse.standardize(gol, m)
+    assert len(out) == 0
+    assert f"{m.dimensions[1].label.strip()}_siruta" in out.columns
+
+
+def test_public_api_names_all_resolve():
+    """Niciun export mort in __all__."""
+    for name in t.__all__:
+        assert hasattr(t, name), f"{name} lipseste din pachet"
+    for name in ("load_index", "name_dict", "search", "find", "domains",
+                 "overview", "matrix", "info", "get", "help"):
+        assert callable(getattr(t, name)), f"{name} nu e apelabil"
+    assert isinstance(t.__version__, str)
+
+
+def test_help_runs(monkeypatch, capsys):
+    t.help()
+    iesire = capsys.readouterr().out
+    assert "find" in iesire and "get" in iesire
+
+    _fake_api(monkeypatch)
+    t.matrix("FOM104D").help()
+    iesire = capsys.readouterr().out
+    assert "FOM104D" in iesire and ".get(" in iesire
+
+
+def test_show_runs(monkeypatch, capsys):
+    _fake_api(monkeypatch)
+    t.matrix("FOM104D").show()
+    iesire = capsys.readouterr().out
+    assert "FOM104D" in iesire and "dimensiuni" in iesire
+
+
 def test_matrix_unknown_code(monkeypatch):
     _fake_api(monkeypatch)
     try:
