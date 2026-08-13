@@ -205,6 +205,34 @@ def test_validate_empty_is_not_an_error(monkeypatch, tmp_path):
     assert date["entries"]["SOM101B"]["validation"] == "empty"
 
 
+def test_negatives_allowed_for_balance_indicators(monkeypatch, tmp_path):
+    """A 'spor' or 'sold' indicator legitimately goes negative."""
+    sold = dict(SOM101B,
+                matrixName="Sporul natural al populatiei pe judete")
+    cale = _registry(monkeypatch, tmp_path, dict(TOATE, SOM101B=sold))
+    negativ = dict(CSV)
+    negativ["SOM101B"] = ("Macroregiuni  regiuni de dezvoltare si judete, Ani, "
+                          "UM: Numar persoane, Valoare\n"
+                          "Bihor, Anul 2020, Numar persoane, -576.0\n")
+    _post(monkeypatch, raspunsuri=negativ)
+    date = v.validate(progress=False, delay=0, path=cale)
+    assert date["entries"]["SOM101B"]["validation"] == "ok"
+
+
+def test_balance_word_can_come_from_a_dimension_label(monkeypatch, tmp_path):
+    cu_dim = dict(SOM101B, dimensionsMap=[
+        dict(SOM101B["dimensionsMap"][0], label="Soldul migratoriu pe judete"),
+        SOM101B["dimensionsMap"][1], SOM101B["dimensionsMap"][2]])
+    cale = _registry(monkeypatch, tmp_path, dict(TOATE, SOM101B=cu_dim))
+    negativ = dict(CSV)
+    negativ["SOM101B"] = ("Soldul migratoriu pe judete, Ani, "
+                          "UM: Numar persoane, Valoare\n"
+                          "Bihor, Anul 2020, Numar persoane, -12.0\n")
+    _post(monkeypatch, raspunsuri=negativ)
+    date = v.validate(progress=False, delay=0, path=cale)
+    assert date["entries"]["SOM101B"]["validation"] == "ok"
+
+
 def test_validate_negative_persons_is_an_error(monkeypatch, tmp_path):
     cale = _registry(monkeypatch, tmp_path)
     negativ = dict(CSV)
@@ -214,6 +242,63 @@ def test_validate_negative_persons_is_an_error(monkeypatch, tmp_path):
     _post(monkeypatch, raspunsuri=negativ)
     date = v.validate(progress=False, delay=0, path=cale)
     assert "negative" in date["entries"]["SOM101B"]["validation"]
+
+
+def test_unparsable_csv_is_needs_review_not_error(monkeypatch, tmp_path):
+    """A broken CSV is about what INS sent, so it goes to a human."""
+    cale = _registry(monkeypatch, tmp_path)
+    stricat = dict(CSV)
+    # a value column carrying the INS confidentiality marker
+    stricat["SOM101B"] = ("Macroregiuni  regiuni de dezvoltare si judete, Ani, "
+                          "UM: Numar persoane, Valoare\n"
+                          "Bihor, Anul 2020, Numar persoane, c\n")
+    _post(monkeypatch, raspunsuri=stricat)
+    date = v.validate(progress=False, delay=0, path=cale)
+
+    starea = date["entries"]["SOM101B"]["validation"]
+    assert starea.startswith("needs_review:")
+    assert "non numeric markers" in starea and "'c'" in starea
+    assert "not numeric" in starea          # the parse error is kept too
+    assert date["entries"]["SOM101B"]["slice_cells"] > 0
+    # the others are unaffected
+    assert date["entries"]["FOM104D"]["validation"] == "ok"
+
+
+def test_needs_review_is_listed_apart_in_the_report(monkeypatch, tmp_path,
+                                                    capsys):
+    cale = _registry(monkeypatch, tmp_path)
+    date = schemas.load_registry(cale)
+    date["entries"]["SOM101B"]["validation"] = "needs_review: odd header"
+    date["entries"]["FOM104D"]["validation"] = "error: something real"
+    v._save(date, cale)
+
+    v.validation_report(path=cale)
+    iesire = capsys.readouterr().out
+    assert "needs review : 1" in iesire
+    assert "documented exceptions" in iesire
+    assert "errors       : 1" in iesire
+    assert "odd header" in iesire
+
+
+def test_targeted_mode_validates_only_the_given_codes(monkeypatch, tmp_path):
+    cale = _registry(monkeypatch, tmp_path)
+    cereri = _post(monkeypatch)
+    date = v.validate(codes=["SOM101B"], progress=False, delay=0, path=cale)
+
+    assert date["entries"]["SOM101B"]["validation"] == "ok"
+    assert "validation" not in date["entries"]["FOM104D"]
+    assert {p["matCode"] for p in cereri} == {"SOM101B"}
+
+
+def test_targeted_mode_rejects_unknown_codes(monkeypatch, tmp_path):
+    cale = _registry(monkeypatch, tmp_path)
+    _post(monkeypatch)
+    try:
+        v.validate(codes=["NU_EXISTA"], progress=False, delay=0, path=cale)
+    except ValueError as e:
+        assert "NU_EXISTA" in str(e)
+    else:
+        raise AssertionError("an unknown code should raise")
 
 
 def test_validation_report_names_locality_without_siruta(monkeypatch, tmp_path,

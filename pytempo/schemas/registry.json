@@ -31908,8 +31908,12 @@
    "periodicity": [
     "Anuala"
    ],
+   "slice_cells": 1,
    "status": "ok",
-   "total_cells": 210
+   "total_cells": 210,
+   "validated_at": "2026-08-13T09:10:58+00:00",
+   "validated_version": 1,
+   "validation": "needs_review: a dimension label contains a newline, so the CSV header spans two lines (CSV has 1 columns, expected 4 (3 dimensions plus Valoare). Header found: ['Total'])"
   },
   "EXP102B": {
    "dims": [
@@ -57338,8 +57342,12 @@
    "periodicity": [
     "Anuala"
    ],
+   "slice_cells": 55,
    "status": "ok",
-   "total_cells": 5940
+   "total_cells": 5940,
+   "validated_at": "2026-08-13T09:10:00+00:00",
+   "validated_version": 1,
+   "validation": "ok"
   },
   "POP214B": {
    "dims": [
@@ -57393,8 +57401,12 @@
    "periodicity": [
     "Anuala"
    ],
+   "slice_cells": 55,
    "status": "ok",
-   "total_cells": 2310
+   "total_cells": 2310,
+   "validated_at": "2026-08-13T09:10:02+00:00",
+   "validated_version": 1,
+   "validation": "ok"
   },
   "POP215A": {
    "dims": [
@@ -58105,8 +58117,12 @@
    "periodicity": [
     "Anuala"
    ],
+   "slice_cells": 1,
    "status": "ok",
-   "total_cells": 864
+   "total_cells": 864,
+   "validated_at": "2026-08-13T09:10:03+00:00",
+   "validated_version": 1,
+   "validation": "ok"
   },
   "POP303B": {
    "dims": [
@@ -58160,8 +58176,12 @@
    "periodicity": [
     "Anuala"
    ],
+   "slice_cells": 55,
    "status": "ok",
-   "total_cells": 5940
+   "total_cells": 5940,
+   "validated_at": "2026-08-13T09:10:04+00:00",
+   "validated_version": 1,
+   "validation": "ok"
   },
   "POP304A": {
    "dims": [
@@ -58433,8 +58453,12 @@
    "periodicity": [
     "Anuala"
    ],
+   "slice_cells": 56,
    "status": "ok",
-   "total_cells": 6048
+   "total_cells": 6048,
+   "validated_at": "2026-08-13T09:10:05+00:00",
+   "validated_version": 1,
+   "validation": "ok"
   },
   "POP307A": {
    "dims": [
@@ -72680,8 +72704,12 @@
    "periodicity": [
     "Anuala"
    ],
+   "slice_cells": 55,
    "status": "ok",
-   "total_cells": 1870
+   "total_cells": 1870,
+   "validated_at": "2026-08-13T09:10:59+00:00",
+   "validated_version": 1,
+   "validation": "needs_review: the value column carries non numeric markers ['c'], most likely INS flags for suppressed or unavailable data (Column Valoare is not numeric (dtype str). A sign the column mapping slipped.)"
   },
   "TEP0472": {
    "dims": [

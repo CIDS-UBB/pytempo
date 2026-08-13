@@ -140,6 +140,43 @@ def _point_check(m, df) -> str | None:
     return None
 
 
+# An indicator that measures a balance can legitimately go negative: a natural
+# increase, a migration balance, a change or a difference. Counting those as
+# implausible was wrong: POP214A really does record -576 for Arges in 1995.
+# The word is looked for in the indicator name and in every dimension label,
+# normalized and lowercased.
+_BALANCE_WORDS = ("spor", "sold", "migrat", "crestere", "variatia",
+                  "diferenta")
+
+
+def _allows_negative(m) -> bool:
+    """Is this a balance style indicator, where negative values are correct?"""
+    texte = [m.name] + [d.label for d in m.dimensions]
+    return any(cuvant in territory._norm(text)
+               for text in texte for cuvant in _BALANCE_WORDS)
+
+
+def _why_unparsable(m, text: str) -> str:
+    """A likely cause for a CSV we could not parse, when we recognize one.
+
+    Both cases seen so far are quirks of what INS sends, not of our request:
+    a dimension label containing a newline, which breaks the header across two
+    lines, and the confidentiality marker in the value column.
+    """
+    if any("\n" in (d.label or "") for d in m.dimensions):
+        return ("a dimension label contains a newline, so the CSV header "
+                "spans two lines")
+    randuri = [r for r in text.split("\n") if r.strip()][1:]
+    valori = {r.rsplit(",", 1)[-1].strip() for r in randuri if "," in r}
+    ne_numerice = {x for x in valori
+                   if x and not x.replace(".", "", 1).lstrip("-").isdigit()}
+    if ne_numerice:
+        return (f"the value column carries non numeric markers "
+                f"{sorted(ne_numerice)[:3]}, most likely INS flags for "
+                f"suppressed or unavailable data")
+    return "unrecognized response shape"
+
+
 def _checks(m, entry, df) -> str | None:
     """The checks on the slice that came back. None when all is well."""
     if entry.get("has_siruta"):
@@ -155,7 +192,8 @@ def _checks(m, entry, df) -> str | None:
                         f"locality in {d.label.strip()!r}")
 
     um = [d for d in m.dimensions if d.role == "um"]
-    if any("persoane" in territory._norm(d.label) for d in um):
+    if any("persoane" in territory._norm(d.label) for d in um) \
+            and not _allows_negative(m):
         negative = (df["Valoare"] < 0).sum()
         if negative:
             return f"{negative} negative values where the unit counts people"
@@ -163,14 +201,20 @@ def _checks(m, entry, df) -> str | None:
     return _point_check(m, df)
 
 
-def validate(sample: int | None = None, resume: bool = True,
-             progress: bool = True, delay: float = 1.0, seed=None,
-             path=None) -> dict:
+def validate(sample: int | None = None, codes: list[str] | None = None,
+             resume: bool = True, progress: bool = True, delay: float = 1.0,
+             seed=None, path=None) -> dict:
     """Ask for a small slice of each indicator and check what came back.
 
-    sample=N takes a sample stratified by family; sample=None takes the whole
-    catalogue, for the long run. resume skips whatever already passed at the
-    same registry version, so the long run can be stopped and restarted.
+    codes=[...] validates exactly that list, which is the targeted mode used to
+    recheck a handful after a fix. sample=N takes a sample stratified by
+    family; both omitted takes the whole catalogue, for the long run. resume
+    skips whatever already passed at the same registry version, so the long run
+    can be stopped and restarted.
+
+    A slice that fails to parse is recorded as needs_review rather than error:
+    those are quirks of what INS sent, not faults of the extraction, and each
+    one is a documented exception to read by hand.
     """
     path = path or build.REGISTRY_PATH
     date = load_registry(path)
@@ -179,7 +223,12 @@ def validate(sample: int | None = None, resume: bool = True,
         return {}
     entries = date["entries"]
 
-    if sample:
+    if codes:
+        lipsa = [c for c in codes if c not in entries]
+        if lipsa:
+            raise ValueError(f"codes not in the registry: {lipsa}")
+        coduri = list(codes)
+    elif sample:
         coduri = stratified_sample(entries, sample, seed=seed)
     else:
         coduri = [c for c, e in entries.items() if e.get("status") == "ok"]
@@ -197,14 +246,21 @@ def validate(sample: int | None = None, resume: bool = True,
             m = fetch_matrix(cod)
             selectie = _slice_for(m, e)
             celule = chunking.cells(selectie)
-            df = parse.pivot_csv_to_dataframe(
-                client.post_pivot(_payload(m, selectie)), m)
-            if df.empty:
-                e["validation"] = "empty"
-            else:
-                motiv = _checks(m, e, df)
-                e["validation"] = f"error: {motiv}" if motiv else "ok"
+            text = client.post_pivot(_payload(m, selectie))
             e["slice_cells"] = celule
+            try:
+                df = parse.pivot_csv_to_dataframe(text, m)
+            except ValueError as exc:
+                # the CSV itself is off, so this is about what INS sent, not
+                # about our extraction; it goes to a human, not to the fail pile
+                e["validation"] = (f"needs_review: {_why_unparsable(m, text)}"
+                                   f" ({exc})")
+            else:
+                if df.empty:
+                    e["validation"] = "empty"
+                else:
+                    motiv = _checks(m, e, df)
+                    e["validation"] = f"error: {motiv}" if motiv else "ok"
         except Exception as exc:
             e["validation"] = f"error: {type(exc).__name__}: {exc}"
             e["slice_cells"] = 0
@@ -240,12 +296,18 @@ def validation_report(date: dict | None = None, path=None) -> None:
     goi = [c for c, e in validate_le.items() if e["validation"] == "empty"]
     erori = {c: e["validation"] for c, e in validate_le.items()
              if e["validation"].startswith("error:")}
+    de_citit = {c: e["validation"] for c, e in validate_le.items()
+                if e["validation"].startswith("needs_review:")}
 
     print(f"\nValidation: {len(validate_le)} indicators checked")
-    print(f"  ok     : {len(ok)}")
-    print(f"  empty  : {len(goi)}" + (f"  {goi[:8]}" if goi else ""))
-    print(f"  errors : {len(erori)}")
+    print(f"  ok           : {len(ok)}")
+    print(f"  empty        : {len(goi)}" + (f"  {goi[:8]}" if goi else ""))
+    print(f"  errors       : {len(erori)}")
     for cod, motiv in erori.items():
+        print(f"    {cod:10} {motiv[:110]}")
+    print(f"  needs review : {len(de_citit)}"
+          + ("  (documented exceptions, not failures)" if de_citit else ""))
+    for cod, motiv in de_citit.items():
         print(f"    {cod:10} {motiv[:110]}")
 
     fara_siruta = [c for c, e in entries.items()

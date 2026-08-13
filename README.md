@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.15.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.15.1-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -261,12 +261,29 @@ picked out of the slice returns the same value when requested on its own.
     schemas.validate(sample=15, seed=42)   # stratified sample, minutes
     schemas.validate()                     # the whole catalogue, hours
     schemas.validate()                     # again: resume skips what passed
+    schemas.validate(codes=["POP214A"])    # targeted, to recheck after a fix
 
 Sampling is stratified by family with a floor of three per family, so the small
 families do not vanish behind the 71 percent that is `neteritorial`. Each
-indicator gets `validated_at`, `validation` (`ok`, `empty`, or `error: what`)
-and `slice_cells` written back. An empty result is recorded as `empty`, not as
-an error: a combination with no data is a legitimate answer.
+indicator gets `validated_at`, `validation` and `slice_cells` written back.
+There are four outcomes:
+
+    ok            every check passed
+    empty         the slice came back with no rows, which is a legitimate answer
+    error         a check we make failed, and that is worth investigating
+    needs_review  the CSV itself could not be parsed
+
+`needs_review` is deliberately not an error. Those are quirks of what INS sent,
+each one a documented exception to read by hand, and the status carries the
+likely cause. Two are known: EXP102A has a dimension whose label contains a
+newline, so its CSV header spans two lines, and TEK0461 carries the
+confidentiality marker `c` in the value column. Both also mean `get()` cannot
+read those two indicators today.
+
+Negative values are only flagged as implausible when the indicator is not a
+balance. Names or dimension labels containing `spor`, `sold`, `migrat`,
+`crestere`, `variatia` or `diferenta` are expected to go negative: POP214A
+really does record a natural increase of -576 for Arges in 1995.
 
 Finally, a list to check by hand:
 
