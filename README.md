@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.18.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.18.1-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -252,6 +252,13 @@ span of years it has, how many of the years seen anywhere in the frame are
 missing for it, and the smallest and largest value with the year each occurred.
 When the frame mixes territorial levels, the level comes first, so a national
 total is never read as if it were a county.
+
+Units are keyed by SIRUTA, never by name. Locality names are not unique in
+Romania: ALBAC exists in Alba and in Cluj, and they are different places.
+Grouping by name would merge them into one row with a minimum from one county
+and a maximum from the other. The name and, where a second territorial
+dimension exists, the county are shown as labels, so homonyms are also easy to
+tell apart by eye.
 
 `wide()` pivots time into columns. The index is built from the original
 dimension columns, leaving out the derived ones, the original time column,

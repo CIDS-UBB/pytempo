@@ -93,6 +93,27 @@ class TempoAccessor:
         wide.columns.name = None
         return wide.reset_index()
 
+    def _territorial_bases(self) -> list[str]:
+        """The base names of the territorial dimensions, from their level column."""
+        return [_base_of(c, "_nivel") for c in self._df.columns
+                if c.endswith("_nivel")]
+
+    def _unit_key(self, base: str) -> pd.Series:
+        """The grouping key for one territorial dimension.
+
+        SIRUTA is the key, the name is only a label: locality names are not
+        unique in Romania, and grouping by name silently merges communes that
+        share a name across counties, mixing their series into one. Rows with
+        no SIRUTA, which is every aggregate, fall back to the original label,
+        which still carries the code when there is one.
+        """
+        df = self._df
+        siruta = f"{base}_siruta"
+        labels = df[base].astype("string")
+        if siruta in df.columns:
+            return df[siruta].astype("string").fillna(labels)
+        return labels
+
     def coverage(self) -> pd.DataFrame:
         """What each territorial unit actually covers, and where the holes are.
 
@@ -100,8 +121,13 @@ class TempoAccessor:
         many of the years seen anywhere in the frame are missing for it, and
         the smallest and largest value with the year each occurred.
 
-        When the frame mixes territorial levels, the level comes first, so a
-        national total is never read as if it were a county.
+        Units are keyed by SIRUTA when the frame carries it, never by name.
+        The name and, where a second territorial dimension exists, the county
+        are shown as labels, so two communes with the same name stay two rows
+        and can be told apart by eye as well as by code.
+
+        When the frame mixes territorial levels, the level of the dimension
+        being grouped comes first, so an aggregate is never read as a unit.
         """
         self._check()
         if self._year_col is None:
@@ -109,33 +135,44 @@ class TempoAccessor:
                 "no year column found, so coverage cannot be computed")
 
         df = self._df
-        name_col = next((c for c in df.columns if c.endswith("_nume")), None)
-        if name_col is None and self._level_col is not None:
-            name_col = _base_of(self._level_col, "_nivel")
-
-        grouping = []
-        mixed_levels = (self._level_col is not None
-                        and df[self._level_col].nunique(dropna=False) > 1)
-        if mixed_levels:
-            grouping.append(self._level_col)
-        if name_col is not None and name_col in df.columns:
-            grouping.append(name_col)
+        bases = self._territorial_bases()
+        # the dimension carrying SIRUTA is the one with real units in it
+        unit = next((b for b in bases if f"{b}_siruta" in df.columns), None)
+        if unit is None and bases:
+            unit = bases[0]
 
         all_years = set(df[self._year_col].dropna().tolist())
 
+        if unit is None:
+            parts = [("(all)", df)]
+            label_cols = []
+        else:
+            key = self._unit_key(unit)
+            parts = list(df.groupby(key, dropna=False, sort=False))
+            level_col = f"{unit}_nivel"
+            name_col = f"{unit}_nume" if f"{unit}_nume" in df.columns else unit
+            # a second territorial dimension is context: it tells two
+            # same named communes apart
+            context = [b for b in bases if b != unit]
+            label_cols = []
+            if df[level_col].nunique(dropna=False) > 1:
+                label_cols.append(level_col)
+            label_cols += context
+            label_cols.append(name_col)
+            if f"{unit}_siruta" in df.columns:
+                label_cols.append(f"{unit}_siruta")
+
         rows = []
-        groups = df.groupby(grouping, dropna=False) if grouping else \
-            [((), df)]
-        for key, part in groups:
+        for _, part in parts:
             years = set(part[self._year_col].dropna().tolist())
             valid = part.dropna(subset=[VALUE_COLUMN])
             row = {}
-            if grouping:
-                key = key if isinstance(key, tuple) else (key,)
-                for column, value in zip(grouping, key):
-                    row[column] = value
-            else:
+            if unit is None:
                 row["unit"] = "(all)"
+            else:
+                first = part.iloc[0]
+                for column in label_cols:
+                    row[column] = first[column]
             row["first_year"] = min(years) if years else pd.NA
             row["last_year"] = max(years) if years else pd.NA
             row["n_years"] = len(years)

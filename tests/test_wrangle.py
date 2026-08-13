@@ -141,6 +141,75 @@ def test_coverage_prefers_the_clean_name_column():
     assert set(report[f"{TERR}_nume"]) == {"ALBA", "CLUJ"}
 
 
+# ------------------------------------------- homonyms, keyed on SIRUTA
+
+LOC = "Localitati"
+
+
+def locality_frame():
+    """Two communes sharing a name in different counties, as Romania has.
+
+    ALBAC in Alba and ALBAC in Cluj are different places with different SIRUTA
+    codes. Grouping by name would merge them into one invented series.
+    """
+    frame = pd.DataFrame({
+        "Judete": ["Alba", "Alba", "Cluj", "Cluj"],
+        LOC: ["2130 ALBAC", "2130 ALBAC", "5555 ALBAC", "5555 ALBAC"],
+        "Ani": ["Anul 2020", "Anul 2021", "Anul 2020", "Anul 2021"],
+        "Valoare": [10.0, 20.0, 100.0, 200.0],
+        "Judete_nivel": ["judet"] * 4,
+        f"{LOC}_siruta": [2130, 2130, 5555, 5555],
+        f"{LOC}_nivel": ["localitate"] * 4,
+        f"{LOC}_nume": ["ALBAC"] * 4,
+        "Ani_an": [2020, 2021, 2020, 2021],
+    })
+    return frame
+
+
+def test_coverage_keeps_homonyms_apart():
+    report = locality_frame().tempo.coverage()
+
+    assert len(report) == 2, "two communes sharing a name are two units"
+    assert sorted(report[f"{LOC}_siruta"]) == [2130, 5555]
+    # each series stays its own: no min from one place and max from the other
+    alba = report[report[f"{LOC}_siruta"] == 2130].iloc[0]
+    cluj = report[report[f"{LOC}_siruta"] == 5555].iloc[0]
+    assert (alba["min_value"], alba["max_value"]) == (10.0, 20.0)
+    assert (cluj["min_value"], cluj["max_value"]) == (100.0, 200.0)
+
+
+def test_coverage_shows_the_name_and_the_county_as_labels():
+    report = locality_frame().tempo.coverage()
+    assert list(report[f"{LOC}_nume"]) == ["ALBAC", "ALBAC"]
+    # the county is what tells them apart by eye
+    assert "Judete" in report.columns
+    assert sorted(report["Judete"]) == ["Alba", "Cluj"]
+
+
+def test_coverage_uses_the_level_of_the_grouped_dimension():
+    """Not another dimension's level: units here are localities."""
+    frame = locality_frame()
+    frame["Judete_nivel"] = ["judet", "judet", "national", "national"]
+    frame[f"{LOC}_nivel"] = ["localitate", "localitate", "national", "national"]
+    report = frame.tempo.coverage()
+    assert report.columns[0] == f"{LOC}_nivel"
+    assert "Judete_nivel" not in report.columns
+
+
+def test_coverage_falls_back_to_the_original_column_without_siruta():
+    """No SIRUTA anywhere: group on the original label, never on the name."""
+    frame = locality_frame().drop(columns=[f"{LOC}_siruta"])
+    report = frame.tempo.coverage()
+    # the original labels still carry the code, so the two stay apart
+    assert len(report) == 2
+    assert f"{LOC}_siruta" not in report.columns
+
+
+def test_coverage_row_count_matches_distinct_units():
+    frame = locality_frame()
+    assert len(frame.tempo.coverage()) == frame[f"{LOC}_siruta"].nunique()
+
+
 # -------------------------------------------------------------------- geo
 
 def test_geo_is_a_documented_stub():
