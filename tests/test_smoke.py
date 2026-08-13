@@ -4,7 +4,8 @@ import json
 import pandas as pd
 
 import pytempo as t
-from pytempo import catalog, chunking, client, endpoints, parse, territory
+from pytempo import (catalog, chunking, client, endpoints, parse, schemas,
+                     territory)
 from pytempo.chunking import split_options
 from pytempo.matrix import MAX_CELLS
 
@@ -1125,8 +1126,14 @@ def _index_and_meta(monkeypatch, meta_by_code):
 
 
 def _cache_in(monkeypatch, tmp_path):
-    """Muta cache-ul si indexul de nivele intr-un director temporar."""
+    """Muta cache-ul si indexul de nivele intr-un director temporar.
+
+    Ascunde si registrul din pachet: el are prioritate la filtre, deci fara
+    asta testele despre indexul vechi ar citi de fapt registrul real.
+    """
     monkeypatch.setattr(client, "CACHE_DIR", tmp_path / "data" / "raw")
+    monkeypatch.setattr(schemas.build, "REGISTRY_PATH",
+                        tmp_path / "fara_registru.json")
     return tmp_path / "data" / catalog.INDEX_FILE
 
 

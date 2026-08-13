@@ -163,7 +163,21 @@ def _index_path():
 
 
 def load_levels_index() -> dict | None:
-    """Indexul de nivele de pe disc, sau None dacă nu a fost construit."""
+    """Sursa pentru filtrele pe metadate, sau None dacă nu există niciuna.
+
+    Preferă registrul de scheme, care vine cu pachetul. Dacă lipsește, cade pe
+    vechiul data/levels_index.json, construit cu build_index.
+    """
+    from . import schemas  # local: schemas importa catalog, altfel ciclu
+
+    try:
+        din_registry = schemas.registry_as_index()
+    except ValueError as e:
+        print(f"Registrul nu poate fi citit: {e}")
+        din_registry = None
+    if din_registry:
+        return din_registry
+
     path = _index_path()
     if not path.exists():
         return None

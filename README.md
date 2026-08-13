@@ -290,6 +290,50 @@ In a notebook, reload edited modules without restarting the kernel:
     %load_ext autoreload
     %autoreload 2
 
+## Internals: the schema registry
+
+`pytempo/schemas/registry.json` is a census of the whole catalogue, one record
+per indicator: its dimensions with their roles and sizes, levels, family, total
+cell count, periodicity, domain, and whether it carries SIRUTA. It ships inside
+the package and is versioned in the repo, so a fresh clone already has the map
+and the metadata filters in `search` work without waiting for a build. Fetching
+the metadata is also the endpoint test: `status` is `ok` only if the endpoint
+answered.
+
+The file is written sorted and indented, so a change on the INS side shows up
+as a readable git diff rather than one long line. It carries
+`registry_version`, and an unknown version raises a clear error instead of
+failing somewhere deeper.
+
+`family` is what will decide how data gets fetched:
+
+    judet_localitate    has a locality dimension, needs county by county
+    teritorial_caen     territorial plus CAEN, no localities
+    teritorial_simplu   territorial, no CAEN, no localities
+    neteritorial        no territorial dimension at all
+    alt                 anything else, listed individually in the report
+
+Nothing here is public API. Use it from a development shell:
+
+    from pytempo import schemas
+
+    schemas.build_registry()            # incremental: only codes not yet ok
+    schemas.build_registry(refresh=True)  # rebuild everything, bypass the cache
+    schemas.report()                    # reprint the census, no rebuild
+
+`build_registry()` is incremental by default: it adds codes missing from the
+registry and leaves the rest untouched. That means it does not notice an
+indicator INS has changed, because it does not re-read its metadata. Use
+`refresh=True` for that. It asks before doing work that needs uncached
+metadata, and skips the question when the local cache already covers it.
+
+The report prints the totals, the split by family and by domain, how many carry
+SIRUTA, how many exceed the single request cell limit, and the full list of
+codes classified `alt` or holding an error, with a reason each. After changing
+anything that affects classification, rebuild and check the diff:
+
+    git diff --stat pytempo/schemas/registry.json
+
 ## Contributing
 
     git clone https://github.com/CIDS-UBB/pytempo.git

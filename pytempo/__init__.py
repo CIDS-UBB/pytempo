@@ -9,7 +9,7 @@ from .catalog import (build_index, domains, filters, find, load_index,
 from .matrix import Matrix, MatrixList, get, info, matrix
 from .explore import init, browse
 
-__version__ = "0.12.1"
+__version__ = "0.13.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
