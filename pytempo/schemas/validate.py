@@ -1,15 +1,14 @@
-"""Validarea registrului cu date reale, pe felii mici.
+"""Validating the registry against real data, on small slices.
 
-O fișă de registry spune ce ar trebui să se întâmple. Validarea cere efectiv o
-felie de câteva zeci de celule din fiecare indicator și verifică faptele:
-CSV-ul se parsează, coloanele se potrivesc, valorile sunt numerice, SIRUTA iese
-unde trebuie, iar o celulă aleasă la întâmplare are aceeași valoare când o ceri
-singură.
+A registry record says what should happen. Validation actually asks for a slice
+of a few dozen cells from each indicator and checks the facts: the CSV parses,
+the columns line up, the values are numeric, SIRUTA appears where it should,
+and a cell picked at random has the same value when requested on its own.
 
-Nimic de aici nu e API public. Se folosește din dezvoltare:
+Nothing here is public API. It is used from a development shell:
     from pytempo import schemas
     schemas.validate(sample=15, seed=42)
-    schemas.validate()                    # tot catalogul, cu resume
+    schemas.validate()                    # the whole catalogue, with resume
     schemas.spot_check_list(5)
 """
 import datetime
@@ -30,11 +29,11 @@ def _now() -> str:
 
 
 def stratified_sample(entries: dict, n: int, seed=None) -> list[str]:
-    """Eșantion aleatoriu, stratificat pe familii, minim MIN_PER_FAMILY.
+    """A random sample, stratified by family, at least MIN_PER_FAMILY each.
 
-    Proporțional cu mărimea familiei, dar cu un prag de jos: neteritorialul e
-    71% din catalog, iar familiile mici ar dispărea complet dintr-un eșantion
-    strict proporțional.
+    Proportional to family size, but with a floor: the non territorial family
+    is 71 percent of the catalogue, and the small families would vanish
+    entirely from a strictly proportional sample.
     """
     rnd = random.Random(seed)
     pe_familie = {}
@@ -53,7 +52,7 @@ def stratified_sample(entries: dict, n: int, seed=None) -> list[str]:
 
 
 def _year_option(dim):
-    """Opțiunea celui mai recent an de pe o dimensiune de timp."""
+    """The option for the most recent year on a time dimension."""
     cu_an = [(parse._year_of(o.label), o) for o in dim.options]
     cu_an = [(an, o) for an, o in cu_an if an is not None]
     if cu_an:
@@ -62,9 +61,9 @@ def _year_option(dim):
 
 
 def _slice_for(m, entry: dict) -> list[list[int]]:
-    """Selecția feliei mici de testat, per dimensiune, în ordinea din API.
+    """The small test slice, per dimension, in API order.
 
-    Ținta e un singur POST de zeci de celule, indiferent de familie.
+    The target is a single POST of a few dozen cells, whatever the family.
     """
     familie = entry.get("family")
     terr = [d for d in m.dimensions if d.role == "teritoriu"]
@@ -75,7 +74,7 @@ def _slice_for(m, entry: dict) -> list[list[int]]:
         judete = max((d for d in terr if d is not localitati),
                      key=lambda d: len(d.options))
 
-    # judetul pe care il testam: primul care nu e agregatul TOTAL
+    # the county we test: the first one that is not the TOTAL aggregate
     judet_ales = None
     if judete is not None:
         judet_ales = next((o for o in judete.options
@@ -92,7 +91,7 @@ def _slice_for(m, entry: dict) -> list[list[int]]:
                        for o in grupuri.get(judet_ales.nom_item_id, [])]
             else:
                 ids = []
-            # fara pereche judet plus localitate luam un cap de lista
+            # with no county plus locality pair we take the head of the list
             selectie.append(ids or [o.nom_item_id for o in d.options[:20]])
         elif d is judete and judet_ales is not None:
             selectie.append([judet_ales.nom_item_id])
@@ -114,12 +113,12 @@ def _payload(m, selectie) -> dict:
 
 
 def _norm_label(text) -> str:
-    """Etichetele din CSV vin fără virgulele din denumirea originală."""
+    """Labels in the CSV arrive without the commas of the original name."""
     return " ".join(str(text).replace(",", " ").split()).lower()
 
 
 def _point_check(m, df) -> str | None:
-    """Cere o singură celulă din felie și compară valoarea. None dacă e bine."""
+    """Ask for a single cell of the slice and compare. None when it matches."""
     rand = df.iloc[len(df) // 2]
     selectie = []
     for d in m.dimensions:
@@ -127,22 +126,22 @@ def _point_check(m, df) -> str | None:
         gasit = next((o for o in d.options
                       if _norm_label(o.label) == eticheta), None)
         if gasit is None:
-            return (f"nu pot mapa eticheta {rand[d.label.strip()]!r} "
-                    f"inapoi la un cod pe dimensiunea {d.label.strip()!r}")
+            return (f"cannot map label {rand[d.label.strip()]!r} back to a "
+                    f"code on dimension {d.label.strip()!r}")
         selectie.append([gasit.nom_item_id])
 
     text = client.post_pivot(_payload(m, selectie))
     singur = parse.pivot_csv_to_dataframe(text, m)
     if len(singur) != 1:
-        return f"celula punctuala a intors {len(singur)} randuri, asteptat 1"
+        return f"the point cell returned {len(singur)} rows, expected 1"
     a, b = rand["Valoare"], singur.iloc[0]["Valoare"]
     if a != b:
-        return f"celula punctuala difera: in felie {a}, ceruta singur {b}"
+        return f"point cell differs: {a} in the slice, {b} on its own"
     return None
 
 
 def _checks(m, entry, df) -> str | None:
-    """Verificările pe felia primită. None dacă totul e în regulă."""
+    """The checks on the slice that came back. None when all is well."""
     if entry.get("has_siruta"):
         tidy = parse.standardize(df, m)
         loc = [d for d in m.dimensions
@@ -152,14 +151,14 @@ def _checks(m, entry, df) -> str | None:
             coloana = tidy[f"{d.label.strip()}_siruta"]
             localitati = tidy[f"{d.label.strip()}_nivel"] == "localitate"
             if localitati.any() and coloana[localitati].isna().all():
-                return (f"has_siruta True, dar SIRUTA iese gol pe toate "
-                        f"localitatile din {d.label.strip()!r}")
+                return (f"has_siruta is True, but SIRUTA is empty for every "
+                        f"locality in {d.label.strip()!r}")
 
     um = [d for d in m.dimensions if d.role == "um"]
     if any("persoane" in territory._norm(d.label) for d in um):
         negative = (df["Valoare"] < 0).sum()
         if negative:
-            return f"{negative} valori negative unde UM e numar de persoane"
+            return f"{negative} negative values where the unit counts people"
 
     return _point_check(m, df)
 
@@ -167,16 +166,16 @@ def _checks(m, entry, df) -> str | None:
 def validate(sample: int | None = None, resume: bool = True,
              progress: bool = True, delay: float = 1.0, seed=None,
              path=None) -> dict:
-    """Cere o felie mică din fiecare indicator și verifică ce a venit.
+    """Ask for a small slice of each indicator and check what came back.
 
-    sample=N ia un eșantion stratificat pe familii; sample=None ia tot
-    catalogul, pentru rularea lungă. resume sare peste ce a trecut deja la
-    aceeași versiune de registry, deci rularea lungă poate fi oprită și reluată.
+    sample=N takes a sample stratified by family; sample=None takes the whole
+    catalogue, for the long run. resume skips whatever already passed at the
+    same registry version, so the long run can be stopped and restarted.
     """
     path = path or build.REGISTRY_PATH
     date = load_registry(path)
     if not date:
-        print("Nu exista registry.json. Ruleaza schemas.build_registry().")
+        print("There is no registry.json. Run schemas.build_registry().")
         return {}
     entries = date["entries"]
 
@@ -215,7 +214,7 @@ def validate(sample: int | None = None, resume: bool = True,
         if progress:
             scurs = time.time() - pornit
             ramas = scurs / i * (total - i)
-            print(f"\rvalidez: {i}/{total}, ramas ~{ramas / 60:.1f} min",
+            print(f"\rvalidating: {i}/{total}, ~{ramas / 60:.1f} min left",
                   end="", flush=True)
         if delay and i < total:
             time.sleep(delay)
@@ -229,10 +228,10 @@ def validate(sample: int | None = None, resume: bool = True,
 
 
 def validation_report(date: dict | None = None, path=None) -> None:
-    """Raportul validării: câți ok, câți goi, ce a mers prost și unde."""
+    """The validation report: how many ok, how many empty, what went wrong."""
     date = date or load_registry(path)
     if not date:
-        print("Nu exista registry.json.")
+        print("There is no registry.json.")
         return
     entries = date["entries"]
     validate_le = {c: e for c, e in entries.items() if e.get("validation")}
@@ -242,39 +241,40 @@ def validation_report(date: dict | None = None, path=None) -> None:
     erori = {c: e["validation"] for c, e in validate_le.items()
              if e["validation"].startswith("error:")}
 
-    print(f"\nValidare: {len(validate_le)} indicatori verificati")
-    print(f"  ok    : {len(ok)}")
-    print(f"  empty : {len(goi)}" + (f"  {goi[:8]}" if goi else ""))
-    print(f"  erori : {len(erori)}")
+    print(f"\nValidation: {len(validate_le)} indicators checked")
+    print(f"  ok     : {len(ok)}")
+    print(f"  empty  : {len(goi)}" + (f"  {goi[:8]}" if goi else ""))
+    print(f"  errors : {len(erori)}")
     for cod, motiv in erori.items():
         print(f"    {cod:10} {motiv[:110]}")
 
     fara_siruta = [c for c, e in entries.items()
                    if e.get("has_localities") and not e.get("has_siruta")]
     if fara_siruta:
-        print("\nlocalitati fara SIRUTA (tidy scoate coloana _siruta goala):")
+        print("\nlocalities without SIRUTA (tidy leaves the _siruta column "
+              "empty):")
         for cod in fara_siruta:
             e = entries[cod]
             print(f"  {cod:10} {e.get('name', '')[:70]}")
-            print(f"             validare: {e.get('validation', 'neverificat')}")
+            print(f"             validation: {e.get('validation', 'not checked')}")
 
 
 def spot_check_list(n: int = 10, seed=None, path=None) -> list[dict]:
-    """Listă de celule de verificat CU OCHII pe site-ul INS.
+    """A list of cells to check BY EYE on the INS site.
 
-    De ce manual: site-ul TEMPO și API-ul sunt același sistem, deci o
-    comparație automată ar compara API-ul cu el însuși și ar trece mereu.
-    Singura verificare independentă e omul care se uită pe site, iar treaba
-    noastră e să îi dăm lista gata făcută.
+    Why manual: the TEMPO site and the API are the same system, so an automatic
+    comparison would compare the API with itself and always agree. The only
+    independent check is a person reading the site, and our job is to hand them
+    a ready made list.
     """
     date = load_registry(path)
     if not date:
-        print("Nu exista registry.json.")
+        print("There is no registry.json.")
         return []
     ok = sorted(c for c, e in date["entries"].items()
                 if e.get("validation") == "ok")
     if not ok:
-        print("Niciun indicator validat ok. Ruleaza schemas.validate(...).")
+        print("No indicator validated ok. Run schemas.validate(...).")
         return []
 
     rnd = random.Random(seed)
@@ -294,13 +294,13 @@ def spot_check_list(n: int = 10, seed=None, path=None) -> list[dict]:
                             "combination": combinatie,
                             "value": rand["Valoare"], "url": e.get("endpoint")})
         except Exception as exc:
-            print(f"  {cod}: nu pot compune celula ({exc})")
+            print(f"  {cod}: cannot compose a cell ({exc})")
 
-    print(f"\nDe verificat manual pe site, {len(randuri)} celule:")
+    print(f"\nTo check by hand on the site, {len(randuri)} cells:")
     for r in randuri:
         print(f"\n{r['code']}  {r['name'][:70]}")
         for eticheta, valoare in r["combination"].items():
             print(f"    {eticheta[:40]:42} {valoare}")
-        print(f"    {'VALOAREA NOASTRA':42} {r['value']}")
+        print(f"    {'OUR VALUE':42} {r['value']}")
         print(f"    {r['url']}")
     return randuri

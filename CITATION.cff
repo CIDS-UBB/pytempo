@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "pytempo: Python access to INS TEMPO Online statistics"
+abstract: >-
+  A Python library for reading Romanian official statistics from the INS TEMPO
+  Online API: finding indicators, reading their metadata, fetching data at any
+  territorial level, and standardizing it with SIRUTA codes.
+type: software
+authors:
+  - family-names: "Alexe"
+    given-names: "Vlad"
+    affiliation: "Center for Interdisciplinary Data Science, Babes-Bolyai University"
+repository-code: "https://github.com/CIDS-UBB/pytempo"
+url: "https://github.com/CIDS-UBB/pytempo"
+license: MIT
+version: "0.15.0"
+# Fill this in once Zenodo has minted a DOI for the first release.
+doi: ""
+keywords:
+  - statistics
+  - romania
+  - open-data
+  - tempo
+  - insse

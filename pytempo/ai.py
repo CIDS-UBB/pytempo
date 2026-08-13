@@ -1,16 +1,18 @@
-"""VIITOR (opțional): descoperire în limbaj natural. Mod AI.
+"""FUTURE, optional: natural language discovery. The AI mode.
 
-Idee: 'vreau statistici despre șomeri' -> o listă de indicatori candidați, prin
-potrivirea cererii peste indexul de matrice cu ajutorul unui model.
+The idea: 'I want statistics about unemployment' gives a list of candidate
+indicators, by matching the request against the matrix index with the help of a
+model.
 
-Izolat aici intenționat, ca nucleul să NU capete dependințe AI. Off by default.
-Modelul (Anthropic API sau unul local) e configurabil, nu impus.
+Deliberately isolated here so the core picks up NO AI dependencies. Off by
+default. The model (the Anthropic API, or a local one) would be configurable,
+never imposed.
 """
 
 
 def discover(query: str, client=None, limit: int = 10) -> list:
-    """Întoarce indicatori candidați pentru o cerere în limbaj natural.
+    """Return candidate indicators for a natural language request.
 
-    Neimplementat: seam pentru viitor. Nucleul funcționează complet fără el.
+    Not implemented: a seam for later. The core works fully without it.
     """
-    raise NotImplementedError("viitor, opțional: mod AI")
+    raise NotImplementedError("future, optional: AI mode")

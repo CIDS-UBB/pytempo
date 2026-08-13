@@ -1,10 +1,10 @@
-"""Infrastructura internă de scheme. NU face parte din API-ul public.
+"""Internal schema infrastructure. NOT part of the public API.
 
-Registrul e harta catalogului: o fișă per indicator, cu forma dimensiunilor,
-familia și costul estimat. Pe el se sprijină filtrele din search, iar mai
-târziu planul de extragere.
+The registry is the map of the catalogue: one record per indicator, with the
+shape of its dimensions, its family and its estimated cost. The search filters
+rest on it, and so does the fetch plan.
 
-Se folosește din dezvoltare, nu din pytempo direct:
+Used from a development shell, not from pytempo directly:
     from pytempo import schemas
     schemas.build_registry()
     schemas.report()

@@ -1,4 +1,4 @@
-"""Teste offline pentru get-ul ca executor de plan si trio-ul what/where/how."""
+"""Offline tests for get as a plan executor and the what/where/how trio."""
 import sys
 
 import pytempo as t
@@ -46,7 +46,7 @@ def _post(monkeypatch, csv_by_code):
 
 CSV = {"SOM101B": CSV_SOM101B, "FOM104D": CSV_FOM104D}
 
-# indicator fara nicio dimensiune teritoriala
+# an indicator with no territorial dimension at all
 NETERITORIAL = {
     "matrixName": "AMIGO - Someri BIM pe grupe de varsta si sexe",
     "definitie": "", "metodologie": "", "observatii": "",
@@ -80,11 +80,11 @@ def test_get_uses_default_level_from_plan(monkeypatch, tmp_path, capsys):
     cereri = _post(monkeypatch, CSV)
     df = t.matrix("SOM101B").get()
 
-    # planul spune judet, deci se cer doar judetele
+    # the plan says judet, so only counties are requested
     assert cereri[0]["encQuery"].split(":")[0] == "4,5"
     iesire = capsys.readouterr().out
-    assert "nivel judet (cel mai fin)" in iesire
-    # tidy e implicit acum
+    assert "level judet (finest)" in iesire
+    # tidy is the default now
     assert any(c.endswith("_nivel") for c in df.columns)
 
 
@@ -96,7 +96,7 @@ def test_get_raw_gives_untouched_columns(monkeypatch, tmp_path):
     curat = m.get(progress=False)
     assert brut.shape[1] < curat.shape[1]
     assert not any(c.endswith("_nivel") for c in brut.columns)
-    # tidy=False face acelasi lucru
+    # tidy=False does the same thing
     assert m.get(tidy=False, progress=False).shape[1] == brut.shape[1]
 
 
@@ -115,13 +115,13 @@ def test_get_explicit_levels_beat_the_default(monkeypatch, tmp_path):
 
 
 def test_get_on_localities_does_not_raise(monkeypatch, tmp_path):
-    """Calea implicita pe judet plus localitate merge, prin by_county."""
+    """The default path on county plus locality works, through by_county."""
     _registry(monkeypatch, tmp_path, dict(TOATE, FOM104D=FOM104D_MIC))
     monkeypatch.setattr(chunking, "MAX_CELLS", 10)
     cereri = _post(monkeypatch, CSV)
 
     df = t.matrix("FOM104D").get(progress=False)
-    assert len(cereri) == 3            # cate un judet fiecare
+    assert len(cereri) == 3            # one county each
     assert len(df) == 6
     assert "Localitati_siruta" in df.columns
 
@@ -133,14 +133,14 @@ def test_get_neteritorial_has_no_territorial_filter(monkeypatch, tmp_path):
                "Total, BT-1 - Municipiul Botosani, Anul 2024, Micrograme, 26.2\n")
     cereri = _post(monkeypatch, {"TMP1173": csv_tmp})
     t.matrix("TMP1173").get(progress=False)
-    # planul nu are default_level util, deci se cer toate optiunile
+    # the plan has no usable default_level, so every option is requested
     assert cereri[0]["encQuery"].split(":")[1] == "61,62,63"
 
 
 def test_get_asks_before_expensive_download(monkeypatch, tmp_path):
     _registry(monkeypatch, tmp_path, dict(TOATE, FOM104D=FOM104D_MIC))
     monkeypatch.setattr(chunking, "MAX_CELLS", 2)
-    # pytempo.matrix e functia; modulul se ia din sys.modules
+    # pytempo.matrix is the function; the module comes from sys.modules
     monkeypatch.setattr(sys.modules["pytempo.matrix"], "POLITE_REQUESTS", 2)
     cereri = _post(monkeypatch, CSV)
 
@@ -148,12 +148,12 @@ def test_get_asks_before_expensive_download(monkeypatch, tmp_path):
     try:
         t.matrix("FOM104D").get(progress=False)
     except ValueError as e:
-        assert "anulata" in str(e)
+        assert "cancelled" in str(e)
     else:
         raise AssertionError("trebuia sa ceara confirmare si sa se opreasca")
     assert cereri == []
 
-    # confirm=False taie intrebarea, pentru scripturi
+    # confirm=False skips the question, for scripts
     t.matrix("FOM104D").get(progress=False, confirm=False)
     assert len(cereri) > 2
 
@@ -164,7 +164,7 @@ def test_get_falls_back_without_registry(monkeypatch, tmp_path):
                         tmp_path / "nu_exista.json")
     cereri = _post(monkeypatch, CSV)
     t.matrix("SOM101B").get(progress=False)
-    # planul se calculeaza la runtime, deci tot judetele ies
+    # the plan is computed at runtime, so counties still come out
     assert cereri[0]["encQuery"].split(":")[0] == "4,5"
 
 
@@ -173,8 +173,8 @@ def test_progress_auto_is_quiet_for_one_request(monkeypatch, tmp_path, capsys):
     _post(monkeypatch, CSV)
     t.matrix("SOM101B").get()
     iesire = capsys.readouterr().out
-    assert "1 cerere" in iesire
-    assert "1/1" not in iesire       # fara progres per cerere
+    assert "1 request" in iesire
+    assert "1/1" not in iesire       # no per request progress
 
 
 # --------------------------------------------------------- what/where/how
@@ -203,27 +203,27 @@ def test_what_flags_years_in_observations(monkeypatch, tmp_path, capsys):
     _registry(monkeypatch, tmp_path, dict(TOATE, FOM104D=cu_ani))
     t.matrix("FOM104D").what()
     iesire = capsys.readouterr().out
-    assert "1990" in iesire and "rupturi de serie" in iesire
+    assert "1990" in iesire and "series breaks" in iesire
 
 
 def test_where_shows_coverage(monkeypatch, tmp_path, capsys):
     _registry(monkeypatch, tmp_path)
     t.matrix("SOM101B").where()
     iesire = capsys.readouterr().out
-    assert "domeniu" in iesire
-    assert "teritoriu" in iesire
+    assert "domain" in iesire
+    assert "territory" in iesire
     assert "judet" in iesire
     assert "SIRUTA" in iesire
-    assert "timp" in iesire and "2020" in iesire
+    assert "time" in iesire and "2020" in iesire
 
 
 def test_where_says_when_not_territorial(monkeypatch, tmp_path, capsys):
     _registry(monkeypatch, tmp_path)
     fara = t.matrix("FOM101A")
-    # ii scoatem dimensiunea teritoriala, ca sa ramana una neteritoriala
+    # remove its territorial dimension, leaving a non territorial one
     fara.dimensions = [d for d in fara.dimensions if d.role != "teritoriu"]
     fara.where()
-    assert "nu e teritorial" in capsys.readouterr().out
+    assert "not territorial" in capsys.readouterr().out
 
 
 def test_how_lists_only_its_own_levels(monkeypatch, tmp_path, capsys):
@@ -233,7 +233,7 @@ def test_how_lists_only_its_own_levels(monkeypatch, tmp_path, capsys):
     assert "m.get()" in iesire
     for nivel in ("national", "macroregiune", "regiune", "judet"):
         assert nivel in iesire
-    # SOM101B nu coboara la localitate, deci nu il propunem
+    # SOM101B does not reach locality level, so we do not suggest it
     assert "localitate" not in iesire
     assert "raw=True" in iesire
 
@@ -247,22 +247,22 @@ def test_how_warns_when_expensive(monkeypatch, tmp_path, capsys):
 
     t.matrix("SOM101B").how()
     iesire = capsys.readouterr().out
-    assert "530" in iesire and "ATENTIE" in iesire
+    assert "530" in iesire and "WARNING" in iesire
     assert "confirm=False" in iesire
 
 
 def test_how_does_not_offer_a_level_that_would_raise(monkeypatch, tmp_path,
                                                      capsys):
-    """FOM104D are judet si localitate separate: get(level=...) ar arunca."""
+    """FOM104D keeps county and locality separate: get(level=...) would raise."""
     _registry(monkeypatch, tmp_path)
     t.matrix("FOM104D").how()
     iesire = capsys.readouterr().out
     assert "m.get(level=" not in iesire
-    assert "dimensiuni separate" in iesire
+    assert "separate dimensions" in iesire
 
 
 def test_unknown_only_levels_mean_no_territorial_filter(monkeypatch, tmp_path):
-    """TMP1173: nivelele sunt doar 'necunoscut', deci get() ia tot."""
+    """TMP1173: its only level is 'necunoscut', so get() takes everything."""
     cale = _registry(monkeypatch, tmp_path)
     fisa = schemas.load_registry(cale)["entries"]["TMP1173"]
     assert fisa["levels"] == ["necunoscut"]
@@ -277,7 +277,7 @@ def test_unknown_only_levels_mean_no_territorial_filter(monkeypatch, tmp_path):
 
 
 def test_mixed_levels_ignore_unknown_when_picking_finest():
-    """Un nivel real bate 'necunoscut' la alegerea celui mai fin."""
+    """A real level beats 'necunoscut' when picking the finest one."""
     plan = schemas.plan_for({
         "dims": [{"label": "Judete", "role": "teritoriu", "n_options": 50}],
         "levels": ["national", "macroregiune", "regiune", "judet",
@@ -289,15 +289,16 @@ def test_mixed_levels_ignore_unknown_when_picking_finest():
 def test_how_explains_when_level_filter_does_not_apply(monkeypatch, tmp_path,
                                                        capsys):
     _registry(monkeypatch, tmp_path)
-    # doar 'necunoscut': denumirile nu se incadreaza in nomenclator
+    # 'necunoscut' only: the names do not fit the nomenclator
     t.matrix("TMP1173").how()
     iesire = capsys.readouterr().out
-    assert "nu se aplica aici" in iesire and "get() ia tot" in iesire
+    assert "does not apply here" in iesire and "get() takes everything" in iesire
     assert "m.get(level=" not in iesire
 
 
 def test_non_territorial_get_and_how(monkeypatch, tmp_path, capsys):
-    """Neteritorialul nu are ce filtra: get() ia tot, how() o spune."""
+    """A non territorial indicator has nothing to filter: get() takes everything
+    and how() says so."""
     _registry(monkeypatch, tmp_path, dict(TOATE, AMG130A=NETERITORIAL))
     fisa = schemas.load_registry(schemas.build.REGISTRY_PATH)["entries"]
     assert fisa["AMG130A"]["levels"] == []
@@ -307,11 +308,11 @@ def test_non_territorial_get_and_how(monkeypatch, tmp_path, capsys):
            "Total, Total, Anul 2024, Numar persoane, 100.0\n")
     cereri = _post(monkeypatch, {"AMG130A": csv})
     t.matrix("AMG130A").get(progress=False)
-    assert cereri[0]["encQuery"] == "70,71:72:73:74"     # tot, nefiltrat
+    assert cereri[0]["encQuery"] == "70,71:72:73:74"     # everything, unfiltered
 
     t.matrix("AMG130A").how()
     iesire = capsys.readouterr().out
-    assert "nu e teritorial" in iesire and "get() ia tot" in iesire
+    assert "not territorial" in iesire and "get() takes everything" in iesire
     assert "m.get(level=" not in iesire
 
 

@@ -1,27 +1,27 @@
-"""Descoperire: navigarea arborelui de context și exploratorul interactiv.
+"""Discovery: walking the context tree, and the interactive explorer.
 
-Motorul real e browse() + catalog.search(); init() e doar UI-ul deasupra lor.
-UI-ul interactiv (meniu în terminal / notebook) e o iterație viitoare; funcțiile
-de dedesubt sunt cele care contează.
+The real engine is browse() plus catalog.search(); init() is only the UI on top
+of them. The interactive UI (a terminal or notebook menu) is future work; the
+functions underneath are the ones that matter.
 """
 from . import endpoints, client, catalog
 
 
 def browse(code: str = "") -> list:
-    """Navighează arborele de context TEMPO.
+    """Walk the TEMPO context tree.
 
-    code='' întoarce domeniile de sus (A. Statistica socială, B. Statistica
-    economică, C. Finanțe, D. Justiție ...). Un cod de nod întoarce copiii lui.
-    Coborâre pas cu pas până la indicatori.
+    code='' returns the top level domains (A. Statistica sociala, B. Statistica
+    economica, C. Finante, D. Justitie and so on). A node code returns its
+    children, so you can descend step by step to the indicators.
     """
-    raise NotImplementedError("iterația 4")
+    raise NotImplementedError("not implemented yet")
 
 
 def init() -> None:
-    """Explorator interactiv, ca să te joci cu datele.
+    """An interactive explorer, for poking around the data.
 
-    Pornește de la domeniile A/B/C/D, te lasă să cobori, să cauți (inclusiv fuzzy),
-    să filtrezi pe nivel, să alegi un indicator și să-i vezi info + nivele. Rulează
-    în terminal sau notebook. UI-ul e viitor; se sprijină pe browse() și search().
+    It would start from the top domains, let you descend, search, filter by
+    level, pick an indicator and see its info and levels. Runs in a terminal or
+    a notebook. The UI is future work; it rests on browse() and search().
     """
-    raise NotImplementedError("iterația 4")
+    raise NotImplementedError("not implemented yet")

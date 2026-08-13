@@ -1,4 +1,4 @@
-"""Teste offline pentru registrul de scheme. Fara retea, cu fixture-uri."""
+"""Offline tests for the schema registry. No network, fixtures only."""
 import json
 import sys
 
@@ -11,7 +11,7 @@ from .test_smoke import FOM101A, FOM104D, FOM104F, SOM101B
 
 
 def _fake_api(monkeypatch, meta):
-    """Ruteaza matrix/{cod} si numara apelurile."""
+    """Route matrix/{code} and count the calls."""
     apeluri = []
     monkeypatch.setattr(catalog, "_INDEX",
                         [{"code": c, "name": f"Indicator {c}"} for c in meta])
@@ -37,7 +37,7 @@ def test_classify_judet_localitate():
     assert schemas.classify({"dims": [{"role": "teritoriu"}],
                              "has_localities": True, "has_caen": False}) == \
         "judet_localitate"
-    # localitatile bat CAEN-ul: familia se da dupa cazul cel mai greu
+    # localities beat CAEN: the family follows the hardest case
     assert schemas.classify({"dims": [{"role": "teritoriu"}],
                              "has_localities": True, "has_caen": True}) == \
         "judet_localitate"
@@ -63,7 +63,7 @@ def test_classify_alt_when_no_dimensions():
 
 
 def test_classify_covers_every_family_name():
-    """Fiecare familie declarata trebuie sa fie produsa de classify."""
+    """Every declared family has to be produced by classify."""
     produse = {
         schemas.classify({"dims": [{"role": "teritoriu"}],
                           "has_localities": True}),
@@ -115,9 +115,9 @@ def test_build_registry_writes_full_entries(monkeypatch, tmp_path):
 
 
 def test_build_registry_records_errors_without_stopping(monkeypatch, tmp_path):
-    """Un endpoint mort e notat, nu opreste recensamantul."""
+    """A dead endpoint is recorded, it does not stop the census."""
     _fake_api(monkeypatch, TOATE)
-    # pytempo.matrix e functia; modulul se ia din sys.modules
+    # pytempo.matrix is the function; the module comes from sys.modules
     matrix_mod = sys.modules["pytempo.matrix"]
     real = matrix_mod.matrix
 
@@ -147,9 +147,9 @@ def test_build_registry_incremental_skips_known(monkeypatch, tmp_path):
 
     apeluri.clear()
     schemas.build_registry(confirm=False, progress=False, path=cale)
-    assert apeluri == []          # nimic nu se re-aduce
+    assert apeluri == []          # nothing is fetched again
 
-    # un cod nou intra, restul raman
+    # a new code enters, the rest stay as they were
     apeluri.clear()
     monkeypatch.setattr(catalog, "_INDEX",
                         [{"code": c, "name": c} for c in list(TOATE) + ["NOU"]])
@@ -173,7 +173,7 @@ def test_build_registry_refresh_redoes_everything(monkeypatch, tmp_path):
 def test_build_registry_asks_before_uncached_work(monkeypatch, tmp_path):
     _fake_api(monkeypatch, TOATE)
     cale = tmp_path / "registry.json"
-    # cache-ul e gol, deci toate metadatele ar veni din retea
+    # the cache is empty, so all metadata would come from the network
     monkeypatch.setattr(client, "CACHE_DIR", tmp_path / "gol")
     monkeypatch.setattr("builtins.input", lambda _: "n")
 
@@ -211,13 +211,13 @@ def test_report_runs(monkeypatch, tmp_path, capsys):
     assert "judet_localitate" in iesire
     assert "teritorial_caen" in iesire
     assert "A. STATISTICA SOCIALA" in iesire
-    assert "cu SIRUTA" in iesire
-    assert "erori" in iesire
+    assert "with SIRUTA" in iesire
+    assert "errors" in iesire
 
 
 def test_report_without_registry(tmp_path, capsys):
     schemas.report(path=tmp_path / "nu_exista.json")
-    assert "Nu exista registry.json" in capsys.readouterr().out
+    assert "There is no registry.json" in capsys.readouterr().out
 
 
 # ------------------------------------------------- migrarea blanda in search
@@ -227,7 +227,7 @@ def test_search_prefers_registry(monkeypatch, tmp_path):
     cale = tmp_path / "registry.json"
     schemas.build_registry(confirm=False, progress=False, path=cale)
     monkeypatch.setattr(schemas.build, "REGISTRY_PATH", cale)
-    # niciun levels_index.json vechi
+    # no older levels_index.json
     monkeypatch.setattr(client, "CACHE_DIR", tmp_path / "data" / "raw")
 
     assert [m.code for m in t.search(level="localitate")] == ["FOM104D"]
@@ -235,7 +235,7 @@ def test_search_prefers_registry(monkeypatch, tmp_path):
 
 
 def test_search_falls_back_to_levels_index(monkeypatch, tmp_path):
-    """Fara registru, filtrele merg mai departe pe indexul vechi."""
+    """With no registry, the filters carry on using the older index."""
     _fake_api(monkeypatch, TOATE)
     monkeypatch.setattr(schemas.build, "REGISTRY_PATH",
                         tmp_path / "nu_exista.json")

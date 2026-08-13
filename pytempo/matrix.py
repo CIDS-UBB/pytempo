@@ -1,15 +1,15 @@
-"""Obiectul Matrix: identitate + metadate + (mai târziu) date.
+"""The Matrix object: identity, metadata, and data.
 
-Endpoint-ul e definit de cod: totul pornește din t.matrix('FOM104D').
-Căutarea (catalog.search) întoarce Matrix cu code + name + url; metadatele
-se aduc la cerere, datele la iterația 3.
+The endpoint is defined by the code: everything starts from t.matrix('FOM104D').
+catalog.search returns a Matrix with code, name and url; metadata is fetched on
+demand.
 
-Aici stau și tipurile de afișare (MatrixList, TextList), ca listele întoarse
-de search, domains și related să se vadă ca tabel, nu ca dict brut.
+The display types (MatrixList, TextList) live here too, so the lists returned by
+search, domains and related render as a table rather than a raw dict.
 
-Atenție la cost: numele din API conțin HTML incorporat, iar nivelele cer
-metadatele fiecărui indicator. Afișarea NU aduce metadate de la sine; arată
-nivelele doar pentru indicatorii deja încărcați.
+A note on cost: names from the API carry embedded HTML, and levels need each
+indicator's metadata. Display never fetches metadata by itself; it shows levels
+only for indicators that already carry them.
 """
 import html
 import re
@@ -21,8 +21,8 @@ from . import chunking, client, endpoints, parse, territory
 from .chunking import MAX_CELLS
 from .models import Dimension, Node, Option
 
-# peste atatea cereri intrebam intai, ca sa nu pornim din greseala o
-# descarcare de zeci de minute
+# past this many requests we ask first, so nobody starts a download of tens
+# of minutes by accident
 POLITE_REQUESTS = 50
 
 _ANCHORS = re.compile(r"<a\b[^>]*>.*?</a>", re.IGNORECASE | re.DOTALL)
@@ -31,11 +31,11 @@ _EMPTY = re.compile(r"\(\s*\)|\[\s*\]")
 
 
 def _clean(text: str) -> str:
-    """Curăță un nume venit din API, ca să fie citibil într-un breadcrumb.
+    """Clean a name from the API so it reads well inside a breadcrumb.
 
-    Numele de noduri conțin ancore <a href=...>text</a> spre comunicate de presă.
-    Scoatem ancora cu tot cu textul ei, altfel breadcrumb-ul devine un paragraf.
-    Rămân apoi paranteze goale și separatori orfani, care se curăță și ei.
+    Node names carry <a href=...>text</a> anchors pointing at press releases.
+    We remove the anchor together with its text, otherwise the breadcrumb turns
+    into a paragraph. Empty brackets and orphan separators are cleaned up too.
     """
     if not text:
         return ""
@@ -45,30 +45,30 @@ def _clean(text: str) -> str:
 
 
 def _decision_line(m, wanted, plan, planuri) -> str:
-    """Ce s-a hotarat, intr-o linie, inainte de descarcare."""
+    """What was decided, in one line, before the download starts."""
     if wanted:
         nivel = ", ".join(wanted)
-        coada = " (cel mai fin)" if nivel == plan.get("default_level") else ""
-        bucata = f"nivel {nivel}{coada}"
+        coada = " (finest)" if nivel == plan.get("default_level") else ""
+        bucata = f"level {nivel}{coada}"
     else:
-        bucata = "toate nivelele" if m.levels else "fara filtru teritorial"
+        bucata = "all levels" if m.levels else "no territorial filter"
     strategie = plan.get("strategy", "single")
-    cereri = f"{len(planuri)} cerere" if len(planuri) == 1 else \
-        f"{len(planuri)} cereri"
+    cereri = f"{len(planuri)} request" if len(planuri) == 1 else \
+        f"{len(planuri)} requests"
     return f"{bucata}, {strategie}, {cereri}"
 
 
 def _ask_big(cod: str, cereri: int) -> bool:
-    print(f"{cod}: {cereri} de cereri, cateva minute bune.")
+    print(f"{cod}: {cereri} requests, several minutes of work.")
     try:
-        return input("Continui? [d/N] ").strip().lower() in ("d", "da", "y",
-                                                             "yes")
+        return input("Continue? [y/N] ").strip().lower() in ("y", "yes", "d",
+                                                            "da")
     except (EOFError, OSError):
         return False
 
 
 class TextList(list):
-    """Listă de stringuri care se afișează citibil (breadcrumb, opțiuni)."""
+    """A list of strings that prints readably (breadcrumb, options)."""
 
     def __new__(cls, items, sep=", ", show=20):
         return super().__new__(cls, items)
@@ -86,12 +86,12 @@ class TextList(list):
 
 
 class MatrixList(list):
-    """Rezultatele unei căutări sau ale unei liste de noduri, ca tabel.
+    """The results of a search, or a list of nodes, as a table.
 
-    Ține fie Matrix, fie Node. Coloana de nivele apare doar dacă TOATE
-    elementele le au deja, din index sau din metadate aduse, ca afișarea să nu
-    coste niciodată un apel. Domeniile nu au nivele, deci o listă de domenii nu
-    primește coloana.
+    It holds either Matrix or Node objects. The levels column appears only when
+    EVERY element already knows its levels, from the index or from fetched
+    metadata, so display never costs a request. Domains have no levels, so a
+    list of domains does not get the column.
     """
 
     def _shows_levels(self) -> bool:
@@ -105,7 +105,7 @@ class MatrixList(list):
 
     def __repr__(self) -> str:
         if not self:
-            return "niciun rezultat"
+            return "no results"
         cu_nivele = self._shows_levels()
         rows = self._rows(cu_nivele)
         wcode = max(len(r[0]) for r in rows)
@@ -115,14 +115,14 @@ class MatrixList(list):
             if cu_nivele:
                 linie += f"  [{row[2]}]"
             out.append(linie)
-        out.append(f"({len(rows)} rezultate)")
+        out.append(f"({len(rows)} results)")
         return "\n".join(out)
 
     def _repr_html_(self) -> str:
         if not self:
-            return "<p>niciun rezultat</p>"
+            return "<p>no results</p>"
         cu_nivele = self._shows_levels()
-        antet = "<th>cod</th><th>nume</th>" + ("<th>nivele</th>" if cu_nivele
+        antet = "<th>code</th><th>name</th>" + ("<th>levels</th>" if cu_nivele
                                                else "")
         cells = ""
         for row in self._rows(cu_nivele):
@@ -134,14 +134,14 @@ class MatrixList(list):
         return (
             f"<table><thead><tr>{antet}</tr>"
             f"</thead><tbody>{cells}</tbody></table>"
-            f"<p>{len(self)} rezultate</p>"
+            f"<p>{len(self)} results</p>"
         )
 
     def recent(self, n: int = 15) -> "MatrixList":
-        """Cele mai recent actualizate n elemente DIN ACEST SET.
+        """The n most recently updated elements OF THIS SET.
 
-        Aduce metadatele doar pentru elementele setului. Nu există un recent
-        global peste tot catalogul: ar însemna mii de apeluri.
+        It fetches metadata only for the elements in the set. There is no
+        catalogue wide recent: that would be thousands of calls.
         """
         loaded = [matrix(it.code) if not it.last_updated else it
                   for it in self if isinstance(it, Matrix)]
@@ -150,7 +150,7 @@ class MatrixList(list):
 
 
 def _as_date(stamp: str) -> tuple:
-    """'20-11-2025' -> (2025, 11, 20), sortabil. Necunoscutul cade la coadă."""
+    """'20-11-2025' becomes (2025, 11, 20), sortable. Unknown sorts last."""
     parts = (stamp or "").split("-")
     if len(parts) == 3 and all(p.isdigit() for p in parts):
         d, m, y = parts
@@ -160,7 +160,8 @@ def _as_date(stamp: str) -> tuple:
 
 @dataclass
 class Matrix:
-    """Un indicator TEMPO. După search are code + name; restul se populează leneș."""
+    """One TEMPO indicator. After search it has code and name; the rest is
+    filled in lazily."""
     code: str
     name: str = ""
     definition: str = ""
@@ -171,25 +172,26 @@ class Matrix:
     sources: list = field(default_factory=list)
     dimensions: list = field(default_factory=list)
     details: dict = field(default_factory=dict)
-    ancestors: list = field(default_factory=list)  # [{name, code}] domeniu -> parinte
-    # nivelele venite din indexul local, cand metadatele nu au fost aduse.
-    # None inseamna necunoscut; lista goala inseamna stiut ca nu are niciunul
+    ancestors: list = field(default_factory=list)  # [{name, code}] domain to parent
+    # levels coming from the local index, when metadata has not been fetched.
+    # None means unknown; an empty list means known to have none
     cached_levels: list | None = None
 
     @property
     def url(self) -> str:
-        """Linkul către metadatele acestui indicator (GET matrix/{cod})."""
+        """The link to this indicator's metadata (GET matrix/{code})."""
         return endpoints.matrix(self.code)
 
     def link_ok(self) -> bool:
-        """True dacă linkul indicatorului răspunde. Pentru testul de linkuri."""
+        """True if the indicator's link answers. Used by the link check."""
         return client.url_ok(self.url)
 
     @property
     def levels(self) -> list[str]:
-        """Nivelele teritoriale prezente, de la general la specific.
+        """The territorial levels present, from coarse to fine.
 
-        Din metadate dacă sunt aduse, altfel din index, dacă search le-a pus.
+        From metadata when it has been fetched, otherwise from the index, if
+        search put them there.
         """
         if self.dimensions:
             return territory.levels_present(self.dimensions, self.details)
@@ -197,16 +199,16 @@ class Matrix:
 
     @property
     def levels_known(self) -> bool:
-        """Nivelele sunt disponibile fără niciun apel de rețea?"""
+        """Are the levels available without any network call?"""
         return bool(self.dimensions) or self.cached_levels is not None
 
     @property
     def has_siruta(self) -> bool:
-        """True dacă denumirile de localitate poartă prefix SIRUTA."""
+        """True if locality names carry a SIRUTA prefix."""
         return bool(self.details.get("matSiruta"))
 
     def info(self) -> dict:
-        """Metadatele complete, ca dicționar."""
+        """The full metadata, as a dictionary."""
         return {
             "code": self.code,
             "name": self.name,
@@ -231,7 +233,8 @@ class Matrix:
         }
 
     def _ensure_meta(self) -> "Matrix":
-        """Aduce metadatele dacă nu sunt deja acolo (search întoarce doar cod + nume)."""
+        """Fetch metadata if it is not already there (search returns only
+        code and name)."""
         if not self.dimensions and not self.ancestors:
             fresh = matrix(self.code)
             for f in fresh.__dataclass_fields__:
@@ -239,13 +242,14 @@ class Matrix:
         return self
 
     def _breadcrumb(self) -> TextList:
-        """Doar drumul prin domenii, de la domeniul de sus spre indicator."""
+        """Just the path through domains, from the top domain to the indicator."""
         self._ensure_meta()
         names = [_clean(a.get("name", "")) for a in self.ancestors]
         return TextList([n for n in names if n], sep=" > ", show=10)
 
     def what(self) -> None:
-        """Esența indicatorului, în câteva rânduri. Fișa lungă e describe()."""
+        """The essence of the indicator, in a few lines. describe() is the
+        full record."""
         self._ensure_meta()
         print(f"{self.code}  {_clean(self.name)}")
         definitie = (self.definition or "").strip()
@@ -255,29 +259,30 @@ class Matrix:
         um = [_clean(d.label).split(":", 1)[-1].strip()
               for d in self.dimensions if d.role == "um"]
         if um:
-            print(f"  unitate     : {', '.join(um)}")
+            print(f"  unit        : {', '.join(um)}")
         if self.periodicity:
-            print(f"  periodicitate: {', '.join(self.periodicity)}")
+            print(f"  periodicity : {', '.join(self.periodicity)}")
         if self.last_updated:
-            print(f"  actualizat  : {self.last_updated}")
+            print(f"  updated     : {self.last_updated}")
         ani = sorted(set(re.findall(r"\b(?:19|20)\d{2}\b",
                                     self.observations or "")))
         if ani:
-            print(f"  atentie     : observatiile mentioneaza anii "
-                  f"{', '.join(ani)}, deci pot fi rupturi de serie")
-            print("                citeste-le cu .describe()")
+            print(f"  warning     : the observations mention the years "
+                  f"{', '.join(ani)}, so there may be series breaks")
+            print("                read them with .describe()")
 
     def where(self) -> None:
-        """Unde stă indicatorul și ce acoperă: domeniu, teritoriu, ani."""
+        """Where the indicator sits and what it covers: domain, territory,
+        years."""
         self._ensure_meta()
         crumbs = self._breadcrumb()
         if crumbs:
-            print(f"domeniu : {crumbs!r}")
+            print(f"domain   : {crumbs!r}")
 
         for d in self.dimensions:
             if d.role != "teritoriu":
                 continue
-            print(f"teritoriu: {_clean(d.label)} ({len(d.options)} optiuni)")
+            print(f"territory: {_clean(d.label)} ({len(d.options)} options)")
             if territory.is_locality_dimension(d, self.details):
                 print(f"    localitate      {len(d.options)}")
             else:
@@ -289,64 +294,63 @@ class Matrix:
                     if nivel in pe_nivel:
                         print(f"    {nivel:15} {pe_nivel[nivel]}")
         if not self.levels:
-            print("teritoriu: niciunul, indicatorul nu e teritorial")
+            print("territory: none, this indicator is not territorial")
         else:
-            print(f"SIRUTA  : {'da' if self.has_siruta else 'nu'}")
+            print(f"SIRUTA   : {'yes' if self.has_siruta else 'no'}")
 
         for d in self.dimensions:
             if d.role != "timp":
                 continue
             ani = [parse._year_of(o.label) for o in d.options]
             ani = [a for a in ani if a]
-            interval = f"{min(ani)} pana in {max(ani)}" if ani else "necunoscut"
-            print(f"timp    : {_clean(d.label)}, {len(d.options)} perioade, "
+            interval = f"{min(ani)} to {max(ani)}" if ani else "unknown"
+            print(f"time     : {_clean(d.label)}, {len(d.options)} periods, "
                   f"{interval}")
 
     def how(self) -> None:
-        """Manualul de descărcare al acestui indicator, gata de copiat."""
+        """This indicator's own download manual, ready to copy."""
         self._ensure_meta()
         plan = self.fetch_plan()
         strategie = plan.get("strategy", "single")
         cereri = plan.get("est_requests", 1)
         implicit = plan.get("default_level")
 
-        print(f"Cum descarci {self.code}:")
+        print(f"How to download {self.code}:")
         print(f"  m = t.matrix({self.code!r})")
         print(f"  df = m.get()          "
-              f"{'nivel ' + implicit if implicit else 'fara filtru teritorial'}"
-              f", curatat")
+              f"{'level ' + implicit if implicit else 'no territorial filter'}"
+              f", tidied")
         teritoriale = [d for d in self.dimensions if d.role == "teritoriu"]
         if len(teritoriale) > 1:
-            # filtrul pe nivel nu merge cand judetul si localitatea sunt
-            # dimensiuni separate; nu propunem ce ar arunca eroare
-            print("  (filtrul pe nivel nu se aplica aici: judetul si "
-                  "localitatea sunt")
-            print("   dimensiuni separate, iar get() le aduce oricum pe "
-                  "amandoua)")
+            # the level filter does not work when county and locality are
+            # separate dimensions; do not suggest what would raise
+            print("  (the level filter does not apply here: county and "
+                  "locality are")
+            print("   separate dimensions, and get() brings both anyway)")
         elif not implicit:
-            motiv = ("indicatorul nu e teritorial" if not teritoriale else
-                     "denumirile teritoriale nu se incadreaza in nomenclator")
-            print(f"  (filtrul pe nivel nu se aplica aici: {motiv},")
-            print("   deci get() ia tot)")
+            motiv = ("this indicator is not territorial" if not teritoriale
+                     else "its territorial names are not administrative units")
+            print(f"  (the level filter does not apply here: {motiv},")
+            print("   so get() takes everything)")
         else:
             for nivel in self.levels:
                 if nivel != implicit:
                     print(f"  m.get(level={nivel!r})")
             if self.levels:
-                print("  m.get(level=None)     toate nivelele la un loc")
-        print("  m.get(raw=True)       exact ce da INS, fara coloane derivate")
+                print("  m.get(level=None)     every level at once")
+        print("  m.get(raw=True)       exactly what INS returns, no extras")
         print()
-        print(f"  strategie: {strategie}, aproximativ {cereri} "
-              f"{'cerere' if cereri == 1 else 'cereri'}")
+        print(f"  strategy: {strategie}, roughly {cereri} "
+              f"{'request' if cereri == 1 else 'requests'}")
         if cereri > POLITE_REQUESTS:
-            print(f"  ATENTIE: peste {POLITE_REQUESTS} de cereri, dureaza. "
-                  f"get() te intreaba intai;")
-            print("  pune confirm=False daca rulezi dintr-un script.")
+            print(f"  WARNING: over {POLITE_REQUESTS} requests, this takes a "
+                  f"while. get() asks first;")
+            print("  pass confirm=False when running from a script.")
         elif cereri > 1:
-            print("  se descarca in mai multe cereri si se concateneaza")
+            print("  downloaded in several requests and concatenated")
 
     def related(self, limit: int = 25) -> MatrixList:
-        """Ceilalți indicatori din același nod-părinte."""
+        """The other indicators under the same parent node."""
         self._ensure_meta()
         if not self.ancestors:
             return MatrixList([])
@@ -362,18 +366,18 @@ class Matrix:
         return MatrixList(out)
 
     def _find_dimension(self, dimension):
-        """Rezolvă o dimensiune după index, rol sau label."""
+        """Resolve a dimension by index, role or label."""
         if isinstance(dimension, int):
             return self.dimensions[dimension]
 
         want = _clean(str(dimension)).lower()
         terr = [d for d in self.dimensions if d.role == "teritoriu"]
-        # 'teritoriu' da cea mai fina dimensiune teritoriala prezenta
+        # 'teritoriu' gives the finest territorial dimension present
         if want == "teritoriu" and terr:
             fine = [d for d in terr
                     if "localitate" in territory.dimension_levels(d, self.details)]
             return (fine or terr)[0]
-        # un nivel ('judet', 'localitate', ...) da dimensiunea care il acopera
+        # a level ('judet', 'localitate', ...) gives the dimension covering it
         if want in territory._LEVEL_ORDER:
             hit = [d for d in terr
                    if want in territory.dimension_levels(d, self.details)]
@@ -390,22 +394,23 @@ class Matrix:
             return hit[0]
 
         avem = ", ".join(f"{d.label.strip()} ({d.role})" for d in self.dimensions)
-        raise ValueError(f"dimensiune necunoscuta: {dimension!r}. Disponibile: {avem}")
+        raise ValueError(
+            f"unknown dimension: {dimension!r}. Available: {avem}")
 
     def options(self, dimension=None, limit: int | None = None) -> TextList:
-        """Denumirile opțiunilor unei dimensiuni, ca să știi ce poți filtra.
+        """The option names of a dimension, so you know what you can filter on.
 
-        Fără argument, listează dimensiunile indicatorului, cu rolul și câte
-        opțiuni are fiecare, ca să vezi ce poți cere.
+        With no argument it lists the indicator's dimensions, with their role
+        and how many options each has, so you can see what to ask for.
 
-        dimension acceptă indexul, rolul ('timp', 'judet', 'teritoriu') sau
-        labelul ('Judete'). limit taie lista întoarsă.
+        dimension accepts an index, a role ('timp', 'judet', 'teritoriu') or a
+        label ('Judete'). limit truncates the returned list.
         """
         self._ensure_meta()
         if dimension is None:
             return TextList(
                 [f"[{d.dim_index}] {_clean(d.label)} ({d.role}, "
-                 f"{len(d.options)} optiuni)" for d in self.dimensions],
+                 f"{len(d.options)} options)" for d in self.dimensions],
                 sep="\n", show=50)
 
         dim = self._find_dimension(dimension)
@@ -415,82 +420,85 @@ class Matrix:
         return TextList(labels)
 
     def show(self) -> None:
-        """Rezumatul indicatorului, citibil: unde e, ce nivele, ce dimensiuni."""
+        """A readable summary: where it sits, its levels, its dimensions."""
         self._ensure_meta()
         print(f"{self.code}  {_clean(self.name)}")
         crumbs = self._breadcrumb()
         if crumbs:
-            print(f"  unde      : {crumbs!r}")
+            print(f"  domain    : {crumbs!r}")
         if self.levels:
-            print(f"  nivele    : {', '.join(self.levels)}")
+            print(f"  levels    : {', '.join(self.levels)}")
         if self.last_updated:
-            print(f"  actualizat: {self.last_updated}")
+            print(f"  updated   : {self.last_updated}")
         if self.periodicity:
             print(f"  periodic  : {', '.join(self.periodicity)}")
-        print("  dimensiuni:")
+        print("  dimensions:")
         for d in self.dimensions:
             print(f"    [{d.dim_index}] {_clean(d.label)} ({d.role}, "
-                  f"{len(d.options)} optiuni)")
+                  f"{len(d.options)} options)")
 
     def describe(self) -> None:
-        """Fișa completă a indicatorului, cu tot textul de la INS, netăiat.
+        """The full record, with every word INS wrote, untruncated.
 
-        show() e rezumatul scurt și nu atinge textele. Aici se citește tot:
-        definiția, metodologia, sursele și observațiile, unde stau notele de
-        rupturi de serie și avertismentele despre ani incompleți.
+        show() is the short summary and does not touch the texts. Here you
+        read all of it: the definition, the methodology, the sources and the
+        observations, which is where series breaks and warnings about
+        incomplete years live.
         """
         self._ensure_meta()
         print(f"{self.code}  {_clean(self.name)}")
         crumbs = self._breadcrumb()
         if crumbs:
-            print(f"domeniu     : {crumbs!r}")
+            print(f"domain      : {crumbs!r}")
         if self.levels:
-            print(f"nivele      : {', '.join(self.levels)}")
+            print(f"levels      : {', '.join(self.levels)}")
         if self.periodicity:
-            print(f"periodicitate: {', '.join(self.periodicity)}")
+            print(f"periodicity : {', '.join(self.periodicity)}")
         if self.last_updated:
-            print(f"actualizat  : {self.last_updated}")
+            print(f"updated     : {self.last_updated}")
 
-        for titlu, text in (("DEFINITIE", self.definition),
-                            ("METODOLOGIE", self.methodology)):
+        for titlu, text in (("DEFINITION", self.definition),
+                            ("METHODOLOGY", self.methodology)):
             if text and text.strip():
                 print(f"\n{titlu}\n{text.strip()}")
 
         if self.sources:
-            print("\nSURSE")
+            print("\nSOURCES")
             for s in self.sources:
                 nume = s.get("nume") if isinstance(s, dict) else str(s)
-                # fara _clean aici: numele sursei poarta markerul INS <<6263>>,
-                # pe care curatarea de HTML l-ar manca
+                # no _clean here: a source name carries the INS marker
+                # <<6263>>, which HTML cleaning would eat
                 if nume and nume.strip():
                     print(f"  {nume.strip()}")
 
         if self.observations and self.observations.strip():
-            print(f"\nOBSERVATII\n{self.observations.strip()}")
+            print(f"\nOBSERVATIONS\n{self.observations.strip()}")
 
     def help(self) -> None:
-        """Ce poți face cu un indicator."""
-        print(f"""Indicatorul {self.code}. Ce poti face cu el:
+        """What you can do with one indicator."""
+        print(f"""Indicator {self.code}. What you can do with it:
 
-  .show()              rezumat scurt: domeniu, nivele, dimensiuni
-  .describe()          fisa completa: definitie, metodologie, surse, observatii
-  .info()              aceleasi metadate, ca dictionar
-  .where()             breadcrumb-ul de domeniu
-  .related()           ceilalti indicatori din acelasi nod
-  .levels              nivele, ex. ['national', 'judet', 'localitate']
-  .has_siruta          True daca localitatile poarta prefix SIRUTA
-  .options()           ce dimensiuni are, cu rol si numar de optiuni
-  .options('teritoriu') ce valori are o dimensiune (index, rol sau label)
-  .get()               datele, ca DataFrame in format lung
-  .get(level='judet')  doar un nivel teritorial
-  .get(tidy=True)      plus coloane derivate: SIRUTA, nivel, tip, an
-  .get(progress=True)  spune cat s-a tras, la matricele mari""")
+  .what()              what it measures: definition, unit, how often
+  .where()             where it sits and what it covers
+  .how()               its own download manual, ready to copy
+  .show()              short summary: domain, levels, dimensions
+  .describe()          the full record: definition, methodology, sources
+  .info()              the same metadata, as a dictionary
+  .related()           the other indicators under the same node
+  .levels              levels, e.g. ['national', 'judet', 'localitate']
+  .has_siruta          True if localities carry a SIRUTA prefix
+  .options()           which dimensions it has, with role and size
+  .options('teritoriu') what values one dimension takes
+  .get()               the data, as a long format DataFrame
+  .get(level='judet')  one territorial level only
+  .get(raw=True)       exactly what INS returns, no derived columns
+  .get(progress=True)  report progress on large indicators""")
 
     def _build_selection(self, wanted: list[str]) -> list[list[int]]:
-        """nomItemId-urile de trimis, per dimensiune, în ordinea din dimensionsMap.
+        """The nomItemIds to send, per dimension, in dimensionsMap order.
 
-        Fără nivele cerute, ia tot. Cu nivele cerute, taie doar dimensiunea
-        teritorială; restul rămân complete.
+        With no levels requested it takes everything. With levels requested it
+        trims only the territorial dimension; the rest stay complete.
         """
         if not wanted:
             return [[o.nom_item_id for o in d.options] for d in self.dimensions]
@@ -518,12 +526,12 @@ class Matrix:
         return selection
 
     def fetch_plan(self) -> dict:
-        """Planul de extragere: din registry dacă e acolo, altfel calculat.
+        """The fetch plan: from the registry if it is there, else computed.
 
-        Registrul vine cu pachetul, deci în mod normal planul e deja scris.
-        Fallback-ul ține biblioteca funcțională fără registru.
+        The registry ships with the package, so normally the plan is already
+        written. The fallback keeps the library working without a registry.
         """
-        from . import schemas  # local: schemas importa matrix, altfel ciclu
+        from . import schemas  # local import: schemas imports matrix, else a cycle
 
         try:
             registru = schemas.load_registry()
@@ -548,10 +556,10 @@ class Matrix:
         })
 
     def _wanted_levels(self, level, levels, plan) -> list[str]:
-        """Nivelele cerute efectiv, după rezolvarea lui 'finest'.
+        """The levels actually requested, after resolving 'finest'.
 
-        O listă explicită în levels bate implicitul: cine scrie
-        levels=['judet', 'regiune'] a spus deja ce vrea.
+        An explicit list in levels beats the default: someone who writes
+        levels=['judet', 'regiune'] has already said what they want.
         """
         explicite = list(levels or [])
         if isinstance(level, str) and level != "finest":
@@ -559,12 +567,12 @@ class Matrix:
         if explicite:
             return explicite
         if level != "finest":
-            return []               # level=None cere tot
+            return []               # level=None asks for everything
 
         implicit = plan.get("default_level")
         teritoriale = [d for d in self.dimensions if d.role == "teritoriu"]
-        # la judet plus localitate, cel mai fin nivel inseamna descarcarea
-        # intreaga: by_county livreaza chiar localitatile
+        # with county plus locality, the finest level means the whole
+        # download: by_county already delivers the localities
         if not implicit or len(teritoriale) > 1:
             return []
         return [implicit]
@@ -573,18 +581,20 @@ class Matrix:
             levels: list[territory.Level] | None = None,
             tidy: bool = True, progress="auto", raw: bool = False,
             confirm: bool = True):
-        """Datele indicatorului, ca DataFrame în format lung.
+        """The indicator's data, as a long format DataFrame.
 
-        Execută planul din registry: citește strategia, o rulează, aplică tidy.
+        It executes the plan from the registry: read the strategy, run it,
+        apply tidy.
 
-        level='finest' (implicit) ia nivelul cel mai fin pe care îl are
-        indicatorul; la matricele neteritoriale nu filtrează nimic. level=None
-        cere tot. Un nivel anume se cere ca atare, ex. level='judet'.
+        level='finest' (the default) takes the finest level the indicator
+        actually reaches; for non territorial matrices it filters nothing.
+        level=None asks for everything. A specific level is named as such,
+        for example level='judet'.
 
-        tidy=True adaugă coloanele derivate; raw=True dă exact ce a dat INS.
-        progress='auto' vorbește doar când planul are mai multe cereri.
-        confirm=False taie întrebarea de la descărcările scumpe, pentru
-        scripturi.
+        tidy=True adds the derived columns; raw=True returns exactly what INS
+        returned. progress='auto' only speaks when the plan has more than one
+        request. confirm=False skips the question before expensive downloads,
+        for scripts.
         """
         self._ensure_meta()
         plan = self.fetch_plan()
@@ -598,8 +608,8 @@ class Matrix:
         if confirm and len(planuri) > POLITE_REQUESTS and not _ask_big(
                 self.code, len(planuri)):
             raise ValueError(
-                f"{self.code}: descarcare anulata. Incearca un filtru pe "
-                f"nivel, sau get(confirm=False) daca esti sigur.")
+                f"{self.code}: download cancelled. Try a level filter, or "
+                f"get(confirm=False) if you are sure.")
 
         cadre = []
         for i, payload in enumerate(planuri, 1):
@@ -614,10 +624,11 @@ class Matrix:
         return df if raw or not tidy else parse.standardize(df, self)
 
     def _repr_html_(self) -> str:
-        """Cardul unui singur indicator. Aici nivelele chiar sunt disponibile.
+        """The card of a single indicator. Here the levels really are known.
 
-        Nu aduce metadate de la sine: un Matrix venit din search se afișează cu
-        ce are, ca simpla afișare într-un notebook să nu declanșeze un GET.
+        It does not fetch metadata by itself: a Matrix coming from search is
+        shown with what it has, so displaying it in a notebook never triggers
+        a GET.
         """
         rows = []
         if self.levels:
@@ -652,10 +663,10 @@ class Matrix:
 
 
 def _build(cod: str, data: dict) -> Matrix:
-    """Construiește un Matrix din JSON-ul brut al endpointului matrix/{cod}.
+    """Build a Matrix from the raw JSON of the matrix/{code} endpoint.
 
-    Ordinea dimensiunilor din dimensionsMap se păstrează în dim_index: ea
-    contează pentru ordinea din encQuery (iterația 3).
+    The dimension order from dimensionsMap is kept in dim_index: it drives the
+    order inside encQuery.
     """
     details = data.get("details") or {}
     dims = []
@@ -693,30 +704,30 @@ def _build(cod: str, data: dict) -> Matrix:
 
 
 def matrix(cod: str, refresh: bool = False) -> Matrix:
-    """Construiește un Matrix aducând metadatele (GET matrix/{cod}).
+    """Build a Matrix by fetching its metadata (GET matrix/{code}).
 
-    Verifică întâi codul în catalog, care e cache-uit: pentru un cod inexistent
-    INS întoarce non-JSON, iar mesajul brut nu ajută pe nimeni.
-    refresh=True ocolește cache-ul de metadate.
+    It checks the code against the cached catalogue first: for a code that
+    does not exist INS returns non JSON, and the raw error helps nobody.
+    refresh=True bypasses the metadata cache.
     """
-    from . import catalog  # local: catalog importa matrix, altfel ciclu
+    from . import catalog  # local import: catalog imports matrix, else a cycle
 
     cod = (cod or "").strip().upper()
     if cod not in catalog.name_dict():
         raise ValueError(
-            f"Codul '{cod}' nu exista in TEMPO. Cauta cu t.find(...).")
+            f"Code '{cod}' does not exist in TEMPO. Search with t.find(...).")
     data = client.get_json(endpoints.matrix(cod), use_cache=not refresh)
     return _build(cod, data)
 
 
 def info(cod: str) -> dict:
-    """Scurtătură: metadatele unui indicator."""
+    """Shortcut: one indicator's metadata."""
     return matrix(cod).info()
 
 
 def get(cod: str, level: territory.Level | None = None,
         levels: list[territory.Level] | None = None,
         tidy: bool = False, progress: bool = False):
-    """Scurtătură: datele unui indicator, ca DataFrame."""
+    """Shortcut: one indicator's data, as a DataFrame."""
     return matrix(cod).get(level=level, levels=levels, tidy=tidy,
                            progress=progress)

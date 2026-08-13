@@ -1,7 +1,7 @@
-"""Încadrarea unui indicator într-o familie, după forma dimensiunilor lui.
+"""Placing an indicator into a family, by the shape of its dimensions.
 
-Familia decide cum se aduc datele, deci e criteriul după care get-ul final va
-alege strategia. Funcție pură peste o intrare de registry, fără rețea.
+The family decides how the data is fetched, so it is the criterion get uses to
+pick a strategy. A pure function over a registry record, with no network.
 """
 
 FAMILIES = ("judet_localitate", "teritorial_caen", "teritorial_simplu",
@@ -9,16 +9,16 @@ FAMILIES = ("judet_localitate", "teritorial_caen", "teritorial_simplu",
 
 
 def classify(entry: dict) -> str:
-    """Familia unui indicator, din câmpurile lui de registry.
+    """An indicator's family, from its registry fields.
 
-    judet_localitate : are dimensiune de localități. Cazul greu, se descarcă
-                       județ cu județ.
-    teritorial_caen  : are teritoriu și CAEN, fără localități.
-    teritorial_simplu: are teritoriu, fără CAEN și fără localități.
-    neteritorial     : nicio dimensiune cu rol teritoriu.
-    alt              : ce nu intră în cele de sus, ex. o intrare fără
-                       dimensiuni deloc. Lista lor se printează în raport,
-                       fiindcă fiecare e un caz de citit cu ochii.
+    judet_localitate : has a locality dimension. The hard case, downloaded
+                       county by county.
+    teritorial_caen  : has territory and CAEN, no localities.
+    teritorial_simplu: has territory, no CAEN and no localities.
+    neteritorial     : no dimension with a territorial role.
+    alt              : anything not covered above, for example a record with
+                       no dimensions at all. They are listed one by one in the
+                       report, because each is a case to read with your eyes.
     """
     dims = entry.get("dims") or []
     if not dims:

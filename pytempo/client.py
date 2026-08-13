@@ -1,7 +1,7 @@
-"""Strat HTTP subțire peste API-ul TEMPO. Cache pe fișiere, local.
+"""A thin HTTP layer over the TEMPO API, with a local file cache.
 
-Fără requests_cache global (defectul din tempo.py). Cache-ul e explicit.
-get_json: IMPLEMENTAT (iterația 1). post_pivot: iterația 3.
+No global requests_cache: the cache is explicit, so you can always tell whether
+a call touched the network.
 """
 import hashlib
 import json
@@ -22,9 +22,10 @@ def _cache_path(url: str) -> pathlib.Path:
 
 
 def get_json(url: str, use_cache: bool = True, timeout: int = DEFAULT_TIMEOUT):
-    """GET la un endpoint TEMPO, întoarce JSON parsat (dict sau listă).
+    """GET a TEMPO endpoint and return parsed JSON, a dict or a list.
 
-    Dacă use_cache, salvează răspunsul brut în CACHE_DIR și îl reia de acolo.
+    With use_cache, the raw response is stored under CACHE_DIR and read back
+    from there next time.
     """
     path = _cache_path(url)
     if use_cache and path.exists():
@@ -35,11 +36,11 @@ def get_json(url: str, use_cache: bool = True, timeout: int = DEFAULT_TIMEOUT):
     try:
         data = resp.json()
     except ValueError:
-        # INS raspunde 200 cu pagina goala pentru coduri inexistente; nu lasam
-        # JSONDecodeError-ul brut din requests sa iasa la suprafata
+        # INS answers 200 with an empty page for codes that do not exist; do
+        # not let the raw JSONDecodeError from requests reach the caller
         raise ValueError(
-            f"Raspunsul de la {url} nu e JSON. Cel mai des inseamna ca resursa "
-            f"nu exista. Verifica codul cu t.find(...)."
+            f"The response from {url} is not JSON. Most often that means the "
+            f"resource does not exist. Check the code with t.find(...)."
         ) from None
 
     if use_cache:
@@ -49,7 +50,7 @@ def get_json(url: str, use_cache: bool = True, timeout: int = DEFAULT_TIMEOUT):
 
 
 def url_ok(url: str, timeout: int = DEFAULT_TIMEOUT) -> bool:
-    """Verifică rapid că un link răspunde (status 2xx). Pentru testul de linkuri."""
+    """Quick check that a link answers with status 200."""
     try:
         resp = requests.get(url, timeout=timeout)
         return resp.status_code == 200
@@ -58,7 +59,7 @@ def url_ok(url: str, timeout: int = DEFAULT_TIMEOUT) -> bool:
 
 
 def post_pivot(payload: dict, timeout: int = DEFAULT_TIMEOUT) -> str:
-    """POST la endpoints.pivot(), întoarce textul CSV brut. Fără parsare aici."""
+    """POST to endpoints.pivot() and return the raw CSV text. No parsing here."""
     resp = requests.post(
         endpoints.pivot(),
         json=payload,

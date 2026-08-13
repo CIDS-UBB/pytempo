@@ -1,4 +1,4 @@
-"""Teste offline pentru validare si planurile de extragere. Fara retea."""
+"""Offline tests for validation and fetch plans. No network."""
 import json
 import sys
 
@@ -6,7 +6,7 @@ import pytempo as t
 import pytempo.schemas.validate  # noqa: F401  (ca sa intre in sys.modules)
 from pytempo import catalog, client, endpoints, schemas
 
-# schemas.validate e functia; modulul se ia din sys.modules
+# schemas.validate is the function; the module comes from sys.modules
 v = sys.modules["pytempo.schemas.validate"]
 
 from .test_smoke import FOM101A, FOM104D, FOM104F, SOM101B
@@ -36,7 +36,7 @@ def _registry(monkeypatch, tmp_path, meta=TOATE):
     return cale
 
 
-# CSV-uri fixture, cu antetul asa cum il da INS
+# fixture CSVs, with the header exactly as INS returns it
 CSV = {
     "FOM104D": ("Judete, Localitati, Ani, UM: Numar persoane, Valoare\n"
                 "Alba, 1017 MUNICIPIUL ALBA IULIA, Anul 1990, Numar persoane, 31.5\n"
@@ -58,7 +58,8 @@ CSV = {
 
 
 def _post(monkeypatch, raspunsuri=None, punctual=None):
-    """Mock pe POST: prima cerere da felia, a doua celula punctuala."""
+    """Mock the POST: the first request gives the slice, the second the point
+    cell."""
     raspunsuri = raspunsuri or CSV
     cereri = []
 
@@ -66,7 +67,7 @@ def _post(monkeypatch, raspunsuri=None, punctual=None):
         cereri.append(payload)
         cod = payload["matCode"]
         felie = raspunsuri[cod]
-        # o cerere cu o singura optiune pe fiecare dimensiune e celula punctuala
+        # a request with one option per dimension is the point cell
         e_punctuala = all("," not in bloc
                           for bloc in payload["encQuery"].split(":"))
         if e_punctuala and punctual is not None and cod in punctual:
@@ -100,9 +101,9 @@ def test_stratified_sample_respects_minimum_per_family():
 
     assert familii["judet_localitate"] >= v.MIN_PER_FAMILY
     assert familii["teritorial_caen"] >= v.MIN_PER_FAMILY
-    # neteritorialul e majoritar, deci ia mult mai mult decat minimul
+    # the non territorial family is the largest, so it takes far more than the floor
     assert familii["neteritorial"] > v.MIN_PER_FAMILY
-    # seed fix: acelasi esantion
+    # fixed seed: the same sample
     assert v.stratified_sample(entries, 20, seed=1) == ales
     assert v.stratified_sample(entries, 20, seed=2) != ales
 
@@ -120,7 +121,7 @@ def test_slice_neteritorial_uses_one_year_only(monkeypatch, tmp_path):
     m = t.matrix("FOM101A")
     e = schemas.load_registry()["entries"]["FOM101A"]
     selectie = v._slice_for(m, e)
-    # Sexe: prima optiune; teritoriu: tot; Ani: un singur an; UM: prima
+    # Sexe: first option; territory: all; Ani: a single year; UM: first
     assert len(selectie[0]) == 1
     assert len(selectie[2]) == 1
     assert len(selectie[3]) == 1
@@ -131,10 +132,10 @@ def test_slice_judet_localitate_takes_one_county(monkeypatch, tmp_path):
     m = t.matrix("FOM104D")
     e = schemas.load_registry()["entries"]["FOM104D"]
     selectie = v._slice_for(m, e)
-    # judetul ales e Alba (primul care nu e TOTAL), cu localitatile lui
+    # the chosen county is Alba (the first that is not TOTAL), with its localities
     assert selectie[0] == [3064]
     assert sorted(selectie[1]) == [113, 114]
-    assert len(selectie[2]) == 1          # un singur an
+    assert len(selectie[2]) == 1          # a single year
 
 
 def test_slice_is_small(monkeypatch, tmp_path):
@@ -171,7 +172,7 @@ def test_validate_resume_skips_done(monkeypatch, tmp_path):
 
     cereri.clear()
     v.validate(progress=False, delay=0, path=cale)
-    assert cereri == []                       # totul era deja ok
+    assert cereri == []                       # everything was already ok
 
     cereri.clear()
     v.validate(progress=False, delay=0, resume=False, path=cale)
@@ -180,7 +181,7 @@ def test_validate_resume_skips_done(monkeypatch, tmp_path):
 
 def test_validate_point_cell_mismatch_is_error(monkeypatch, tmp_path):
     cale = _registry(monkeypatch, tmp_path)
-    # a doua cerere intoarce alta valoare decat felia
+    # the second request returns a different value than the slice
     stricat = {
         "SOM101B": ("Macroregiuni  regiuni de dezvoltare si judete, Ani, "
                     "UM: Numar persoane, Valoare\n"
@@ -189,8 +190,8 @@ def test_validate_point_cell_mismatch_is_error(monkeypatch, tmp_path):
     _post(monkeypatch, punctual=stricat)
     date = v.validate(sample=None, progress=False, delay=0, path=cale)
     assert date["entries"]["SOM101B"]["validation"].startswith("error:")
-    assert "celula punctuala difera" in date["entries"]["SOM101B"]["validation"]
-    # ceilalti nu sunt afectati
+    assert "point cell differs" in date["entries"]["SOM101B"]["validation"]
+    # the others are unaffected
     assert date["entries"]["FOM104D"]["validation"] == "ok"
 
 
@@ -219,12 +220,12 @@ def test_validation_report_names_locality_without_siruta(monkeypatch, tmp_path,
                                                          capsys):
     cale = _registry(monkeypatch, tmp_path)
     date = schemas.load_registry(cale)
-    date["entries"]["FOM104D"]["has_siruta"] = False   # simulam TMP1173
+    date["entries"]["FOM104D"]["has_siruta"] = False   # simulating TMP1173
     v._save(date, cale)
 
     v.validation_report(path=cale)
     iesire = capsys.readouterr().out
-    assert "localitati fara SIRUTA" in iesire
+    assert "localities without SIRUTA" in iesire
     assert "FOM104D" in iesire
 
 
@@ -243,7 +244,7 @@ def test_spot_check_list_returns_rows_with_url(monkeypatch, tmp_path, capsys):
         assert r["combination"]
         assert r["value"] is not None
     iesire = capsys.readouterr().out
-    assert "VALOAREA NOASTRA" in iesire
+    assert "OUR VALUE" in iesire
     assert "tempo-ins/matrix/" in iesire
 
 
@@ -275,7 +276,7 @@ def test_plan_by_county_for_localities():
 
 
 def test_plan_split_for_big_without_localities():
-    """Cei peste prag fara localitati primesc split, nu eroare."""
+    """Those over the threshold without localities get split, not an error."""
     plan = schemas.plan_for({
         "dims": [{"label": "Macroregiuni, regiuni si judete",
                   "role": "teritoriu", "n_options": 56},
@@ -290,7 +291,7 @@ def test_plan_split_for_big_without_localities():
 
 
 def test_plan_split_when_localities_have_no_county_dim():
-    """O singura dimensiune teritoriala, ca TMP1173: split, nu by_county."""
+    """A single territorial dimension, like TMP1173: split, not by_county."""
     plan = schemas.plan_for({
         "dims": [{"label": "Statii de monitorizare", "role": "teritoriu",
                   "n_options": 121},
@@ -327,7 +328,7 @@ def test_refresh_plans_writes_every_entry(monkeypatch, tmp_path, capsys):
 
 
 def test_rebuild_keeps_validation(monkeypatch, tmp_path):
-    """O reconstrucție nu arunca validarea daca indicatorul nu s-a schimbat."""
+    """A rebuild does not throw the validation away if the indicator is the same."""
     cale = _registry(monkeypatch, tmp_path)
     _post(monkeypatch)
     v.validate(progress=False, delay=0, path=cale)
@@ -341,7 +342,7 @@ def test_rebuild_keeps_validation(monkeypatch, tmp_path):
 
 
 def test_rebuild_drops_validation_when_indicator_changed(monkeypatch, tmp_path):
-    """Daca INS a actualizat indicatorul, validarea veche nu mai conteaza."""
+    """If INS updated the indicator, the old validation no longer counts."""
     cale = _registry(monkeypatch, tmp_path)
     _post(monkeypatch)
     v.validate(progress=False, delay=0, path=cale)

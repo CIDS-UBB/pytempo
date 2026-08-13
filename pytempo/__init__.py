@@ -1,8 +1,8 @@
-"""pytempo: acces simplu la datele INS TEMPO Online.
+"""pytempo: simple access to the INS TEMPO Online data.
 
-Punctul de plecare e t.help(), care listează ce se poate face acum.
-Descoperire (find, domains, overview), înțelegere (matrix, info, show, where,
-related, levels, options) și tragerea datelor (get, cu filtru pe nivel).
+Start with t.help(), which lists what the package can do. Discovery (find,
+search, domains, overview), understanding (matrix, what, where, how, info,
+show, describe, options) and fetching the data (get).
 """
 from .catalog import (build_index, domains, filters, find, load_index,
                       name_dict, overview, search)
@@ -22,70 +22,69 @@ __all__ = [
 
 
 def help() -> None:
-    """Ghid de navigare: ce metode există acum, grupate pe intenție."""
-    print("""pytempo, ghid de navigare. Importa cu: import pytempo as t
+    """A navigation guide: what the package can do, grouped by intent."""
+    print("""pytempo, a navigation guide. Import it with: import pytempo as t
 
-GASESTI un indicator
-  t.find('salariati')          cautare simpla pe nume, instant
-  t.search('salariati', level='localitate')   descoperire cu filtre
-  t.search(level='localitate') filtrele merg si fara cuvant, peste tot catalogul
-  t.filters()                  ce filtre are search si ce valori accepta
-  t.build_index()              indexul de metadate, o data, cateva minute
-  t.domains()                  cele 8 domenii statistice de sus
-  t.overview()                 cat e catalogul si de unde incepi
+FIND an indicator
+  t.find('salariati')          plain keyword search, instant
+  t.search('salariati', level='localitate')   discovery with filters
+  t.search(level='localitate') filters work with no keyword, across everything
+  t.filters()                  which filters search has and what they accept
+  t.build_index()              the metadata index, once, a few minutes
+  t.domains()                  the 8 top level statistical domains
+  t.overview()                 how big the catalogue is and where to start
 
-DESCOPERIRE CU FILTRE, toate optionale si combinabile
-  level='judet'                nivel teritorial
-  caen=True                    doar cei cu dimensiune CAEN (False doar cei fara)
-  domeniu='economic'           subsir din numele domeniului
-  periodicitate='lunar'        subsir din periodicitate
+DISCOVERY FILTERS, all optional and combinable
+  level='judet'                territorial level
+  caen=True                    only those with a CAEN dimension (False the rest)
+  domeniu='economic'           substring of the domain name
+  periodicitate='lunar'        substring of the periodicity
   t.search(domeniu='economic', periodicitate='lunar', level='judet')
 
-INTELEGI un indicator
-  m = t.matrix('FOM104D')      aduce metadatele
-  m.what()                     ce masoara, pe scurt: definitie, UM, cat de des
-  m.where()                    unde sta si ce acopera: domeniu, teritoriu, ani
-  m.how()                      manualul lui de descarcare, gata de copiat
-  m.show()                     rezumat scurt: domeniu, nivele, dimensiuni
-  m.describe()                 fisa completa, cu tot textul de la INS
-  m.options()                  ce dimensiuni are, cu rol si numar de optiuni
-  t.info('FOM104D')            aceleasi metadate, ca dictionar
-  m.related()                  ceilalti indicatori din acelasi nod
-  m.levels                     nivele, ex. ['national', 'judet', 'localitate']
-  m.has_siruta                 True daca localitatile poarta prefix SIRUTA
-  m.options('teritoriu')       ce valori are o dimensiune (index, rol sau label)
-  m.help()                     acest ghid, dar pentru un indicator
+UNDERSTAND an indicator
+  m = t.matrix('FOM104D')      fetch the metadata
+  m.what()                     what it measures: definition, unit, how often
+  m.where()                    where it sits and what it covers
+  m.how()                      its own download manual, ready to copy
+  m.show()                     short summary: domain, levels, dimensions
+  m.describe()                 the full record, every word INS wrote
+  m.options()                  which dimensions it has, with role and size
+  t.info('FOM104D')            the same metadata, as a dictionary
+  m.related()                  the other indicators under the same node
+  m.levels                     levels, e.g. ['national', 'judet', 'localitate']
+  m.has_siruta                 True if localities carry a SIRUTA prefix
+  m.options('teritoriu')       what values one dimension takes
+  m.help()                     this guide, for one indicator
 
-TRAGI datele
-  df = m.get()                 nivelul cel mai fin, curatat, cu progres
-  m.get(level='judet')         doar un nivel teritorial
-  m.get(levels=['judet','regiune'])   mai multe nivele
-  m.get(level=None)            toate nivelele la un loc, vechiul implicit
-  m.get(raw=True)              exact ce da INS, fara coloane derivate
-  t.get('FOM101A')             acelasi lucru, pornind de la cod
+FETCH the data
+  df = m.get()                 the finest level, tidied, with progress
+  m.get(level='judet')         one territorial level only
+  m.get(levels=['judet','regiune'])   several levels
+  m.get(level=None)            every level at once, the old default
+  m.get(raw=True)              exactly what INS returns, no derived columns
+  t.get('FOM101A')             the same, starting from a code
 
-get() executa planul din registry: citeste strategia, o ruleaza, aplica tidy.
-Implicit ia cel mai fin nivel pe care il are indicatorul si spune intr-o linie
-ce a hotarat. Cine nu are un nivel util, ca neteritorialii, primeste tot.
+get() executes the plan from the registry: it reads the strategy, runs it and
+applies tidy. By default it takes the finest level the indicator reaches and
+says in one line what it decided. Indicators with no usable level get
+everything.
 
-Datele vin rare: combinatiile fara date lipsesc ca randuri intregi, nu ca
-valori goale. Matricele care nu incap intr-un singur POST se descarca in mai
-multe cereri si se concateneaza: judet cu judet la cele cu localitati, altfel
-pe cea mai mare dimensiune. Peste 50 de cereri get() intreaba intai; pune
-confirm=False in scripturi. tidy nu sterge si nu rearanjeaza nimic: denumirea
-originala ramane, cu prefixul SIRUTA cu tot.
+The data is sparse: combinations with no data are absent as whole rows, not as
+blanks. Indicators that do not fit one POST are downloaded in several requests
+and concatenated: county by county for those with localities, otherwise split on
+the largest dimension. Above 50 requests get() asks first; pass confirm=False in
+scripts. tidy never drops or reorders anything: the original name stays, SIRUTA
+prefix and all.
 
-find si search sunt lucruri diferite. find e cautarea rapida pe nume, fara
-filtre. search e descoperirea cu filtre, si merge si fara cuvant. Amandoua
-intorc TOATE potrivirile; taie cu slicing sau cu limit=N.
+find and search are different tools. find is the fast keyword search, without
+filters. search is discovery with filters, and works with no keyword at all.
+Both return EVERY match; slice them, or pass limit=N.
 
-Filtrele pe metadate se rezolva din indexul local, deci sunt instant. Indexul
-se construieste o singura data, cu t.build_index(): cere metadatele fiecarui
-indicator, cateva minute, si se salveaza pe disc. Daca lipseste, search te
-intreaba intai daca sa il construiasca.
+The metadata filters resolve from the local registry, so they are instant. The
+registry ships with the package, so nothing needs building first.
 
-Listele intoarse de find, domains si related se afiseaza ca tabel si au
-.recent(n), care ordoneaza dupa ultima actualizare doar elementele din set.
-Tabelul arata si coloana nivele, dar doar cand toate elementele o au deja,
-adica la rezultatele lui search cu filtre. Afisarea nu costa niciodata un
-apel de retea.""")
+Lists returned by find, domains and related render as a table and carry
+.recent(n), which orders by last update date within that set only. The table
+also shows a levels column, but only when every element already knows its
+levels, which is the case for filtered search results. Display never costs a
+network call.""")

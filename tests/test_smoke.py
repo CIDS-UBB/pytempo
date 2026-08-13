@@ -1,4 +1,4 @@
-"""Teste offline: import, API public, căutare pe un index injectat."""
+"""Offline tests: imports, public API, search over an injected index."""
 import json
 
 import pandas as pd
@@ -9,8 +9,8 @@ from pytempo import (catalog, chunking, client, endpoints, parse, schemas,
 from pytempo.chunking import split_options
 from pytempo.matrix import MAX_CELLS
 
-# fixture dupa structura reala a lui FOM104D: doua dimensiuni teritoriale
-# separate (Judete si Localitati), timp si unitate de masura.
+# fixture shaped like the real FOM104D: two separate territorial
+# dimensions (Judete and Localitati), time and unit of measure.
 FOM104D = {
     "matrixName": "Numarul mediu al salariatilor pe judete si localitati",
     "definitie": "Numarul mediu al salariatilor",
@@ -19,7 +19,7 @@ FOM104D = {
     "ultimaActualizare": "20-11-2025",
     "periodicitati": ["Anuala"],
     "surseDeDate": [{"nume": "Cercetarea statistica privind costul fortei de munca"}],
-    # numele de nod vin cu HTML incorporat, ca in API-ul real
+    # node names arrive with embedded HTML, as in the real API
     "ancestors": [
         {"name": "home", "code": ""},
         {"name": "A. STATISTICA SOCIALA", "code": "1"},
@@ -53,8 +53,8 @@ FOM104D = {
     ],
 }
 
-# optiunile unei dimensiuni teritoriale ierarhice, ca in API-ul real:
-# TOTAL, apoi macroregiuni, apoi regiuni, apoi judete
+# the options of a hierarchical territorial dimension, as in the real API:
+# TOTAL, then macroregions, then regions, then counties
 _IERARHIC = [
     {"label": "TOTAL", "nomItemId": 1, "offset": 1, "parentId": None},
     {"label": "MACROREGIUNEA UNU", "nomItemId": 2, "offset": 2, "parentId": 1},
@@ -63,8 +63,8 @@ _IERARHIC = [
     {"label": "Cluj", "nomItemId": 5, "offset": 5, "parentId": 3},
 ]
 
-# SOM101B: nomJud si nomLoc sunt 0, dar matRegJ arata spre dimensiunea 3.
-# Detectia vine din details.
+# SOM101B: nomJud and nomLoc are 0, but matRegJ points at dimension 3.
+# Detection comes from details.
 SOM101B = {
     "matrixName": "Somerii inregistrati pe sexe, macroregiuni si judete",
     "definitie": "", "metodologie": "", "observatii": "",
@@ -88,7 +88,7 @@ SOM101B = {
     ],
 }
 
-# FOM101A: matRegJ = 2, deci tot din details. Fixture fidel realitatii.
+# FOM101A: matRegJ = 2, so also from details. A fixture true to reality.
 FOM101A = {
     "matrixName": "Resurse de munca pe sexe, macroregiuni, regiuni de dezvoltare si judete",
     "definitie": "", "metodologie": "", "observatii": "",
@@ -111,7 +111,7 @@ FOM101A = {
     ],
 }
 
-# context('') e tot arborele aplatizat; domeniile de sus au level 0
+# context('') is the whole tree flattened; top domains have level 0
 CONTEXT_ROOT = [
     {"parentCode": "0", "level": 0,
      "context": {"code": "1", "name": "A. STATISTICA SOCIALA"}},
@@ -123,7 +123,7 @@ CONTEXT_ROOT = [
      "context": {"code": "1513", "name": "SALARIATI"}},
 ]
 
-# context(nod) e un dict; frunzele-matrice au url == 'matrix'
+# context(node) is a dict; matrix leaves have url == 'matrix'
 CONTEXT_1513 = {
     "context": {"code": "1513", "name": "SALARIATI"},
     "ancestors": [],
@@ -171,7 +171,7 @@ def test_search_offline(monkeypatch):
     hits = t.search("șomeri")
     assert any(m.code == "SOM101B" for m in hits)
 
-    # doua cuvinte: toate trebuie sa se potriveasca
+    # two words: all of them have to match
     hits = t.search("salariatilor localitati")
     assert len(hits) == 1 and hits[0].code == "FOM104D"
 
@@ -179,19 +179,20 @@ def test_search_offline(monkeypatch):
 def _fake_index(monkeypatch,
                 codes=("FOM104D", "SOM101B", "FOM101A", "FOM104F",
                        "TMP1173")):
-    """Catalogul, injectat: matrix() verifica in el inainte de fetch."""
+    """The catalogue, injected: matrix() checks it before fetching."""
     monkeypatch.setattr(catalog, "_INDEX",
                         [{"code": c, "name": c} for c in codes])
 
 
 def _fake_matrix(monkeypatch, data=FOM104D):
-    """Injecteaza raspunsul matrix/{cod}. t.matrix e functia, nu modulul."""
+    """Inject the matrix/{code} response. t.matrix is the function, not the
+    module."""
     _fake_index(monkeypatch)
     monkeypatch.setattr(client, "get_json", lambda url, **kw: data)
 
 
 def _fake_api(monkeypatch, extra=None):
-    """Ruteaza dupa URL: matrix/{cod}, context('') si context(nod)."""
+    """Route by URL: matrix/{code}, context('') and context(node)."""
     _fake_index(monkeypatch)
     routes = {
         endpoints.matrix("FOM104D"): FOM104D,
@@ -215,12 +216,12 @@ def test_roles_from_details(monkeypatch):
     m = t.matrix("FOM104D")
     assert [d.role for d in m.dimensions] == [
         "teritoriu", "teritoriu", "timp", "um"]
-    # dim_index pastreaza ordinea din dimensionsMap
+    # dim_index keeps the dimensionsMap order
     assert [d.dim_index for d in m.dimensions] == [0, 1, 2, 3]
 
 
-# TMP1173: labelul zice 'Localitate', dar matSiruta e 0 si optiunile sunt
-# statii de monitorizare, nu localitati cu prefix SIRUTA
+# TMP1173: the label says 'Localitate', but matSiruta is 0 and the options
+# are monitoring stations, not localities with a SIRUTA prefix
 TMP1173 = {
     "matrixName": "Niveluri medii anuale de particule in suspensie",
     "definitie": "", "metodologie": "", "observatii": "",
@@ -253,13 +254,13 @@ TMP1173 = {
 
 
 def test_station_dimension_is_not_localities(monkeypatch):
-    """Labelul singur nu face o dimensiune de localitati."""
+    """The label alone does not make a locality dimension."""
     _fake_api(monkeypatch, extra={endpoints.matrix("TMP1173"): TMP1173})
     m = t.matrix("TMP1173")
     statii = m.dimensions[1]
-    assert statii.role == "teritoriu"          # ramane teritoriala
+    assert statii.role == "teritoriu"          # stays territorial
     assert territory.is_locality_dimension(statii, m.details) is False
-    # nivelele vin din optiuni, nu din label
+    # the levels come from the options, not from the label
     assert m.levels == ["necunoscut"]
     assert territory.dimension_levels(statii, m.details) == {"necunoscut"}
 
@@ -282,7 +283,7 @@ def test_station_labels_are_not_counties(monkeypatch):
 
 
 def test_real_localities_still_detected(monkeypatch):
-    """FOM104D are nomLoc pus, deci nimic nu se schimba pentru el."""
+    """FOM104D has nomLoc set, so nothing changes for it."""
     _fake_api(monkeypatch)
     m = t.matrix("FOM104D")
     localitati = m.dimensions[1]
@@ -292,7 +293,7 @@ def test_real_localities_still_detected(monkeypatch):
 
 
 def test_localities_confirmed_by_siruta_prefixes(monkeypatch):
-    """Fara nomLoc, dar cu prefixe SIRUTA pe optiuni: tot localitati."""
+    """No nomLoc, but SIRUTA prefixes on the options: localities all the same."""
     fara_nomloc = dict(
         FOM104D,
         details=dict(FOM104D["details"], nomLoc=0, nomJud=0, matSiruta=0),
@@ -318,19 +319,19 @@ def test_option_level():
     assert territory.option_level("Regiunea NORD-VEST") == "regiune"
     assert territory.option_level("Bistrita-Nasaud") == "judet"
     assert territory.option_level("Municipiul Bucuresti") == "judet"
-    # totalul national nu se scrie mereu 'TOTAL'
+    # the national total is not always spelled 'TOTAL'
     assert territory.option_level("Nivel National") == "national"
-    # grupari de judete si reziduuri nu sunt judete
+    # county groupings and residuals are not counties
     assert territory.option_level("Arges, Valcea") == "necunoscut"
     assert territory.option_level("Extra-regiuni") == "necunoscut"
-    # ce nu e in nomenclatorul real nu mai cade automat pe judet
+    # what is not in the real nomenclator no longer falls through to judet
     assert territory.option_level("BT-1 - Municipiul Botosani") == "necunoscut"
     assert territory.option_level("Punct de trecere Nadlac") == "necunoscut"
     assert territory.option_level("") == "necunoscut"
 
 
 def test_levels_hierarchical_from_details(monkeypatch):
-    """SOM101B: nomJud si nomLoc sunt 0, dar matRegJ marcheaza dimensiunea."""
+    """SOM101B: nomJud and nomLoc are 0, but matRegJ marks the dimension."""
     _fake_api(monkeypatch)
     m = t.matrix("SOM101B")
     assert m.levels == ["national", "macroregiune", "regiune", "judet"]
@@ -338,10 +339,10 @@ def test_levels_hierarchical_from_details(monkeypatch):
 
 
 def test_levels_hierarchical_from_label(monkeypatch):
-    """Acelasi rezultat cand details tace: detectia vine din label.
+    """The same result when details is silent: detection comes from the label.
 
-    FOM101A real are matRegJ = 2, deci l-ar prinde details. Il punem pe 0
-    ca sa ramana doar label-ul care sa faca treaba.
+    The real FOM101A has matRegJ = 2, so details would catch it. We set it to
+    0 so only the label is left to do the work.
     """
     fara_details = dict(FOM101A, details=dict(FOM101A["details"], matRegJ=0))
     _fake_api(monkeypatch, extra={endpoints.matrix("FOM101A"): fara_details})
@@ -366,7 +367,7 @@ def test_group_localities_by_county(monkeypatch):
     _fake_matrix(monkeypatch)
     m = t.matrix("FOM104D")
     groups = territory.group_localities_by_county(m.dimensions[1])
-    # parentId al localitatii e nomItemId-ul judetului (Alba = 3064)
+    # a locality's parentId is the county's nomItemId (Alba = 3064)
     assert [o.label for o in groups[3064]] == [
         "1017 MUNICIPIUL ALBA IULIA", "1026 ORAS ABRUD"]
 
@@ -388,7 +389,7 @@ def test_info_dict(monkeypatch):
 def test_where_breadcrumb(monkeypatch):
     _fake_api(monkeypatch)
     crumbs = t.matrix("FOM104D")._breadcrumb()
-    # 'home' cade (nu are cod), iar ancora din nume dispare cu tot cu textul ei
+    # 'home' drops out (no code), and the anchor disappears with its text
     assert list(crumbs) == ["A. STATISTICA SOCIALA", "FORTA DE MUNCA", "SALARIATI"]
     assert repr(crumbs) == "A. STATISTICA SOCIALA > FORTA DE MUNCA > SALARIATI"
 
@@ -396,7 +397,7 @@ def test_where_breadcrumb(monkeypatch):
 def test_related_filters_siblings(monkeypatch):
     _fake_api(monkeypatch)
     rel = t.matrix("FOM104D").related()
-    # exclude indicatorul curent si subnodurile care nu sunt matrice
+    # excludes the current indicator and sub nodes that are not matrices
     assert [m.code for m in rel] == ["FOM104A"]
     assert isinstance(rel, t.MatrixList)
 
@@ -407,7 +408,7 @@ def test_options_by_label_role_and_index(monkeypatch):
     assert list(m.options("Judete")) == ["TOTAL", "Alba"]
     assert list(m.options("timp")) == ["Anul 1990"]
     assert list(m.options(3)) == ["Numar persoane"]
-    # 'teritoriu' alege dimensiunea cea mai fina prezenta
+    # 'teritoriu' picks the finest dimension present
     assert m.options("teritoriu")[1] == "1017 MUNICIPIUL ALBA IULIA"
     assert list(m.options("Judete", limit=1)) == ["TOTAL"]
 
@@ -418,7 +419,7 @@ def test_options_unknown_dimension(monkeypatch):
     try:
         m.options("nu exista")
     except ValueError as e:
-        assert "Disponibile" in str(e)
+        assert "Available" in str(e)
     else:
         raise AssertionError("trebuia ValueError")
 
@@ -437,42 +438,42 @@ def test_matrixlist_recent(monkeypatch):
 
 
 def test_matrixlist_shows_levels_when_all_known(monkeypatch):
-    """Coloana apare doar daca toate elementele au nivelele deja, fara cost."""
+    """The column appears only when every element already knows its levels."""
     _fake_api(monkeypatch)
     lista = t.MatrixList([t.matrix("FOM104D")])   # metadate aduse
     html_out = lista._repr_html_()
-    assert "<th>nivele</th>" in html_out
+    assert "<th>levels</th>" in html_out
     assert "judet, localitate" in html_out
     assert "[national, judet, localitate]" in repr(lista)
 
-    # din index, fara metadate: tot stiute
+    # from the index, with no metadata: still known
     din_index = t.MatrixList([t.Matrix("X", "x", cached_levels=["judet"])])
-    assert "<th>nivele</th>" in din_index._repr_html_()
-    # stiut ca nu are niciunul: coloana ramane, celula e goala
+    assert "<th>levels</th>" in din_index._repr_html_()
+    # known to have none: the column stays, the cell is empty
     gol = t.MatrixList([t.Matrix("Y", "y", cached_levels=[])])
-    assert "<th>nivele</th>" in gol._repr_html_()
+    assert "<th>levels</th>" in gol._repr_html_()
 
 
 def test_matrixlist_hides_levels_when_any_unknown(monkeypatch):
     _fake_api(monkeypatch)
-    # find simplu: doar cod si nume, nivelele nu se stiu
+    # a plain find: code and name only, the levels are unknown
     necunoscut = t.MatrixList([t.Matrix("X", "x")])
     html_out = necunoscut._repr_html_()
-    assert "<tr><th>cod</th><th>nume</th></tr>" in html_out
-    assert "<th>nivele</th>" not in html_out
+    assert "<tr><th>code</th><th>name</th></tr>" in html_out
+    assert "<th>levels</th>" not in html_out
 
     # lista mixta: un singur element necunoscut ascunde coloana
     mixta = t.MatrixList([t.matrix("FOM104D"), t.Matrix("X", "x")])
-    assert "<th>nivele</th>" not in mixta._repr_html_()
+    assert "<th>levels</th>" not in mixta._repr_html_()
 
-    # domeniile nu au nivele deloc
+    # domains have no levels at all
     from pytempo.models import Node
     domenii = t.MatrixList([Node(code="1", name="A. STATISTICA SOCIALA")])
-    assert "<th>nivele</th>" not in domenii._repr_html_()
+    assert "<th>levels</th>" not in domenii._repr_html_()
 
 
 def test_level_literal_matches_level_order():
-    """Literal-ul si tuplul trebuie sa ramana sincronizate."""
+    """The Literal and the tuple have to stay in sync."""
     from typing import get_args
     assert get_args(territory.Level) == territory._LEVEL_ORDER
 
@@ -485,9 +486,9 @@ def test_unknown_level_suggests_closest():
         mesaj = str(e)
     else:
         raise AssertionError("trebuia ValueError")
-    assert "nivel necunoscut 'judete'" in mesaj
+    assert "unknown level 'judete'" in mesaj
     assert "national, macroregiune, regiune, judet, localitate" in mesaj
-    assert "Poate ai vrut 'judet'?" in mesaj
+    assert "Did you mean 'judet'?" in mesaj
 
 
 def test_unknown_level_without_suggestion():
@@ -497,9 +498,9 @@ def test_unknown_level_without_suggestion():
         mesaj = str(e)
     else:
         raise AssertionError("trebuia ValueError")
-    assert "nivel necunoscut 'zzzzz'" in mesaj
-    assert "Posibile:" in mesaj
-    assert "Poate ai vrut" not in mesaj
+    assert "unknown level 'zzzzz'" in mesaj
+    assert "Available:" in mesaj
+    assert "Did you mean" not in mesaj
 
 
 def test_get_and_search_share_error_format(monkeypatch):
@@ -518,11 +519,11 @@ def test_get_and_search_share_error_format(monkeypatch):
         raise AssertionError("trebuia ValueError din search")
 
     for mesaj in (din_get, din_search):
-        assert mesaj.startswith("nivel necunoscut 'judete'")
-        assert "Posibile:" in mesaj
-        assert "Poate ai vrut 'judet'?" in mesaj
-    # get spune si la ce indicator, si listeaza nivelele acelui indicator
-    assert "la FOM101A" in din_get
+        assert mesaj.startswith("unknown level 'judete'")
+        assert "Available:" in mesaj
+        assert "Did you mean 'judet'?" in mesaj
+    # get also names the indicator and lists that indicator's levels
+    assert "for FOM101A" in din_get
     assert "localitate" not in din_get      # FOM101A nu are localitate
     assert "localitate" in din_search       # search listeaza toate nivelele
 
@@ -538,16 +539,16 @@ def test_filters_levels_match_literal(monkeypatch, tmp_path, capsys):
 
 
 def test_matrix_card_html_has_levels(monkeypatch):
-    """Pe cardul unui singur indicator nivelele chiar sunt disponibile."""
+    """On a single indicator card the levels really are available."""
     _fake_api(monkeypatch)
     html_out = t.matrix("FOM104D")._repr_html_()
     assert "judet, localitate" in html_out
     assert "Localitati" in html_out
 
 
-# CSV ca de la pivot: spatiu dupa fiecare virgula, zecimala punct, fara
-# ghilimele, un intreg fara parte zecimala (13544). Rar: combinatia
-# (Feminin, Ilfov, Anul 1990) lipseste ca rand intreg, nu ca valoare goala.
+# CSV as pivot returns it: a space after each comma, decimal point, no
+# quoting, an integer with no decimals (13544). Sparse: the combination
+# (Feminin, Ilfov, Anul 1990) is missing as a whole row, not as a blank.
 CSV_FOM101A = (
     "Sexe, Macroregiuni  regiuni de dezvoltare si judete, Ani, UM: Mii persoane, Valoare\n"
     "Total, TOTAL, Anul 1990, Mii persoane, 13216.9\n"
@@ -565,20 +566,20 @@ def test_parse_pivot_csv(monkeypatch):
 
     assert df.shape == (5, 5)
     assert df.shape[1] == len(m.dimensions) + 1
-    # numele vin din dimensiuni, nu din antetul curatat de INS
+    # names come from the dimensions, not from the header INS cleaned
     assert df.columns.tolist() == [
         "Sexe", "Macroregiuni, regiuni de dezvoltare si judete", "Ani",
         "UM: Mii persoane", "Valoare"]
     assert str(df["Valoare"].dtype) == "float64"
     assert df["Valoare"].tolist() == [13216.9, 13544.0, 102.4, 6512.3, 96.1]
-    # pandas 2 da 'object' pentru text, pandas 3 da 'str'; conteaza doar ca
-    # nu e numeric
+    # pandas 2 gives 'object' for text, pandas 3 gives 'str'; all that matters
+    # is that it is not numeric
     assert str(df["Sexe"].dtype) in ("object", "str")
     assert df["Sexe"].tolist()[0] == "Total"
 
 
 def test_parse_sparse_rows_are_absent_not_nan(monkeypatch):
-    """Combinatia lipsa nu produce NaN, pur si simplu nu exista ca rand."""
+    """A missing combination gives no NaN, the row simply does not exist."""
     _fake_api(monkeypatch)
     df = parse.pivot_csv_to_dataframe(CSV_FOM101A, t.matrix("FOM101A"))
     assert df["Valoare"].isna().sum() == 0
@@ -588,7 +589,7 @@ def test_parse_sparse_rows_are_absent_not_nan(monkeypatch):
 
 
 def test_parse_empty_csv_is_not_an_error(monkeypatch):
-    """Un raspuns fara randuri e legitim, nu o mapare gresita de coloane."""
+    """A response with no rows is legitimate, not a slipped column mapping."""
     _fake_api(monkeypatch)
     doar_antet = ("Sexe, Macroregiuni  regiuni de dezvoltare si judete, Ani, "
                   "UM: Mii persoane, Valoare\n")
@@ -604,7 +605,7 @@ def test_parse_wrong_column_count(monkeypatch):
     try:
         parse.pivot_csv_to_dataframe(stricat, t.matrix("FOM101A"))
     except ValueError as e:
-        assert "3 coloane" in str(e) and "asteptate 5" in str(e)
+        assert "3 columns" in str(e) and "expected 5" in str(e)
     else:
         raise AssertionError("trebuia ValueError la numar gresit de coloane")
 
@@ -618,7 +619,7 @@ def test_parse_value_column_not_numeric(monkeypatch):
     try:
         parse.pivot_csv_to_dataframe(text, t.matrix("FOM101A"))
     except ValueError as e:
-        assert "nu e numerica" in str(e)
+        assert "is not numeric" in str(e)
     else:
         raise AssertionError("trebuia ValueError la Valoare ne-numerica")
 
@@ -630,7 +631,7 @@ def test_build_encquery():
 
 
 def test_get_builds_payload_and_parses(monkeypatch):
-    """get() ia toate optiunile, in ordinea din dimensionsMap."""
+    """get() takes every option, in dimensionsMap order."""
     _fake_api(monkeypatch)
     trimis = {}
 
@@ -646,13 +647,13 @@ def test_get_builds_payload_and_parses(monkeypatch):
     assert trimis["language"] == "ro"
     assert trimis["matMaxDim"] == 4
     assert trimis["matUMSpec"] == 0
-    # patru dimensiuni, deci trei separatori de dimensiune
+    # four dimensions, so three dimension separators
     assert trimis["encQuery"].count(":") == 3
     assert trimis["encQuery"].split(":")[1] == "1,2,3,4,5"
     assert df.shape == (5, 5)
 
 
-# SOM101B din fixture are 3 dimensiuni, deci 4 coloane
+# the SOM101B fixture has 3 dimensions, so 4 columns
 CSV_SOM101B = (
     "Macroregiuni  regiuni de dezvoltare si judete, Ani, UM: Numar persoane, Valoare\n"
     "Bihor, Anul 2020, Numar persoane, 12.5\n"
@@ -661,7 +662,7 @@ CSV_SOM101B = (
 
 
 def _capture_post(monkeypatch, csv_text=CSV_SOM101B):
-    """Prinde payload-ul trimis la pivot, fara retea."""
+    """Capture the payload sent to pivot, with no network."""
     trimis = {}
 
     def fake_post(payload, **kw):
@@ -677,11 +678,11 @@ def _dim_codes(encquery, index):
 
 
 def test_get_level_judet_filters_options(monkeypatch):
-    """Doar judetele, fara TOTAL, MACROREGIUNEA sau Regiunea."""
+    """Counties only, without TOTAL, MACROREGIUNEA or Regiunea."""
     _fake_api(monkeypatch)
     trimis = _capture_post(monkeypatch)
     t.matrix("SOM101B").get(level="judet")
-    # in fixture teritoriul e prima dimensiune, deci primul bloc din encQuery
+    # in the fixture territory is the first dimension, so the first encQuery block
     assert _dim_codes(trimis["encQuery"], 0) == [4, 5]  # Bihor, Cluj
 
 
@@ -714,14 +715,14 @@ def test_get_unknown_level(monkeypatch):
     try:
         t.matrix("SOM101B").get(level="localitate")
     except ValueError as e:
-        assert "nivel necunoscut 'localitate' la SOM101B" in str(e)
-        assert "Posibile: national, macroregiune, regiune, judet" in str(e)
+        assert "unknown level 'localitate' for SOM101B" in str(e)
+        assert "Available: national, macroregiune, regiune, judet" in str(e)
     else:
         raise AssertionError("trebuia ValueError pentru nivel inexistent")
 
 
 def test_get_level_two_territorial_dimensions(monkeypatch):
-    """FOM104D are judet si localitate separate; filtrul vine la 3c."""
+    """FOM104D keeps county and locality separate; the filter is not supported."""
     _fake_api(monkeypatch)
     _capture_post(monkeypatch)
     try:
@@ -733,8 +734,8 @@ def test_get_level_two_territorial_dimensions(monkeypatch):
 
 
 def test_big_matrix_without_localities_is_split(monkeypatch):
-    """Fara localitati dupa care sa se sparga, se sparge pe cea mai mare
-    dimensiune. Nimic nu mai esueaza cu eroare de marime."""
+    """With no localities to split by, it splits on the largest dimension.
+    Nothing fails with a size error any more."""
     mare = dict(SOM101B, dimensionsMap=[
         dict(SOM101B["dimensionsMap"][0]),
         {"dimCode": 4, "label": "Ani", "options": [
@@ -751,18 +752,18 @@ def test_big_matrix_without_localities_is_split(monkeypatch):
     selectie = [[o.nom_item_id for o in d.options] for d in m.dimensions]
     planuri = chunking.plan_requests(m, selectie)
     assert len(planuri) > 1
-    # fiecare cerere incape sub prag
+    # each request fits under the threshold
     for p in planuri:
         bucati = [bloc.split(",") for bloc in p["encQuery"].split(":")]
         produs = 1
         for b in bucati:
             produs *= len(b)
         assert produs <= MAX_CELLS
-    # nicio optiune pierduta pe dimensiunea sparta
+    # no option lost on the dimension that was split
     toate = [c for p in planuri for c in p["encQuery"].split(":")[2].split(",")]
     assert len(set(toate)) == 900
 
-    # cu filtru pe nivel incape intr-o singura cerere
+    # with a level filter it fits in a single request
     trimis = _capture_post(monkeypatch)
     m.get(level="judet", progress=False)
     assert _dim_codes(trimis["encQuery"], 0) == [4, 5]
@@ -788,7 +789,7 @@ def test_parse_territory_localities():
         (1017, "localitate", "municipiu", "ALBA IULIA")
     assert territory.parse_territory("1151 ORAS ABRUD") == \
         (1151, "localitate", "oras", "ABRUD")
-    # comunele vin fara prefix de tip
+    # communes carry no type prefix
     assert territory.parse_territory("2130 ALBAC") == \
         (2130, "localitate", "comuna", "ALBAC")
     assert territory.parse_territory("179132 SECTORUL 1") == \
@@ -819,15 +820,15 @@ def test_standardize_adds_columns_without_losing_anything(monkeypatch):
     })
     out = parse.standardize(df, m)
 
-    # nimic nu se pierde: aceleasi randuri, aceeasi ordine, coloanele originale
+    # nothing is lost: same rows, same order, original columns
     assert len(out) == len(df)
     assert list(out[terr]) == list(df[terr])
     assert out[terr][0] == "1017 MUNICIPIUL ALBA IULIA"
     assert list(out["Valoare"]) == list(df["Valoare"])
 
     assert out[f"{terr}_siruta"].tolist()[:3] == [1017, 1151, 2130]
-    assert out[f"{terr}_siruta"][3] is pd.NA      # TOTAL nu are SIRUTA
-    assert out[f"{terr}_siruta"][6] is pd.NA      # nici judetul Cluj
+    assert out[f"{terr}_siruta"][3] is pd.NA      # TOTAL has no SIRUTA
+    assert out[f"{terr}_siruta"][6] is pd.NA      # nor does the county Cluj
     assert list(out[f"{terr}_nivel"]) == [
         "localitate", "localitate", "localitate",
         "national", "macroregiune", "regiune", "judet"]
@@ -847,7 +848,7 @@ def test_get_tidy(monkeypatch):
     tidy = t.matrix("SOM101B").get(level="judet", tidy=True,
                                    progress=False)
     assert trimis["matCode"] == "SOM101B"
-    # tidy adauga coloane, nu randuri
+    # tidy adds columns, not rows
     assert len(tidy) == len(brut)
     assert tidy.shape[1] > brut.shape[1]
     terr = "Macroregiuni, regiuni de dezvoltare si judete"
@@ -857,7 +858,7 @@ def test_get_tidy(monkeypatch):
     assert tidy["Ani_an"].tolist() == [2020, 2020]
 
 
-# FOM104D in mic: doua judete, cu localitatile lor legate prin parentId
+# FOM104D in miniature: two counties with their localities via parentId
 FOM104D_MIC = dict(
     FOM104D,
     dimensionsMap=[
@@ -912,7 +913,7 @@ def test_plan_requests_single_payload_when_small(monkeypatch):
 def test_plan_requests_one_payload_per_county(monkeypatch):
     _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): FOM104D_MIC})
     m = t.matrix("FOM104D")
-    # 3 judete x 5 localitati x 2 ani = 30, deci pragul 10 forteaza spargerea
+    # 3 counties x 5 localities x 2 years = 30, so a threshold of 10 forces a split
     planuri = _plan_for(m, max_cells=10)
     assert len(planuri) == 3  # TOTAL, Alba, Arad
 
@@ -920,32 +921,32 @@ def test_plan_requests_one_payload_per_county(monkeypatch):
     for p in planuri:
         blocuri = p["encQuery"].split(":")
         pe_judet[blocuri[0]] = blocuri[1]
-    # fiecare cerere are un singur judet si doar localitatile lui
+    # each request has a single county and only its own localities
     assert pe_judet["112"] == "112"
     assert pe_judet["3064"] == "113,114,115"
     assert pe_judet["3065"] == "116"
-    # celelalte dimensiuni raman intregi
+    # the other dimensions stay complete
     assert all(p["encQuery"].split(":")[2] == "4247,4266" for p in planuri)
 
 
 def test_plan_requests_splits_a_big_county(monkeypatch):
-    """Un judet care nu incape se sparge mai departe, sub prag."""
+    """A county that does not fit is split further, under the threshold."""
     _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): FOM104D_MIC})
     m = t.matrix("FOM104D")
-    # cu prag 2, judetul Alba (3 localitati x 2 ani = 6) nu incape intreg
+    # with a threshold of 2, Alba (3 localities x 2 years = 6) does not fit whole
     alba = [p for p in _plan_for(m, max_cells=2)
             if p["encQuery"].startswith("3064:")]
     assert [p["encQuery"].split(":")[1] for p in alba] == ["113", "114", "115"]
-    # bucata de o localitate x 2 ani chiar incape sub prag
+    # a piece of one locality x 2 years does fit under the threshold
     assert all(p["encQuery"].split(":")[2] == "4247,4266" for p in alba)
 
 
 def test_split_selection_fits_every_chunk():
-    """Bucatile ies dimensionate dupa cat loc lasa celelalte dimensiuni."""
+    """Pieces are sized by how much room the other dimensions leave."""
     selectie = [list(range(10)), list(range(4)), [99]]   # 40 de celule
     bucati = chunking.split_selection(selectie, max_cells=8)
     assert all(chunking.cells(b) <= 8 for b in bucati)
-    # nimic pierdut, nimic repetat: bucatile insumeaza exact selectia
+    # nothing lost, nothing repeated: the pieces sum to exactly the selection
     assert sum(chunking.cells(b) for b in bucati) == 40
     acoperite = {(a, b_, c) for b in bucati
                  for a in b[0] for b_ in b[1] for c in b[2]}
@@ -953,12 +954,12 @@ def test_split_selection_fits_every_chunk():
 
 
 def test_split_selection_recurses_when_one_option_is_still_too_big():
-    """Daca nici o singura optiune nu incape, coboara pe alta dimensiune."""
+    """If not even a single option fits, it moves on to another dimension."""
     selectie = [list(range(5)), list(range(20))]        # 100 de celule
     bucati = chunking.split_selection(selectie, max_cells=6)
     assert all(chunking.cells(b) <= 6 for b in bucati)
     assert sum(chunking.cells(b) for b in bucati) == 100
-    # a trebuit sa taie si a doua dimensiune, nu doar prima
+    # it had to cut the second dimension too, not just the first
     assert any(len(b[1]) < 20 for b in bucati)
 
 
@@ -975,7 +976,7 @@ def test_get_concatenates_chunked_results(monkeypatch):
 
     df = t.matrix("FOM104D").get()
     assert len(cereri) == 3
-    # doua randuri per cerere, nimic pierdut la concatenare
+    # two rows per request, nothing lost when concatenating
     assert len(df) == 6
     assert list(df.index) == list(range(6))
 
@@ -992,9 +993,9 @@ def test_get_chunked_tidy_keeps_siruta(monkeypatch):
     assert df["Ani_an"].tolist()[:2] == [2024, 2024]
 
 
-# acelasi FOM104D mic, dar dimensiunea de judete are un label neobisnuit.
-# Rolul ii vine din details (nomJud = 1), nu din label, iar _county_index
-# trebuie sa o gaseasca prin potrivirea parentId-urilor.
+# the same small FOM104D, but the county dimension has an odd label.
+# Its role comes from details (nomJud = 1), not the label, and _county_index
+# has to find it by matching the parentIds.
 FOM104D_LABEL_CIUDAT = dict(
     FOM104D_MIC,
     dimensionsMap=[
@@ -1011,7 +1012,7 @@ def test_county_index_found_by_parent_ids_not_by_label(monkeypatch):
               extra={endpoints.matrix("FOM104D"): FOM104D_LABEL_CIUDAT})
     m = t.matrix("FOM104D")
     assert m.dimensions[0].label == "Unitati de nivel superior"
-    assert m.dimensions[0].role == "teritoriu"   # din details, nomJud = 1
+    assert m.dimensions[0].role == "teritoriu"   # from details, nomJud = 1
 
     planuri = _plan_for(m, max_cells=10)
     pe_judet = {p["encQuery"].split(":")[0]: p["encQuery"].split(":")[1]
@@ -1021,7 +1022,7 @@ def test_county_index_found_by_parent_ids_not_by_label(monkeypatch):
 
 
 def test_county_index_absent_when_no_second_territorial_dimension(monkeypatch):
-    """Fara dimensiune de judete, spargerea se face doar pe localitati."""
+    """With no county dimension, the split happens on localities alone."""
     fara_judete = dict(
         FOM104D_MIC,
         details=dict(FOM104D_MIC["details"], nomJud=0),
@@ -1030,13 +1031,13 @@ def test_county_index_absent_when_no_second_territorial_dimension(monkeypatch):
     _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): fara_judete})
     m = t.matrix("FOM104D")
     planuri = _plan_for(m, max_cells=4)
-    # cate o cerere per grup de parentId; grupul care nu incape se mai sparge
+    # one request per parentId group; a group that does not fit is split further
     blocuri = sorted(p["encQuery"].split(":")[0] for p in planuri)
     assert blocuri == ["112", "113,114", "115", "116"]
 
 
 def test_chunked_requests_keep_row_order(monkeypatch):
-    """Concatenarea pastreaza toate randurile si ordinea cererilor."""
+    """Concatenation keeps every row and the order of the requests."""
     _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): FOM104D_MIC})
     monkeypatch.setattr(chunking, "MAX_CELLS", 10)
 
@@ -1052,13 +1053,13 @@ def test_chunked_requests_keep_row_order(monkeypatch):
     df = t.matrix("FOM104D").get()
     assert len(df) == 6
     assert list(df.index) == list(range(6))
-    # ordinea judetelor din plan se pastreaza in rezultat
+    # the county order from the plan is preserved in the result
     assert df["Judete"].tolist() == [
         "J112", "J112", "J3064", "J3064", "J3065", "J3065"]
 
 
 def test_big_county_produces_several_requests(monkeypatch):
-    """Un judet ale carui localitati nu incap singure declanseaza split_options."""
+    """A county whose localities do not fit on their own triggers a split."""
     multe = [{"label": f"{5000 + i} COMUNA{i}", "nomItemId": 200 + i,
               "offset": i, "parentId": 3064} for i in range(250)]
     mare = dict(FOM104D_MIC, dimensionsMap=[
@@ -1071,7 +1072,7 @@ def test_big_county_produces_several_requests(monkeypatch):
     m = t.matrix("FOM104D")
     # un singur judet, 250 localitati x 2 ani = 500 celule, peste pragul 100
     planuri = _plan_for(m, max_cells=100)
-    # 250 localitati x 2 ani: bucata se dimensioneaza dupa anii ramasi
+    # 250 localities x 2 years: the piece is sized by the years left
     bucati = [p["encQuery"].split(":")[1].split(",") for p in planuri]
     assert [len(b) for b in bucati] == [50, 50, 50, 50, 50]
     assert all(len(b) * 2 <= 100 for b in bucati)
@@ -1081,7 +1082,7 @@ def test_big_county_produces_several_requests(monkeypatch):
 
 
 def test_level_filter_runs_before_planning(monkeypatch):
-    """level reduce selectia inainte de planificare, deci nu se mai sparge."""
+    """level trims the selection before planning, so no split is needed."""
     _fake_api(monkeypatch)
     cereri = []
 
@@ -1093,11 +1094,11 @@ def test_level_filter_runs_before_planning(monkeypatch):
     monkeypatch.setattr(chunking, "MAX_CELLS", 3)
     m = t.matrix("SOM101B")
 
-    # fara filtru, selectia depaseste pragul mic si se sparge in mai multe
+    # without a filter the selection exceeds the small threshold and is split
     m.get(level=None, progress=False)
     assert len(cereri) > 1
 
-    # cu filtru pe nivel incape intr-o singura cerere
+    # with a level filter it fits in a single request
     cereri.clear()
     m.get(level="judet", progress=False)
     assert len(cereri) == 1
@@ -1105,15 +1106,15 @@ def test_level_filter_runs_before_planning(monkeypatch):
 
 
 def test_parse_territory_prefix_needs_a_space():
-    """Potrivirea e pe prefix plus spatiu, nu pe substring.
+    """Matching is on prefix plus space, not on substring.
 
-    'ORASENI DEAL' e o comuna al carei nume incepe cu literele lui ORAS.
+    'ORASENI DEAL' is a commune whose name starts with the letters of ORAS.
     """
     assert territory.parse_territory("5000 ORASENI DEAL") == \
         (5000, "localitate", "comuna", "ORASENI DEAL")
     assert territory.parse_territory("5001 COMUNESTI") == \
         (5001, "localitate", "comuna", "COMUNESTI")
-    # prefixul lung castiga fata de cel scurt
+    # the long prefix wins over the short one
     assert territory.parse_territory("5002 ORASUL NOU")[2] == "oras"
     assert territory.parse_territory("5002 ORASUL NOU")[3] == "NOU"
     assert territory.parse_territory("179132 SECTORUL 3") == \
@@ -1122,12 +1123,13 @@ def test_parse_territory_prefix_needs_a_space():
 
 
 def test_parse_territory_empty_and_blank():
-    """Nu crapa pe gol; fara cifre in fata nu exista SIRUTA."""
+    """It does not break on empty input; with no leading digits there is no
+    SIRUTA."""
     for gol in ("", "   ", None):
         siruta, nivel, tip, nume = territory.parse_territory(gol)
         assert siruta is None and tip is None
         assert nume == ""
-        assert nivel == "necunoscut"   # gol nu e nici judet, nici altceva
+        assert nivel == "necunoscut"   # empty is neither a county nor anything else
 
 
 def test_standardize_malformed_year_gives_na(monkeypatch):
@@ -1148,7 +1150,7 @@ def test_standardize_malformed_year_gives_na(monkeypatch):
 
 
 def test_standardize_empty_frame(monkeypatch):
-    """Un rezultat fara randuri nu trebuie sa crape standardizarea."""
+    """A result with no rows must not break standardization."""
     _fake_api(monkeypatch)
     m = t.matrix("FOM101A")
     gol = pd.DataFrame({d.label.strip(): [] for d in m.dimensions} |
@@ -1159,7 +1161,7 @@ def test_standardize_empty_frame(monkeypatch):
 
 
 def test_public_api_names_all_resolve():
-    """Niciun export mort in __all__."""
+    """No dead exports in __all__."""
     for name in t.__all__:
         assert hasattr(t, name), f"{name} lipseste din pachet"
     for name in ("load_index", "name_dict", "search", "find", "domains",
@@ -1183,11 +1185,11 @@ def test_show_runs(monkeypatch, capsys):
     _fake_api(monkeypatch)
     t.matrix("FOM104D").show()
     iesire = capsys.readouterr().out
-    assert "FOM104D" in iesire and "dimensiuni" in iesire
+    assert "FOM104D" in iesire and "dimensions" in iesire
 
 
-# FOM104F: matCaen1 si matCaen2 sunt 0, dar dimensiunea 1 e clar CAEN.
-# Rolul trebuie prins din label, exact ca la teritoriu.
+# FOM104F: matCaen1 and matCaen2 are 0, but dimension 1 is clearly CAEN.
+# The role has to come from the label, exactly as for territory.
 FOM104F = {
     "matrixName": "Numarul mediu al salariatilor pe activitati ale economiei nationale",
     "definitie": "", "metodologie": "", "observatii": "",
@@ -1216,7 +1218,7 @@ FOM104F = {
 
 
 def test_caen_role_from_label(monkeypatch):
-    """Fara flag in details, CAEN-ul se prinde din label."""
+    """With no flag in details, CAEN is caught from the label."""
     _fake_api(monkeypatch, extra={endpoints.matrix("FOM104F"): FOM104F})
     m = t.matrix("FOM104F")
     assert [d.role for d in m.dimensions] == [
@@ -1224,7 +1226,7 @@ def test_caen_role_from_label(monkeypatch):
 
 
 def test_caen_role_from_details(monkeypatch):
-    """Cu flagul pus, tot 'caen', chiar daca labelul nu spune nimic."""
+    """With the flag set it is still 'caen', even if the label says nothing."""
     cu_flag = dict(
         FOM104F,
         details=dict(FOM104F["details"], matCaen1=1),
@@ -1236,7 +1238,7 @@ def test_caen_role_from_details(monkeypatch):
 
 
 def test_non_caen_dimension_stays_alt(monkeypatch):
-    """Fara 'caen' in label si fara flag, ramane 'alt'."""
+    """Without 'caen' in the label and without a flag, it stays 'alt'."""
     _fake_api(monkeypatch, extra={endpoints.matrix("FOM104F"): FOM104F})
     m = t.matrix("FOM104F")
     assert m.dimensions[1].label == "Sexe"
@@ -1244,7 +1246,7 @@ def test_non_caen_dimension_stays_alt(monkeypatch):
 
 
 def _index_and_meta(monkeypatch, meta_by_code):
-    """Index injectat plus metadate per cod; numara apelurile de metadate."""
+    """Injected index plus metadata per code; counts the metadata calls."""
     apeluri = []
     monkeypatch.setattr(catalog, "_INDEX",
                         [{"code": c, "name": f"Numar mediu salariati {c}"}
@@ -1262,10 +1264,10 @@ def _index_and_meta(monkeypatch, meta_by_code):
 
 
 def _cache_in(monkeypatch, tmp_path):
-    """Muta cache-ul si indexul de nivele intr-un director temporar.
+    """Move the cache and the metadata index into a temporary directory.
 
-    Ascunde si registrul din pachet: el are prioritate la filtre, deci fara
-    asta testele despre indexul vechi ar citi de fapt registrul real.
+    It also hides the packaged registry: that takes priority for the filters,
+    so without this the tests about the older index would read the real one.
     """
     monkeypatch.setattr(client, "CACHE_DIR", tmp_path / "data" / "raw")
     monkeypatch.setattr(schemas.build, "REGISTRY_PATH",
@@ -1280,7 +1282,7 @@ def test_find_without_level_fetches_no_metadata(monkeypatch):
     apeluri = _index_and_meta(monkeypatch, TOATE_META)
     rez = t.find("salariati")
     assert len(rez) == 3
-    assert apeluri == []          # raspuns doar din indexul de nume
+    assert apeluri == []          # answered from the name index alone
 
 
 def test_find_returns_everything_without_limit(monkeypatch):
@@ -1295,7 +1297,7 @@ def test_build_index_writes_file_and_skips_errors(monkeypatch, tmp_path,
     cale = _cache_in(monkeypatch, tmp_path)
     _index_and_meta(monkeypatch, TOATE_META)
 
-    # SOM101B da eroare la metadate: e sarit, nu opreste constructia
+    # SOM101B fails on metadata: it is skipped, the build carries on
     adevarat = t.matrix
 
     def matrix_cu_eroare(cod, **kw):
@@ -1310,8 +1312,8 @@ def test_build_index_writes_file_and_skips_errors(monkeypatch, tmp_path,
     assert set(idx) == {"FOM104D", "FOM101A"}
     assert idx["FOM104D"]["levels"] == ["national", "judet", "localitate"]
     iesire = capsys.readouterr().out
-    assert "construiesc indexul: 3/3" in iesire
-    assert "sarite" in iesire
+    assert "building the index: 3/3" in iesire
+    assert "skipped" in iesire
 
     pe_disc = json.loads(cale.read_text(encoding="utf-8"))
     assert pe_disc == idx
@@ -1323,7 +1325,7 @@ def test_build_index_respects_refresh(monkeypatch, tmp_path):
     cale.write_text('{"VECHI": {"levels": ["judet"]}}', encoding="utf-8")
     apeluri = _index_and_meta(monkeypatch, TOATE_META)
 
-    # fisierul exista, deci nu reconstruieste si nu atinge reteaua
+    # the file exists, so it does not rebuild and does not touch the network
     idx = t.build_index(confirm=False, progress=False)
     assert set(idx) == {"VECHI"}
     assert apeluri == []
@@ -1340,7 +1342,7 @@ def test_build_index_asks_before_building(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr("builtins.input", lambda _: "n")
     assert t.build_index() is None
     assert not cale.exists()
-    assert "nu construiesc" in capsys.readouterr().out
+    assert "not building" in capsys.readouterr().out
 
     monkeypatch.setattr("builtins.input", lambda _: "da")
     idx = t.build_index(progress=False)
@@ -1349,7 +1351,7 @@ def test_build_index_asks_before_building(monkeypatch, tmp_path, capsys):
 
 
 def test_build_index_refusal_without_stdin(monkeypatch, tmp_path):
-    """Fara stdin, intrebarea nu poate primi raspuns: se considera nu."""
+    """With no stdin the question cannot be answered: treated as no."""
     _cache_in(monkeypatch, tmp_path)
     _index_and_meta(monkeypatch, TOATE_META)
 
@@ -1372,7 +1374,7 @@ def test_search_with_level_uses_index_without_network(monkeypatch, tmp_path):
 
     rez = t.search("salariati", level="localitate")
     assert [m.code for m in rez] == ["FOM104D"]
-    assert apeluri == []          # indexul raspunde, fara retea
+    assert apeluri == []          # the index answers, with no network
 
     rez = t.search("salariati", level="judet")
     assert sorted(m.code for m in rez) == ["FOM101A", "FOM104D", "SOM101B"]
@@ -1396,7 +1398,7 @@ def test_search_with_level_refused_returns_empty(monkeypatch, tmp_path, capsys):
 
     rez = t.search("salariati", level="localitate")
     assert list(rez) == []
-    assert "Fara indexul de metadate nu pot filtra" in capsys.readouterr().out
+    assert "Without the metadata index I cannot filter" in capsys.readouterr().out
 
 
 def test_search_unknown_level(monkeypatch):
@@ -1404,13 +1406,13 @@ def test_search_unknown_level(monkeypatch):
     try:
         t.search("salariati", level="comuna")
     except ValueError as e:
-        assert "nivel necunoscut 'comuna'" in str(e) and "Posibile:" in str(e)
+        assert "unknown level 'comuna'" in str(e) and "Available:" in str(e)
     else:
         raise AssertionError("trebuia ValueError pentru nivel necunoscut")
 
 
-# fixture cu texte lungi, ca la INS: definitia are mai multe paragrafe si o
-# fraza distinctiva la coada, ca sa se vada daca a fost taiata
+# a fixture with long texts, as INS has: the definition has several
+# paragraphs and a distinctive closing sentence, to catch truncation
 DEFINITIE_LUNGA = (
     "Numarul mediu al salariatilor cuprinde persoanele angajate cu contract "
     "de munca pe durata determinata sau nedeterminata.\n"
@@ -1440,16 +1442,16 @@ def test_describe_prints_full_text(monkeypatch, capsys):
     iesire = capsys.readouterr().out
 
     assert "FOM104D" in iesire
-    assert "DEFINITIE" in iesire and "METODOLOGIE" in iesire
-    assert "SURSE" in iesire and "OBSERVATII" in iesire
-    # capul definitiei
+    assert "DEFINITION" in iesire and "METHODOLOGY" in iesire
+    assert "SOURCES" in iesire and "OBSERVATIONS" in iesire
+    # the head of the definition
     assert "persoanele angajate cu contract" in iesire
-    # coada definitiei: daca lipseste, textul a fost trunchiat
+    # the tail of the definition: if missing, the text was truncated
     assert "conform prevederilor legale in vigoare." in iesire
     assert len(DEFINITIE_LUNGA) > 1000
-    # observatiile duc nota despre anul incomplet
+    # the observations carry the note about the incomplete year
     assert "anul 1990" in iesire
-    # markerul INS <<6263>> nu e HTML si nu trebuie curatat ca atare
+    # the INS marker <<6263>> is not HTML and must not be cleaned as such
     assert "Cercetarea statistica privind costul fortei de munca <<6263>>" \
         in iesire
 
@@ -1461,7 +1463,7 @@ def test_describe_skips_empty_sections(monkeypatch, capsys):
     t.matrix("FOM104D").describe()
     iesire = capsys.readouterr().out
     assert "FOM104D" in iesire
-    for titlu in ("DEFINITIE", "METODOLOGIE", "SURSE", "OBSERVATII"):
+    for titlu in ("DEFINITION", "METHODOLOGY", "SOURCES", "OBSERVATIONS"):
         assert titlu not in iesire
 
 
@@ -1469,11 +1471,11 @@ def test_options_without_argument_lists_dimensions(monkeypatch):
     _fake_api(monkeypatch)
     dims = t.matrix("FOM104D").options()
     assert len(dims) == 4
-    assert dims[0] == "[0] Judete (teritoriu, 2 optiuni)"
+    assert dims[0] == "[0] Judete (teritoriu, 2 options)"
     assert dims[1].startswith("[1] Localitati (teritoriu,")
-    assert dims[2] == "[2] Ani (timp, 1 optiuni)"
+    assert dims[2] == "[2] Ani (timp, 1 options)"
     assert dims[3].startswith("[3] UM: Numar persoane (um,")
-    # cu argument, comportamentul de dinainte
+    # with an argument, the previous behaviour
     assert list(t.matrix("FOM104D").options("Judete")) == ["TOTAL", "Alba"]
 
 
@@ -1485,7 +1487,7 @@ def test_find_and_search_are_distinct(monkeypatch):
     assert "level" not in par_find
     assert "level" in par_search
     assert t.find is not t.search
-    # search merge si fara cuvant
+    # search works with no keyword too
     assert par_search["query"].default == ""
 
 
@@ -1538,20 +1540,20 @@ def test_search_filter_caen(monkeypatch, tmp_path):
     assert [m.code for m in t.search(caen=True)] == ["FOM104F"]
     assert sorted(m.code for m in t.search(caen=False)) == [
         "FOM101A", "FOM104D", "SOM101B"]
-    assert len(t.search()) == 4          # caen=None ignora filtrul
+    assert len(t.search()) == 4          # caen=None ignores the filter
 
 
 def test_search_filter_domeniu_is_substring_and_diacritics_free(
         monkeypatch, tmp_path):
     _index_pe_disc(monkeypatch, tmp_path)
     _catalog_de_test(monkeypatch)
-    # 'economic' prinde 'B. STATISTICA ECONOMICA', fara forma exacta
+    # 'economic' matches 'B. STATISTICA ECONOMICA', no exact wording needed
     assert [m.code for m in t.search(domeniu="economic")] == ["FOM104F"]
     assert len(t.search(domeniu="sociala")) == 3
-    # diacriticele din cerere nu strica potrivirea
+    # diacritics in the request do not break matching
     assert [m.code for m in t.search(domeniu="ecOnOmică")] == ["FOM104F"]
     assert len(t.search(domeniu="socială")) == 3
-    # un cuvant care chiar nu apare nu potriveste nimic
+    # a word that really does not appear matches nothing
     assert list(t.search(domeniu="agricultura")) == []
 
 
@@ -1569,16 +1571,16 @@ def test_search_filters_combine(monkeypatch, tmp_path):
     _catalog_de_test(monkeypatch)
     assert [m.code for m in
             t.search(domeniu="economic", caen=True, level="judet")] == ["FOM104F"]
-    # aceleasi filtre, dar cu un nivel pe care nu il are: nimic
+    # the same filters, but with a level it does not have: nothing
     assert list(t.search(domeniu="economic", caen=True,
                          level="localitate")) == []
-    # filtrele se combina si cu cuvantul cautat
+    # the filters combine with the search word too
     assert [m.code for m in t.search("FOM104F", caen=True)] == ["FOM104F"]
     assert list(t.search("SOM101B", caen=True)) == []
 
 
 def test_search_results_carry_index_fields(monkeypatch, tmp_path):
-    """Nivelele si periodicitatea vin din index, fara apel de retea."""
+    """Levels and periodicity come from the index, with no network call."""
     _index_pe_disc(monkeypatch, tmp_path)
     apeluri = _index_and_meta(monkeypatch, TOATE_META)
     _catalog_de_test(monkeypatch)
@@ -1597,7 +1599,7 @@ def test_search_metadata_filter_triggers_build(monkeypatch, tmp_path):
 
     rez = t.search(caen=True)
     assert cale.exists()
-    # din fixture-urile de metadate, doar FOM104F are dimensiune CAEN
+    # of the metadata fixtures, only FOM104F has a CAEN dimension
     assert [m.code for m in rez] == ["FOM104F"]
 
 
@@ -1615,18 +1617,19 @@ def test_build_index_stores_new_fields(monkeypatch, tmp_path):
 
 
 def test_old_index_is_handled_gently(monkeypatch, tmp_path, capsys):
-    """Un index vechi, doar cu levels, nu crapa; filtrele noi nu potrivesc."""
+    """An older index, with levels only, does not break; new filters match
+    nothing."""
     vechi = {cod: {"levels": f["levels"]} for cod, f in INDEX_COMPLET.items()}
     _index_pe_disc(monkeypatch, tmp_path, vechi)
     _catalog_de_test(monkeypatch)
 
-    # level merge in continuare, e singurul camp prezent
+    # level still works, it is the only field present
     assert [m.code for m in t.search(level="localitate")] == ["FOM104D"]
     iesire = capsys.readouterr().out
-    assert "versiune mai veche" in iesire
+    assert "older version" in iesire
     assert "build_index(refresh=True)" in iesire
 
-    # filtrele pe campurile lipsa nu potrivesc nimic, dar nu arunca
+    # filters on missing fields match nothing, but do not raise
     assert list(t.search(caen=True)) == []
     assert list(t.search(domeniu="economic")) == []
     assert list(t.search(periodicitate="anual")) == []
@@ -1639,8 +1642,8 @@ def test_filters_runs_with_index(monkeypatch, tmp_path, capsys):
     iesire = capsys.readouterr().out
     assert "level" in iesire and "localitate" in iesire
     assert "caen" in iesire
-    assert "A. STATISTICA SOCIALA" in iesire     # din domains()
-    assert "Trimestriala" in iesire              # periodicitati reale din index
+    assert "A. STATISTICA SOCIALA" in iesire     # from domains()
+    assert "Trimestriala" in iesire              # real periodicities from the index
     assert "t.search(domeniu='economic'" in iesire
 
 
@@ -1649,8 +1652,8 @@ def test_filters_runs_without_index(monkeypatch, tmp_path, capsys):
     _fake_api(monkeypatch)
     t.filters()
     iesire = capsys.readouterr().out
-    assert "Anuala" in iesire and "Lunara" in iesire   # exemple uzuale
-    assert "Indexul nu exista inca" in iesire
+    assert "Anuala" in iesire and "Lunara" in iesire   # common examples
+    assert "There is no index yet" in iesire
 
 
 def test_matrix_unknown_code(monkeypatch):
@@ -1669,7 +1672,8 @@ def test_matrix_code_is_normalized(monkeypatch):
 
 
 def test_get_json_non_json_response(monkeypatch):
-    """INS raspunde 200 cu non-JSON; iese ValueError clar, nu JSONDecodeError."""
+    """INS answers 200 with non JSON; a clear ValueError comes out, not a
+    JSONDecodeError."""
     class FakeResp:
         def raise_for_status(self):
             pass
@@ -1682,13 +1686,13 @@ def test_get_json_non_json_response(monkeypatch):
         client.get_json("http://exemplu/nimic", use_cache=False)
     except ValueError as e:
         assert type(e) is ValueError
-        assert "nu e JSON" in str(e) and "http://exemplu/nimic" in str(e)
+        assert "is not JSON" in str(e) and "http://exemplu/nimic" in str(e)
     else:
         raise AssertionError("trebuia ValueError")
 
 
 def test_no_levels_when_nothing_is_territorial(monkeypatch):
-    """Nici details, nici labelurile nu spun teritoriu, deci niciun nivel."""
+    """Neither details nor the labels say territory, so there is no level."""
     data = dict(
         FOM104D,
         details={"nomJud": 0, "nomLoc": 0, "matRegJ": 0, "matTime": 3,

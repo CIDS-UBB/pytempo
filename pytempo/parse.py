@@ -1,20 +1,20 @@
-"""Transformă CSV-ul de la pivot în DataFrame, format lung.
+"""Turn the CSV from pivot into a long format DataFrame.
 
-Format măsurat pe răspunsul real (FOM101A): delimitator virgulă, cu un spațiu
-după fiecare câmp, zecimala punct, fără ghilimele nicăieri, terminator \\n,
-utf-8 fără BOM. O coloană per dimensiune, în ordinea din dimensionsMap, plus
-coloana Valoare la final.
+Format measured on a real response (FOM101A): comma delimiter with one space
+after each field, decimal point, no quoting anywhere, \\n line endings, utf-8
+with no BOM. One column per dimension, in dimensionsMap order, plus the value
+column at the end.
 
-Două capcane, amândouă confirmate pe date reale:
+Two traps, both confirmed against real data:
 
-Antetul nu e de încredere ca sursă de nume. INS înlocuiește virgulele din
-denumirea dimensiunii cu spații, deci 'Macroregiuni, regiuni de dezvoltare si
-judete' ajunge 'Macroregiuni  regiuni de dezvoltare si judete'. Luăm numele din
-matrix.dimensions, în ordine, nu din antet.
+The header is not a trustworthy source of names. INS replaces commas inside a
+dimension label with spaces, so 'Macroregiuni, regiuni de dezvoltare si judete'
+arrives as 'Macroregiuni  regiuni de dezvoltare si judete'. Names are taken from
+matrix.dimensions, in order, not from the header.
 
-CSV-ul e rar. Combinațiile fără date lipsesc ca rânduri întregi, nu ca valori
-goale, din motive administrative reale (Ilfov nu exista înainte de 1996). Nu
-validăm pe numărul de rânduri și nu presupunem un grid complet.
+The CSV is sparse. Combinations with no data are absent as whole rows, not
+present as blanks, for real administrative reasons (Ilfov did not exist before
+1996). So we do not validate on row counts and do not assume a complete grid.
 """
 import io
 import re
@@ -29,10 +29,10 @@ _YEAR = re.compile(r"\b(\d{4})\b")
 
 
 def pivot_csv_to_dataframe(csv_text: str, matrix) -> pd.DataFrame:
-    """CSV brut de la pivot -> DataFrame în format lung.
+    """Raw CSV from pivot into a long format DataFrame.
 
-    Numărul de coloane e plasa de siguranță: delimitatorul virgulă ține doar
-    fiindcă INS curăță virgulele din denumiri, iar asta nu e garantat.
+    The column count is the safety net: the comma delimiter only works because
+    INS strips commas out of labels, and that is not guaranteed.
     """
     df = pd.read_csv(
         io.StringIO(csv_text),
@@ -44,42 +44,42 @@ def pivot_csv_to_dataframe(csv_text: str, matrix) -> pd.DataFrame:
     asteptat = len(matrix.dimensions) + 1
     if df.shape[1] != asteptat:
         raise ValueError(
-            f"CSV cu {df.shape[1]} coloane, asteptate {asteptat} "
-            f"({len(matrix.dimensions)} dimensiuni plus {VALUE_COLUMN}). "
-            f"Antet gasit: {list(df.columns)}"
+            f"CSV has {df.shape[1]} columns, expected {asteptat} "
+            f"({len(matrix.dimensions)} dimensions plus {VALUE_COLUMN}). "
+            f"Header found: {list(df.columns)}"
         )
 
     df.columns = [d.label.strip() for d in matrix.dimensions] + [VALUE_COLUMN]
 
     if df.empty:
-        # un raspuns fara randuri e legitim: combinatia ceruta nu are date.
-        # Coloana goala nu are dtype de citit, deci o fixam noi in loc sa
-        # confundam golul cu o mapare gresita de coloane.
+        # a response with no rows is legitimate: the combination has no data.
+        # An empty column has no dtype to read, so we set it ourselves rather
+        # than confusing emptiness with a slipped column mapping.
         df[VALUE_COLUMN] = df[VALUE_COLUMN].astype("float64")
     elif not pd.api.types.is_numeric_dtype(df[VALUE_COLUMN]):
         raise ValueError(
-            f"Coloana {VALUE_COLUMN} nu e numerica (dtype "
-            f"{df[VALUE_COLUMN].dtype}). Semn ca maparea coloanelor a alunecat."
+            f"Column {VALUE_COLUMN} is not numeric (dtype "
+            f"{df[VALUE_COLUMN].dtype}). A sign the column mapping slipped."
         )
     return df
 
 
 def _year_of(label) -> int | None:
-    """Anul dintr-o denumire de perioadă: 'Anul 2024' -> 2024."""
+    """The year inside a period name: 'Anul 2024' gives 2024."""
     m = _YEAR.search(str(label))
     return int(m.group(1)) if m else None
 
 
 def standardize(df: pd.DataFrame, matrix) -> pd.DataFrame:
-    """Adaugă coloane derivate, fără să șteargă sau să rearanjeze nimic.
+    """Add derived columns without dropping or reordering anything.
 
-    Pentru fiecare dimensiune teritorială adaugă <label>_siruta, <label>_nivel,
-    <label>_tip și <label>_nume. Pentru fiecare dimensiune de timp adaugă
-    <label>_an. Prefixul e labelul dimensiunii, ca să nu se ciocnească atunci
-    când matricea are două dimensiuni teritoriale (FOM104D).
+    For every territorial dimension it adds <label>_siruta, <label>_nivel,
+    <label>_tip and <label>_nume. For every time dimension it adds <label>_an.
+    The prefix is the dimension label, so two territorial dimensions never
+    collide (FOM104D).
 
-    SIRUTA e cheie, deci se adaugă ca o coloană nouă; denumirea originală
-    rămâne intactă, cu prefixul ei cu tot.
+    SIRUTA is a key, so it is added as a new column; the original name stays
+    untouched, prefix and all.
     """
     out = df.copy()
     for dim in matrix.dimensions:
@@ -91,8 +91,8 @@ def standardize(df: pd.DataFrame, matrix) -> pd.DataFrame:
             desfacut = [territory.parse_territory(v) for v in out[col]]
             out[f"{col}_siruta"] = pd.array(
                 [t[0] for t in desfacut], dtype="Int64")
-            # string nullable: tip lipseste la agregate si judete, iar acolo
-            # vrem pd.NA, nu NaN de float
+            # nullable string: type is missing for aggregates and counties, and
+            # there we want pd.NA rather than a float NaN
             out[f"{col}_nivel"] = pd.array(
                 [t[1] for t in desfacut], dtype="string")
             out[f"{col}_tip"] = pd.array(

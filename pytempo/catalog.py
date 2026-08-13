@@ -1,17 +1,17 @@
-"""Indexul de matrice (dicționarul de nume), căutarea și arborele de domenii.
+"""The matrix index (the name dictionary), search, and the domain tree.
 
-Două indexuri, cu costuri foarte diferite:
+Two indexes, with very different costs:
 
-Indexul de nume, load_index, e un singur apel cache-uit. Din el răspund
-instant search, find și overview.
+The name index, load_index, is a single cached call. search, find and overview
+answer from it instantly.
 
-Indexul de nivele, build_index, cere metadatele fiecărui indicator, adică un
-apel pe rând pentru tot catalogul. Se construiește o singură dată, se salvează
-pe disc, iar după aceea filtrul pe nivel din find e instant. Fiindcă e scump,
-construcția întreabă întâi userul.
+The metadata index, build_index, needs each indicator's metadata, which means
+one call per code for the whole catalogue. It is built once, saved to disk, and
+after that the metadata filters are instant. Because it is expensive, the build
+asks the user first. Normally it is not needed at all: the schema registry ships
+with the package and covers the same ground.
 """
 import json
-import sys
 
 from . import client, endpoints, territory
 from .matrix import Matrix, MatrixList, _clean, matrix
@@ -19,18 +19,18 @@ from .models import Node
 
 _INDEX = None
 
-# fisierul indexului de metadate, langa cache-ul de raspunsuri brute
+# the metadata index file, next to the raw response cache
 INDEX_FILE = "levels_index.json"
 
-# campurile pe care le scrie build_index; un index mai vechi poate avea mai
-# putine, iar filtrele pe campurile lipsa nu potrivesc nimic
+# the fields build_index writes; an older index may hold fewer, and filters on
+# a missing field match nothing
 INDEX_FIELDS = ("levels", "periodicity", "has_caen", "domain")
 
 
 def load_index(refresh: bool = False) -> list[dict]:
-    """Lista întreagă de indicatori: [{code, name}, ...] din matrix/matrices.
+    """Every indicator: [{code, name}, ...] from matrix/matrices.
 
-    Se cache-uiește în memorie și pe disc. refresh=True forțează re-descărcarea.
+    Cached in memory and on disk. refresh=True forces a re-download.
     """
     global _INDEX
     if _INDEX is None or refresh:
@@ -40,12 +40,12 @@ def load_index(refresh: bool = False) -> list[dict]:
 
 
 def name_dict(refresh: bool = False) -> dict[str, str]:
-    """Dicționarul de nume: {cod: nume} pentru toți indicatorii."""
+    """The name dictionary: {code: name} for every indicator."""
     return {row["code"]: row["name"] for row in load_index(refresh=refresh)}
 
 
-def _trece_filtrele(fisa: dict, level, caen, domeniu, periodicitate) -> bool:
-    """Fișa unui indicator din index trece toate filtrele cerute?"""
+def _passes_filters(fisa: dict, level, caen, domeniu, periodicitate) -> bool:
+    """Does one indicator's index record pass every requested filter?"""
     if level is not None and level not in (fisa.get("levels") or []):
         return False
     if caen is not None and bool(fisa.get("has_caen")) is not bool(caen):
@@ -63,26 +63,27 @@ def search(query: str = "", level: territory.Level | None = None,
            caen: bool | None = None, domeniu: str | None = None,
            periodicitate: str | None = None, fuzzy: bool = False,
            limit: int | None = None) -> MatrixList:
-    """Descoperire cu filtre. Pentru căutarea simplă pe nume, vezi find.
+    """Discovery with filters. For plain keyword search, see find.
 
-    query : unul sau mai multe cuvinte; se potrivesc TOATE (în nume sau cod),
-            fără diacritice, insensibil la majuscule. Poate lipsi: cu query
-            gol, filtrele lucrează peste tot catalogul.
-    limit : implicit None, adică toate potrivirile. Rezultatul e o listă, deci
-            poți tăia și singur cu slicing.
+    query : one or more words; ALL of them must match, in the name or the code,
+            case insensitively and ignoring diacritics. It may be omitted: with
+            an empty query the filters work across the whole catalogue.
+    limit : None by default, meaning every match. The result is a list, so you
+            can slice it yourself.
 
-    Filtrele pe metadate se combină între ele și cu query, și se rezolvă din
-    indexul local, deci sunt instant. Dacă indexul nu există, te întreabă întâi
-    dacă să îl construiască. Vezi t.filters() pentru valorile acceptate.
+    The metadata filters combine with each other and with the query, and are
+    resolved from the local index, so they are instant. See t.filters() for the
+    accepted values.
 
-    level        : nivel teritorial, ex. 'judet', 'localitate'.
-    caen         : True doar cei cu dimensiune CAEN, False doar cei fără.
-    domeniu      : subșir din numele domeniului, ex. 'economic'.
-    periodicitate: subșir din periodicitate, ex. 'anual', 'lunar'.
-    fuzzy        : potrivire aproximativă. NEIMPLEMENTATĂ.
+    level        : territorial level, for example 'judet' or 'localitate'.
+    caen         : True keeps only those with a CAEN dimension, False only those
+                   without.
+    domeniu      : substring of the domain name, for example 'economic'.
+    periodicitate: substring of the periodicity, for example 'anual', 'lunar'.
+    fuzzy        : approximate matching. NOT IMPLEMENTED.
     """
     if fuzzy:
-        raise NotImplementedError("fuzzy: neimplementat (deocamdata fuzzy=False)")
+        raise NotImplementedError("fuzzy matching is not implemented yet")
     if level is not None and level not in territory._LEVEL_ORDER:
         raise territory.level_error(level, territory._LEVEL_ORDER)
 
@@ -99,12 +100,12 @@ def search(query: str = "", level: territory.Level | None = None,
         if nivele is None:
             nivele = build_index(confirm=True)
         if nivele is None:
-            print("Fara indexul de metadate nu pot filtra. "
-                  "Ruleaza t.build_index() cand ai cateva minute.")
+            print("Without the metadata index I cannot filter. "
+                  "Run t.build_index() when you have a few minutes.")
             return MatrixList([])
         _warn_if_stale(nivele)
         potriviri = [row for row in potriviri
-                     if _trece_filtrele(nivele.get(row["code"], {}), level,
+                     if _passes_filters(nivele.get(row["code"], {}), level,
                                         caen, domeniu, periodicitate)]
 
     out = []
@@ -121,12 +122,14 @@ def search(query: str = "", level: territory.Level | None = None,
 
 
 def filters() -> None:
-    """Ce filtre acceptă search și ce valori are fiecare."""
+    """Which filters search accepts, and what values each one takes."""
     nivele = load_levels_index()
-    print("Filtrele lui t.search(). Se combina intre ele si cu cuvantul cautat.")
+    print("Filters for t.search(). They combine with each other and with the "
+          "search words.")
     print(f"  level        : {list(territory._LEVEL_ORDER)}")
-    print("  caen         : True doar cei cu dimensiune CAEN, False doar cei fara")
-    print("  domeniu      : subsir din numele domeniului, fara diacritice")
+    print("  caen         : True only those with a CAEN dimension, False only "
+          "those without")
+    print("  domeniu      : substring of the domain name, diacritics ignored")
     for nod in domains():
         print(f"                 {nod.name}")
     if nivele:
@@ -134,46 +137,47 @@ def filters() -> None:
                          for p in (f.get("periodicity") or [])})
     else:
         vazute = ["Anuala", "Lunara", "Trimestriala", "Semestriala"]
-    print("  periodicitate: subsir din periodicitate, fara diacritice")
+    print("  periodicitate: substring of the periodicity, diacritics ignored")
     print(f"                 {vazute}")
     print()
-    print("Filtrele pe metadate se sprijina pe indexul local; daca lipseste,")
-    print("search te intreaba intai daca sa il construiasca (t.build_index()).")
+    print("The metadata filters rest on the local index. If it is missing,")
+    print("search asks first whether to build it (t.build_index()).")
     if not nivele:
-        print("Indexul nu exista inca, deci periodicitatile de mai sus sunt")
-        print("exemple uzuale, nu valorile reale din catalog.")
+        print("There is no index yet, so the periodicities above are common")
+        print("examples, not the real values from the catalogue.")
     print()
-    print("Exemplu:")
+    print("Example:")
     print("  t.search(domeniu='economic', periodicitate='lunar', level='judet')")
 
 
 def find(query: str, limit: int | None = None) -> MatrixList:
-    """Căutarea simplă pe nume: t.find('salariati').
+    """Plain keyword search: t.find('salariati').
 
-    Fără filtre, deci răspunde instant din indexul de nume. Când vrei să
-    filtrezi, ex. doar indicatorii care coboară la localitate, folosește
+    No filters, so it answers instantly from the name index. When you want to
+    filter, for example only indicators that reach locality level, use
     search(query, level='localitate').
     """
     return search(query, limit=limit)
 
 
 def _index_path():
-    """Calea indexului de nivele, derivată din convenția de cache."""
+    """Path of the metadata index, derived from the cache convention."""
     return client.CACHE_DIR.parent / INDEX_FILE
 
 
 def load_levels_index() -> dict | None:
-    """Sursa pentru filtrele pe metadate, sau None dacă nu există niciuna.
+    """The source for metadata filters, or None if there is none.
 
-    Preferă registrul de scheme, care vine cu pachetul. Dacă lipsește, cade pe
-    vechiul data/levels_index.json, construit cu build_index.
+    Prefers the schema registry, which ships with the package. If that is
+    missing it falls back to the older data/levels_index.json built by
+    build_index.
     """
-    from . import schemas  # local: schemas importa catalog, altfel ciclu
+    from . import schemas  # local import: schemas imports catalog, else a cycle
 
     try:
         din_registry = schemas.registry_as_index()
     except ValueError as e:
-        print(f"Registrul nu poate fi citit: {e}")
+        print(f"The registry cannot be read: {e}")
         din_registry = None
     if din_registry:
         return din_registry
@@ -185,43 +189,43 @@ def load_levels_index() -> dict | None:
 
 
 def _warn_if_stale(nivele: dict) -> None:
-    """Un index construit de o versiune mai veche nu are câmpurile noi.
+    """An index built by an older version lacks the newer fields.
 
-    Varianta simplă, ca să nu pornim o reconstrucție de minute din senin:
-    câmpul lipsă nu potrivește nimic, iar userul află cum să repare.
+    The simple route, so we never start a multi minute rebuild out of nowhere:
+    a missing field matches nothing, and the user is told how to fix it.
     """
     if not nivele:
         return
     oricare = next(iter(nivele.values()))
     lipsa = [c for c in INDEX_FIELDS if c not in oricare]
     if lipsa:
-        print(f"Indexul e dintr-o versiune mai veche si nu are {lipsa}. "
-              f"Filtrele pe acele campuri nu vor potrivi nimic; "
-              f"ruleaza t.build_index(refresh=True) ca sa il completezi.")
+        print(f"The index comes from an older version and lacks {lipsa}. "
+              f"Filters on those fields will match nothing; "
+              f"run t.build_index(refresh=True) to complete it.")
 
 
 def _ask_to_build(total: int) -> bool:
-    """Întreabă o singură dată, clar, înainte de o construcție scumpă."""
-    # 0.40s per apel, masurat pe INS; de aici estimarea
+    """Ask once, clearly, before an expensive build."""
+    # 0.40s per call, measured against INS; that is where the estimate comes from
     minute = max(1, round(total * 0.4 / 60))
-    print("Indexul de metadate nu exista inca.")
-    print(f"Constructia cere metadatele fiecarui indicator: {total} apeluri,")
-    print(f"in jur de {minute} minute prima data. Apoi filtrele lui search")
-    print("sunt instant, fiindca indexul se salveaza pe disc si se refoloseste.")
+    print("The metadata index does not exist yet.")
+    print(f"Building it needs each indicator's metadata: {total} calls,")
+    print(f"roughly {minute} minutes the first time. After that the search")
+    print("filters are instant, because the index is saved and reused.")
     try:
-        raspuns = input("Construiesc indexul acum? [d/N] ")
+        raspuns = input("Build the index now? [y/N] ")
     except (EOFError, OSError):
         return False
-    return raspuns.strip().lower() in ("d", "da", "y", "yes")
+    return raspuns.strip().lower() in ("y", "yes", "d", "da")
 
 
 def build_index(progress: bool = True, refresh: bool = False,
                 confirm: bool = True) -> dict | None:
-    """Construiește indexul local de metadate: {cod: {levels: [...]}}.
+    """Build the local metadata index: {code: {levels: [...], ...}}.
 
-    O singură dată, câteva minute, apoi filtrele pe metadate sunt instant.
-    Un indicator care dă eroare la metadate e sărit și notat, nu oprește
-    construcția. Întoarce None dacă userul refuză.
+    Once, a few minutes, and then the metadata filters are instant. An
+    indicator whose metadata fails is skipped and noted, it does not stop the
+    build. Returns None if the user declines.
     """
     path = _index_path()
     if path.exists() and not refresh:
@@ -230,8 +234,8 @@ def build_index(progress: bool = True, refresh: bool = False,
     randuri = load_index()
     total = len(randuri)
     if confirm and not _ask_to_build(total):
-        print("Bine, nu construiesc. Filtrul pe nivel are nevoie de index; "
-              "poti rula t.build_index() oricand.")
+        print("Fine, not building. The level filter needs the index; "
+              "you can run t.build_index() any time.")
         return None
 
     index = {}
@@ -249,45 +253,45 @@ def build_index(progress: bool = True, refresh: bool = False,
         except Exception:
             sarite.append(cod)
         if progress and (i % 10 == 0 or i == total):
-            print(f"\rconstruiesc indexul: {i}/{total}", end="", flush=True)
+            print(f"\rbuilding the index: {i}/{total}", end="", flush=True)
     if progress:
         print()
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(index, ensure_ascii=False), encoding="utf-8")
     if progress:
-        print(f"index salvat in {path}, {len(index)} indicatori"
-              + (f", {len(sarite)} sarite: {sarite[:5]}" if sarite else ""))
+        print(f"index saved to {path}, {len(index)} indicators"
+              + (f", {len(sarite)} skipped: {sarite[:5]}" if sarite else ""))
     return index
 
 
 def domains() -> MatrixList:
-    """Domeniile statistice de sus (A ... H), dintr-un singur apel.
+    """The top level statistical domains (A through H), in a single call.
 
-    context('') întoarce tot arborele aplatizat; cele de sus au level 0.
+    context('') returns the whole tree flattened; the top ones have level 0.
     """
     tree = client.get_json(endpoints.context("")) or []
     out = [
         Node(code=row["context"]["code"], name=_clean(row["context"]["name"]))
         for row in tree if row.get("level") == 0
     ]
-    # API-ul le da neordonat (H inaintea lui G); numele incep cu A. ... H.
+    # the API returns them unordered (H before G); names start with A. ... H.
     out.sort(key=lambda nod: nod.name)
     return MatrixList(out)
 
 
 def overview() -> None:
-    """Panorama ieftină: cât e catalogul și de unde începi.
+    """The cheap panorama: how big the catalogue is and where to start.
 
-    Două apeluri, amândouă cache-uite. Nu atinge metadatele indicatorilor.
+    Two calls, both cached. It does not touch indicator metadata.
     """
     n = len(load_index())
     doms = domains()
-    print(f"pytempo: {n} indicatori TEMPO, in {len(doms)} domenii de sus.")
-    print("Incepe cu find('salariati') sau domains(). t.help() da ghidul complet.")
+    print(f"pytempo: {n} TEMPO indicators, in {len(doms)} top level domains.")
+    print("Start with find('salariati') or domains(). t.help() has the full guide.")
 
 
 def _norm(s: str) -> str:
-    """Minuscule, fără diacritice, ca 'șomeri' să prindă 'Somerii'."""
+    """Lowercase and strip diacritics, so 'șomeri' matches 'Somerii'."""
     repl = str.maketrans("ăâîșşțţ", "aaisstt")
     return s.lower().translate(repl)

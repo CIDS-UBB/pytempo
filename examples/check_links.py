@@ -1,25 +1,25 @@
-"""Test: lista de indicatori se încarcă, căutarea merge, linkurile răspund.
+"""A live check: the indicator list loads, search works, links answer.
 
-Rulează pe o mașină cu acces la statistici.insse.ro:
+Run it on a machine with access to statistici.insse.ro:
     python examples/check_links.py
 """
 import pytempo as t
 
-# 1. lista întreagă de indicatori (dicționarul de nume)
+# 1. the whole indicator list (the name dictionary)
 index = t.load_index()
-print(f"indicatori în total: {len(index)}")
+print(f"indicators in total: {len(index)}")
 
-# 2. dicționarul {cod: nume}, un eșantion
+# 2. the {code: name} dictionary, a sample
 nume = t.name_dict()
-print("exemplu FOM104D ->", nume.get("FOM104D"))
+print("example FOM104D ->", nume.get("FOM104D"))
 
-# 3. caută un indicator specific
+# 3. look up one specific indicator
 for m in t.search("FOM104D"):
-    print(f"  găsit: {m.code} | {m.name}")
+    print(f"  found: {m.code} | {m.name}")
     print(f"  link : {m.url}")
-    print(f"  merge linkul? {m.link_ok()}")
+    print(f"  does the link work? {m.link_ok()}")
 
-# 4. o căutare pe cuvânt, ca să vezi lista
-print("\nrezultate pentru 'someri':")
+# 4. a keyword search, to see the list
+print("\nresults for 'someri':")
 for m in t.search("someri", limit=15):
     print(f"  {m.code:10} {m.name}")

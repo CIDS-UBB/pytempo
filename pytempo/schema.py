@@ -1,16 +1,16 @@
-"""Generarea schemei Postgres direct din metadatele unui indicator.
+"""Generating a Postgres schema straight from an indicator's metadata.
 
-Funcție PURĂ de metadate: nu deschide nicio conexiune, nu importă niciun driver.
-Produce schema pe care ar folosi-o un proiect din aval ca să încarce datele.
+A PURE metadata function: it opens no connection and imports no driver. It
+produces the schema a downstream project would use to load the data.
 
-Model: un tabel per indicator, o coloană per dimensiune plus coloana valoare.
-Tipuri inferate din rolul dimensiunii:
-    timp (an)      -> INTEGER
-    valoare        -> NUMERIC / DOUBLE PRECISION
-    teritoriu, sex, caen, um, alt -> TEXT
-Plus coloane pentru nivelul teritorial și codul teritorial.
-Definiția și metodologia INS devin COMMENT ON TABLE / COMMENT ON COLUMN, ca sensul
-fiecărei coloane să călătorească odată cu schema.
+The model: one table per indicator, one column per dimension plus the value
+column. Types are inferred from the dimension role:
+    time (year)    -> INTEGER
+    value          -> NUMERIC / DOUBLE PRECISION
+    territory, sex, caen, unit, other -> TEXT
+Plus columns for the territorial level and the territorial code.
+The INS definition and methodology become COMMENT ON TABLE and COMMENT ON
+COLUMN, so the meaning of every column travels with the schema.
 """
 from dataclasses import dataclass, field
 
@@ -30,13 +30,13 @@ class Schema:
     table_comment: str = ""
 
     def to_ddl(self, dialect: str = "postgres") -> str:
-        """Serializează schema ca DDL (CREATE TABLE + COMMENT ON ...).
+        """Serialize the schema as DDL (CREATE TABLE plus COMMENT ON ...).
 
-        dialect: 'postgres' (implicit) sau 'sqlite'.
+        dialect: 'postgres' (the default) or 'sqlite'.
         """
-        raise NotImplementedError("iterația 5")
+        raise NotImplementedError("not implemented yet")
 
 
 def build_schema(matrix, dialect: str = "postgres") -> Schema:
-    """Construiește Schema din metadatele unei matrice. Vezi descrierea modulului."""
-    raise NotImplementedError("iterația 5")
+    """Build a Schema from a matrix's metadata. See the module description."""
+    raise NotImplementedError("not implemented yet")
