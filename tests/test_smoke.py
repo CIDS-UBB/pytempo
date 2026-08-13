@@ -725,15 +725,20 @@ def test_get_unknown_level(monkeypatch):
 
 
 def test_get_level_two_territorial_dimensions(monkeypatch):
-    """FOM104D keeps county and locality separate; the filter is not supported."""
+    """FOM104D keeps county and locality separate, and a level now works.
+
+    The level picks the active dimension and puts the other on its total.
+    """
     _fake_api(monkeypatch)
-    _capture_post(monkeypatch)
-    try:
-        t.matrix("FOM104D").get(level="judet")
-    except NotImplementedError as e:
-        assert "iteratia 3c" in str(e)
-    else:
-        raise AssertionError("trebuia NotImplementedError, nu tot setul tacut")
+    m = t.matrix("FOM104D")
+
+    judete = m._build_selection(["judet"])
+    assert judete[0] == [3064]        # the county, TOTAL left out
+    assert judete[1] == [112]         # localities pinned to their total
+
+    localitati = m._build_selection(["localitate"])
+    assert localitati[0] == [112, 3064]          # counties stay whole
+    assert localitati[1] == [113, 114]           # localities, without TOTAL
 
 
 def test_big_matrix_without_localities_is_split(monkeypatch):

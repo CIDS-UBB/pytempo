@@ -9,7 +9,7 @@ from .catalog import (build_index, domains, filters, find, load_index,
 from .matrix import Matrix, MatrixList, get, info, matrix
 from .explore import init, browse
 
-__version__ = "0.15.2"
+__version__ = "0.16.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
@@ -68,6 +68,11 @@ get() executes the plan from the registry: it reads the strategy, runs it and
 applies tidy. By default it takes the finest level the indicator reaches and
 says in one line what it decided. Indicators with no usable level get
 everything.
+
+When county and locality are two separate dimensions, as in FOM104D, a level
+picks which one is active and puts the other on its total: level='judet' gives
+one row per county in a single request, level='localitate' gives the
+localities, county by county.
 
 The data is sparse: combinations with no data are absent as whole rows, not as
 blanks. Indicators that do not fit one POST are downloaded in several requests

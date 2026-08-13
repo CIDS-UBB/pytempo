@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.15.2-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.16.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -170,7 +170,17 @@ macroregions, regions and counties in one column and you rarely want them
 stacked together. Indicators with no usable territorial level get no filter at
 all and `get()` returns everything.
 
-When that default leaves levels out, `get()` says so and names them:
+When county and locality are two separate dimensions, as in FOM104D, the level
+picks which dimension is active and puts the other on its total:
+
+    m.get(level="judet")        one row per county, localities on TOTAL
+    m.get(level="localitate")   the localities, fetched county by county
+
+The county dimension deliberately stays whole when localities are the active
+one. The data is keyed by the real county and locality pair, so pinning the
+county to its total returns nothing at all.
+
+When the default leaves levels out, `get()` says so and names them:
 
     FOM106E: level judet (the finest), split:CAEN Rev.2 ..., 2 requests
       for every level, including national, macroregiune and regiune,

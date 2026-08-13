@@ -129,6 +129,77 @@ def test_get_on_localities_does_not_raise(monkeypatch, tmp_path):
     assert "Localitati_siruta" in df.columns
 
 
+def test_level_judet_on_two_territorial_dimensions(monkeypatch, tmp_path):
+    """Counties become active, localities go to TOTAL, in one request."""
+    _registry(monkeypatch, tmp_path, dict(TOATE, FOM104D=FOM104D_MIC))
+    cereri = _post(monkeypatch, CSV)
+    t.matrix("FOM104D").get(level="judet", progress=False)
+
+    assert len(cereri) == 1
+    judete, localitati = cereri[0]["encQuery"].split(":")[:2]
+    assert judete == "3064,3065"     # the real counties, no TOTAL
+    assert localitati == "112"       # localities pinned to their total
+
+
+def test_level_localitate_keeps_the_county_dimension_whole(monkeypatch,
+                                                           tmp_path):
+    """Pinning counties to TOTAL returns nothing, so they stay whole.
+
+    Verified against INS: county TOTAL crossed with real localities gives zero
+    rows, because the data is keyed by the real pair.
+    """
+    _registry(monkeypatch, tmp_path, dict(TOATE, FOM104D=FOM104D_MIC))
+    monkeypatch.setattr(chunking, "MAX_CELLS", 10)
+    cereri = _post(monkeypatch, CSV)
+    t.matrix("FOM104D").get(level="localitate", progress=False)
+
+    # one request per county group, each pairing a county with its own
+    # localities, and never the locality TOTAL
+    pe_judet = {p["encQuery"].split(":")[0]: p["encQuery"].split(":")[1]
+                for p in cereri}
+    assert pe_judet == {"3064": "113,114,115", "3065": "116"}
+    assert all("112" not in blocuri for blocuri in pe_judet.values())
+
+
+def test_level_national_puts_both_dimensions_on_total(monkeypatch, tmp_path):
+    _registry(monkeypatch, tmp_path, dict(TOATE, FOM104D=FOM104D_MIC))
+    cereri = _post(monkeypatch, CSV)
+    t.matrix("FOM104D").get(level="national", progress=False)
+    assert cereri[0]["encQuery"].split(":")[:2] == ["112", "112"]
+
+
+def test_level_none_still_takes_everything(monkeypatch, tmp_path):
+    _registry(monkeypatch, tmp_path, dict(TOATE, FOM104D=FOM104D_MIC))
+    monkeypatch.setattr(chunking, "MAX_CELLS", 1000)
+    cereri = _post(monkeypatch, CSV)
+    t.matrix("FOM104D").get(level=None, progress=False)
+    blocuri = cereri[0]["encQuery"].split(":")
+    assert blocuri[0] == "112,3064,3065"
+    assert blocuri[1] == "112,113,114,115,116"
+
+
+def test_unknown_level_on_two_dimensions_still_raises(monkeypatch, tmp_path):
+    _registry(monkeypatch, tmp_path, dict(TOATE, FOM104D=FOM104D_MIC))
+    _post(monkeypatch, CSV)
+    try:
+        t.matrix("FOM104D").get(level="regiune", progress=False)
+    except ValueError as e:
+        assert "unknown level 'regiune'" in str(e)
+        assert "localitate" in str(e)
+    else:
+        raise AssertionError("a level it does not have should raise")
+
+
+def test_how_offers_levels_on_two_territorial_dimensions(monkeypatch, tmp_path,
+                                                         capsys):
+    _registry(monkeypatch, tmp_path)
+    t.matrix("FOM104D").how()
+    iesire = capsys.readouterr().out
+    assert "m.get(level='judet')" in iesire
+    assert "m.get(level='national')" in iesire
+    assert "puts the other on TOTAL" in iesire
+
+
 def test_get_neteritorial_has_no_territorial_filter(monkeypatch, tmp_path):
     _registry(monkeypatch, tmp_path)
     csv_tmp = ("Categorii de emisii, Statii de monitorizare de tip fond urban "
@@ -254,14 +325,15 @@ def test_how_warns_when_expensive(monkeypatch, tmp_path, capsys):
     assert "confirm=False" in iesire
 
 
-def test_how_does_not_offer_a_level_that_would_raise(monkeypatch, tmp_path,
-                                                     capsys):
-    """FOM104D keeps county and locality separate: get(level=...) would raise."""
+def test_how_explains_the_two_dimension_semantics(monkeypatch, tmp_path,
+                                                  capsys):
+    """FOM104D keeps county and locality separate, and how() says what that
+    means for a level."""
     _registry(monkeypatch, tmp_path)
     t.matrix("FOM104D").how()
     iesire = capsys.readouterr().out
-    assert "m.get(level=" not in iesire
     assert "separate dimensions" in iesire
+    assert "which one is active" in iesire
 
 
 def test_unknown_only_levels_mean_no_territorial_filter(monkeypatch, tmp_path):

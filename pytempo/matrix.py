@@ -44,6 +44,17 @@ def _clean(text: str) -> str:
     return " ".join(out.split()).strip(" ;,-")
 
 
+def _is_total(option) -> bool:
+    """The aggregate option of a dimension, found by name, not by position."""
+    return (option.label or "").strip().upper().startswith("TOTAL")
+
+
+def _totals_or_all(dimension) -> list:
+    """Just the total of a dimension, or everything if it carries no total."""
+    totaluri = [o for o in dimension.options if _is_total(o)]
+    return totaluri or list(dimension.options)
+
+
 def _decision_line(m, wanted, plan, planuri) -> str:
     """What was decided, in one line, before the download starts."""
     if wanted:
@@ -339,11 +350,20 @@ class Matrix:
               f", tidied")
         teritoriale = [d for d in self.dimensions if d.role == "teritoriu"]
         if len(teritoriale) > 1:
-            # the level filter does not work when county and locality are
-            # separate dimensions; do not suggest what would raise
-            print("  (the level filter does not apply here: county and "
-                  "locality are")
-            print("   separate dimensions, and get() brings both anyway)")
+            # county and locality are separate dimensions here, so a level
+            # picks which one is active and puts the other on its total
+            for nivel in self.levels:
+                if nivel != implicit:
+                    print(f"  m.get(level={nivel!r})")
+            print("  m.get(level=None)     every level at once")
+            print()
+            print("  county and locality are separate dimensions here, so a "
+                  "level picks")
+            print("  which one is active and puts the other on TOTAL: "
+                  "level='judet' gives")
+            print("  one row per county in a single request, level="
+                  "'localitate' gives the")
+            print("  localities, county by county.")
         elif not implicit:
             motiv = ("this indicator is not territorial" if not teritoriale
                      else "its territorial names are not administrative units")
@@ -511,11 +531,41 @@ class Matrix:
   .get(raw=True)       exactly what INS returns, no derived columns
   .get(progress=True)  report progress on large indicators""")
 
+    def _territorial_options(self, d, wanted: list[str], loc_activa: bool):
+        """Which options of one territorial dimension to send.
+
+        A locality dimension stands for exactly one level, so it is either all
+        of its localities or just its total. A hierarchical dimension is cut by
+        the level of each option name.
+        """
+        if territory.is_locality_dimension(d, self.details):
+            if "localitate" in wanted:
+                return [o for o in d.options if not _is_total(o)]
+            return _totals_or_all(d)
+
+        if loc_activa:
+            # the data is keyed by the real county and locality pair, so
+            # pinning the county to its total returns nothing at all. Verified
+            # against INS: county TOTAL crossed with real localities gives zero
+            # rows. When localities are the active dimension the county one
+            # stays whole and the county by county split pairs them up.
+            return list(d.options)
+
+        potrivite = [o for o in d.options
+                     if territory.option_level(o.label) in wanted]
+        return potrivite or _totals_or_all(d)
+
     def _build_selection(self, wanted: list[str]) -> list[list[int]]:
         """The nomItemIds to send, per dimension, in dimensionsMap order.
 
         With no levels requested it takes everything. With levels requested it
-        trims only the territorial dimension; the rest stay complete.
+        trims only the territorial dimensions; the rest stay complete.
+
+        When county and locality are two separate dimensions, the level picks
+        which one is active and puts the other on its total:
+        level='judet' gives one row per county, with localities on TOTAL, in a
+        single request; level='localitate' gives the localities, keeping the
+        county dimension whole so the county by county split can pair them.
         """
         if not wanted:
             return [[o.nom_item_id for o in d.options] for d in self.dimensions]
@@ -524,22 +574,18 @@ class Matrix:
             if lv not in self.levels:
                 raise territory.level_error(lv, self.levels, cod=self.code)
 
-        terr = [d for d in self.dimensions if d.role == "teritoriu"]
-        if len(terr) > 1:
-            raise NotImplementedError(
-                "filtru pe nivel pentru matrice cu judet plus localitate "
-                "separate: iteratia 3c")
+        loc_activa = "localitate" in wanted and any(
+            territory.is_locality_dimension(d, self.details)
+            for d in self.dimensions if d.role == "teritoriu")
 
         selection = []
         for d in self.dimensions:
             if d.role != "teritoriu":
                 selection.append([o.nom_item_id for o in d.options])
-            elif (territory.is_locality_dimension(d, self.details)
-                  and "localitate" in wanted):
-                selection.append([o.nom_item_id for o in d.options])
             else:
-                selection.append([o.nom_item_id for o in d.options
-                                  if territory.option_level(o.label) in wanted])
+                selection.append([o.nom_item_id for o in
+                                  self._territorial_options(d, wanted,
+                                                            loc_activa)])
         return selection
 
     def fetch_plan(self) -> dict:
