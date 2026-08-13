@@ -1,5 +1,9 @@
 # pytempo
 
+**Status: still under test.** The library works end to end and is covered by
+tests, but it has not been through real use yet. Expect rough edges, and check
+results against the INS site before you rely on them.
+
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API. It has one job: talk to the INS API well. No database, no SIRUTA
 enrichment, no Postgres loader. Those live in separate downstream projects that
@@ -30,7 +34,9 @@ be `pip install pytempo-ins`, still with `import pytempo`.
     t.find("salariati")           # plain keyword search, instant
     t.search("salariati", level="localitate")   # discovery with filters
     t.search(level="localitate")  # filters work with no keyword at all
-    t.build_index()               # levels index, once, then filters are instant
+    t.search(domeniu="economic", periodicitate="lunar", caen=True)
+    t.filters()                   # which filters exist and what they accept
+    t.build_index()               # metadata index, once, then filters are instant
     t.domains()                   # the 8 top level statistical domains
 
     m = t.matrix("FOM104D")       # fetch one indicator's metadata
@@ -58,23 +64,31 @@ Both return every match. They are lists, so slice them, or pass `limit=N`.
 `find(level=...)` keeps only the indicators that reach that territorial level,
 filtering from a local index, so it is instant and touches no network.
 
-### The levels index
+### The metadata index
 
-Levels are only known from an indicator's metadata, so answering "which
-indicators reach locality level" needs metadata for the whole catalogue. That is
-built once and cached on disk:
+Levels, periodicity, CAEN and domain are only known from an indicator's
+metadata, so answering "which indicators reach locality level" needs metadata
+for the whole catalogue. That is built once and cached on disk:
 
     t.build_index()
 
 It walks all 1916 indicators at roughly 0.4 seconds each, so about 13 minutes
-the first time, shows progress as it goes, and writes
-`data/levels_index.json`. Indicators whose metadata fails are skipped and
-reported rather than aborting the build. Pass `refresh=True` to rebuild,
-`confirm=False` to skip the prompt, `progress=False` to stay quiet.
+the first time, shows progress as it goes, and writes `data/levels_index.json`
+as one record per code:
+
+    {"FOM104D": {"levels": [...], "periodicity": ["Anuala"],
+                 "has_caen": false, "domain": "A. STATISTICA SOCIALA"}}
+
+Indicators whose metadata fails are skipped and reported rather than aborting
+the build. Pass `refresh=True` to rebuild, `confirm=False` to skip the prompt,
+`progress=False` to stay quiet.
 
 Because it is expensive, `build_index()` asks before it starts, once. If you
-call `find(level=...)` and no index exists, it asks you then. Decline and you
-get an empty result plus a note, never a silent multi minute stall.
+use a metadata filter and no index exists, it asks you then. Decline and you
+get an empty result plus a note, never a silent multi minute stall. An index
+written by an older version simply lacks the newer fields: filters on those
+fields match nothing and you get a line telling you to rebuild, rather than a
+crash or a surprise rebuild.
 
 A quick check that the live endpoints answer:
 
@@ -89,7 +103,22 @@ plain keyword search, no filters, answered instantly from the name index.
     t.find('salariati')          plain keyword search, in name or code
     t.search('salariati', level='localitate')   keyword plus a filter
     t.search(level='localitate') filter alone, across the whole catalogue
-    t.build_index()              the levels index, once, a few minutes
+    t.filters()                  which filters exist and what they accept
+    t.build_index()              the metadata index, once, a few minutes
+
+`search` takes four filters, all optional, all combinable with each other and
+with the keyword:
+
+    level='judet'            territorial level
+    caen=True                only those with a CAEN dimension, False only those without
+    domeniu='economic'       substring of the domain name, diacritics ignored
+    periodicitate='lunar'    substring of the periodicity, diacritics ignored
+
+    t.search(domeniu='economic', periodicitate='lunar', level='judet')
+
+The substring filters are deliberately forgiving: `economic` matches
+`B. STATISTICA ECONOMICA`, so you do not have to know the exact wording.
+`t.filters()` prints the real values available, read from the index.
     t.domains()                  the 8 top level statistical domains
     t.overview()                 how big the catalogue is and where to start
 
@@ -266,7 +295,7 @@ Style rules:
 * Small modules with one job each. Do not inflate the structure.
 * Every URL lives in `endpoints.py`. Do not hardcode one anywhere else.
 * When you add a method, update `t.help()` and this README in the same commit.
-* Document only what exists and works. Roadmap notes belong in SPEC.md.
+* Document only what exists and works. Keep roadmap notes out of this file.
 
 ## License
 

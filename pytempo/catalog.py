@@ -19,8 +19,12 @@ from .models import Node
 
 _INDEX = None
 
-# fisierul indexului de nivele, langa cache-ul de raspunsuri brute
+# fisierul indexului de metadate, langa cache-ul de raspunsuri brute
 INDEX_FILE = "levels_index.json"
+
+# campurile pe care le scrie build_index; un index mai vechi poate avea mai
+# putine, iar filtrele pe campurile lipsa nu potrivesc nimic
+INDEX_FIELDS = ("levels", "periodicity", "has_caen", "domain")
 
 
 def load_index(refresh: bool = False) -> list[dict]:
@@ -40,8 +44,24 @@ def name_dict(refresh: bool = False) -> dict[str, str]:
     return {row["code"]: row["name"] for row in load_index(refresh=refresh)}
 
 
-def search(query: str = "", level: str | None = None, fuzzy: bool = False,
-           limit: int | None = None) -> MatrixList:
+def _trece_filtrele(fisa: dict, level, caen, domeniu, periodicitate) -> bool:
+    """Fișa unui indicator din index trece toate filtrele cerute?"""
+    if level is not None and level not in (fisa.get("levels") or []):
+        return False
+    if caen is not None and bool(fisa.get("has_caen")) is not bool(caen):
+        return False
+    if domeniu is not None and _norm(domeniu) not in _norm(fisa.get("domain") or ""):
+        return False
+    if periodicitate is not None:
+        cerut = _norm(periodicitate)
+        if not any(cerut in _norm(p) for p in (fisa.get("periodicity") or [])):
+            return False
+    return True
+
+
+def search(query: str = "", level: str | None = None, caen: bool | None = None,
+           domeniu: str | None = None, periodicitate: str | None = None,
+           fuzzy: bool = False, limit: int | None = None) -> MatrixList:
     """Descoperire cu filtre. Pentru căutarea simplă pe nume, vezi find.
 
     query : unul sau mai multe cuvinte; se potrivesc TOATE (în nume sau cod),
@@ -49,10 +69,16 @@ def search(query: str = "", level: str | None = None, fuzzy: bool = False,
             gol, filtrele lucrează peste tot catalogul.
     limit : implicit None, adică toate potrivirile. Rezultatul e o listă, deci
             poți tăia și singur cu slicing.
-    level : păstrează doar indicatorii care au acel nivel teritorial. Filtrează
-            din indexul local de nivele, instant. Dacă indexul nu există, te
-            întreabă întâi dacă să îl construiască.
-    fuzzy : potrivire aproximativă. NEIMPLEMENTATĂ.
+
+    Filtrele pe metadate se combină între ele și cu query, și se rezolvă din
+    indexul local, deci sunt instant. Dacă indexul nu există, te întreabă întâi
+    dacă să îl construiască. Vezi t.filters() pentru valorile acceptate.
+
+    level        : nivel teritorial, ex. 'judet', 'localitate'.
+    caen         : True doar cei cu dimensiune CAEN, False doar cei fără.
+    domeniu      : subșir din numele domeniului, ex. 'economic'.
+    periodicitate: subșir din periodicitate, ex. 'anual', 'lunar'.
+    fuzzy        : potrivire aproximativă. NEIMPLEMENTATĂ.
     """
     if fuzzy:
         raise NotImplementedError("fuzzy: neimplementat (deocamdata fuzzy=False)")
@@ -66,21 +92,58 @@ def search(query: str = "", level: str | None = None, fuzzy: bool = False,
                  if all(tok in _norm(row["name"] + " " + row["code"])
                         for tok in tokens)]
 
-    if level is not None:
+    cere_metadate = any(f is not None
+                        for f in (level, caen, domeniu, periodicitate))
+    nivele = {}
+    if cere_metadate:
         nivele = load_levels_index()
         if nivele is None:
             nivele = build_index(confirm=True)
         if nivele is None:
-            print("Fara indexul de nivele nu pot filtra. "
+            print("Fara indexul de metadate nu pot filtra. "
                   "Ruleaza t.build_index() cand ai cateva minute.")
             return MatrixList([])
+        _warn_if_stale(nivele)
         potriviri = [row for row in potriviri
-                     if level in (nivele.get(row["code"], {}).get("levels") or [])]
+                     if _trece_filtrele(nivele.get(row["code"], {}), level,
+                                        caen, domeniu, periodicitate)]
 
-    out = [Matrix(code=row["code"], name=row["name"]) for row in potriviri]
+    out = []
+    for row in potriviri:
+        fisa = nivele.get(row["code"], {})
+        out.append(Matrix(code=row["code"], name=row["name"],
+                          periodicity=list(fisa.get("periodicity") or []),
+                          cached_levels=list(fisa.get("levels") or [])))
     if limit is not None:
         out = out[:limit]
     return MatrixList(out)
+
+
+def filters() -> None:
+    """Ce filtre acceptă search și ce valori are fiecare."""
+    nivele = load_levels_index()
+    print("Filtrele lui t.search(). Se combina intre ele si cu cuvantul cautat.")
+    print(f"  level        : {list(territory._LEVEL_ORDER)}")
+    print("  caen         : True doar cei cu dimensiune CAEN, False doar cei fara")
+    print("  domeniu      : subsir din numele domeniului, fara diacritice")
+    for nod in domains():
+        print(f"                 {nod.name}")
+    if nivele:
+        vazute = sorted({p for f in nivele.values()
+                         for p in (f.get("periodicity") or [])})
+    else:
+        vazute = ["Anuala", "Lunara", "Trimestriala", "Semestriala"]
+    print("  periodicitate: subsir din periodicitate, fara diacritice")
+    print(f"                 {vazute}")
+    print()
+    print("Filtrele pe metadate se sprijina pe indexul local; daca lipseste,")
+    print("search te intreaba intai daca sa il construiasca (t.build_index()).")
+    if not nivele:
+        print("Indexul nu exista inca, deci periodicitatile de mai sus sunt")
+        print("exemple uzuale, nu valorile reale din catalog.")
+    print()
+    print("Exemplu:")
+    print("  t.search(domeniu='economic', periodicitate='lunar', level='judet')")
 
 
 def find(query: str, limit: int | None = None) -> MatrixList:
@@ -106,14 +169,30 @@ def load_levels_index() -> dict | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _warn_if_stale(nivele: dict) -> None:
+    """Un index construit de o versiune mai veche nu are câmpurile noi.
+
+    Varianta simplă, ca să nu pornim o reconstrucție de minute din senin:
+    câmpul lipsă nu potrivește nimic, iar userul află cum să repare.
+    """
+    if not nivele:
+        return
+    oricare = next(iter(nivele.values()))
+    lipsa = [c for c in INDEX_FIELDS if c not in oricare]
+    if lipsa:
+        print(f"Indexul e dintr-o versiune mai veche si nu are {lipsa}. "
+              f"Filtrele pe acele campuri nu vor potrivi nimic; "
+              f"ruleaza t.build_index(refresh=True) ca sa il completezi.")
+
+
 def _ask_to_build(total: int) -> bool:
     """Întreabă o singură dată, clar, înainte de o construcție scumpă."""
     # 0.40s per apel, masurat pe INS; de aici estimarea
     minute = max(1, round(total * 0.4 / 60))
-    print("Indexul de nivele nu exista inca.")
+    print("Indexul de metadate nu exista inca.")
     print(f"Constructia cere metadatele fiecarui indicator: {total} apeluri,")
-    print(f"in jur de {minute} minute prima data. Apoi filtrele pe nivel sunt")
-    print("instant, fiindca indexul se salveaza pe disc si se refoloseste.")
+    print(f"in jur de {minute} minute prima data. Apoi filtrele lui search")
+    print("sunt instant, fiindca indexul se salveaza pe disc si se refoloseste.")
     try:
         raspuns = input("Construiesc indexul acum? [d/N] ")
     except (EOFError, OSError):
@@ -145,7 +224,13 @@ def build_index(progress: bool = True, refresh: bool = False,
     for i, row in enumerate(randuri, 1):
         cod = row["code"]
         try:
-            index[cod] = {"levels": matrix(cod).levels}
+            m = matrix(cod)
+            index[cod] = {
+                "levels": m.levels,
+                "periodicity": list(m.periodicity or []),
+                "has_caen": any(d.role == "caen" for d in m.dimensions),
+                "domain": _clean(m.ancestors[0]["name"]) if m.ancestors else "",
+            }
         except Exception:
             sarite.append(cod)
         if progress and (i % 10 == 0 or i == total):

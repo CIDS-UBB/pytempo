@@ -4,15 +4,15 @@ Punctul de plecare e t.help(), care listează ce se poate face acum.
 Descoperire (find, domains, overview), înțelegere (matrix, info, show, where,
 related, levels, options) și tragerea datelor (get, cu filtru pe nivel).
 """
-from .catalog import (build_index, domains, find, load_index, name_dict,
-                      overview, search)
+from .catalog import (build_index, domains, filters, find, load_index,
+                      name_dict, overview, search)
 from .matrix import Matrix, MatrixList, get, info, matrix
 from .explore import init, browse
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
-    "build_index",
+    "build_index", "filters",
     "matrix", "info", "get",
     "Matrix", "MatrixList",
     "init", "browse",
@@ -29,9 +29,17 @@ GASESTI un indicator
   t.find('salariati')          cautare simpla pe nume, instant
   t.search('salariati', level='localitate')   descoperire cu filtre
   t.search(level='localitate') filtrele merg si fara cuvant, peste tot catalogul
-  t.build_index()              indexul de nivele, o data, cateva minute
+  t.filters()                  ce filtre are search si ce valori accepta
+  t.build_index()              indexul de metadate, o data, cateva minute
   t.domains()                  cele 8 domenii statistice de sus
   t.overview()                 cat e catalogul si de unde incepi
+
+DESCOPERIRE CU FILTRE, toate optionale si combinabile
+  level='judet'                nivel teritorial
+  caen=True                    doar cei cu dimensiune CAEN (False doar cei fara)
+  domeniu='economic'           subsir din numele domeniului
+  periodicitate='lunar'        subsir din periodicitate
+  t.search(domeniu='economic', periodicitate='lunar', level='judet')
 
 INTELEGI un indicator
   m = t.matrix('FOM104D')      aduce metadatele
@@ -63,13 +71,13 @@ tidy=True doar adauga coloane, nu sterge si nu rearanjeaza nimic: denumirea
 originala ramane, cu prefixul SIRUTA cu tot.
 
 find si search sunt lucruri diferite. find e cautarea rapida pe nume, fara
-filtre. search e descoperirea cu filtre, deocamdata level, si merge si fara
-cuvant. Amandoua intorc TOATE potrivirile; taie cu slicing sau cu limit=N.
+filtre. search e descoperirea cu filtre, si merge si fara cuvant. Amandoua
+intorc TOATE potrivirile; taie cu slicing sau cu limit=N.
 
-search(level=...) filtreaza din indexul local de nivele, deci e instant.
-Indexul se construieste o singura data, cu t.build_index(): cere metadatele
-fiecarui indicator, cateva minute, si se salveaza pe disc. Daca lipseste,
-search te intreaba intai daca sa il construiasca.
+Filtrele pe metadate se rezolva din indexul local, deci sunt instant. Indexul
+se construieste o singura data, cu t.build_index(): cere metadatele fiecarui
+indicator, cateva minute, si se salveaza pe disc. Daca lipseste, search te
+intreaba intai daca sa il construiasca.
 
 Listele intoarse de find, domains si related se afiseaza ca tabel si au
 .recent(n), care ordoneaza dupa ultima actualizare doar elementele din set.""")

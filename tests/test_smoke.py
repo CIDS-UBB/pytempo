@@ -1161,7 +1161,7 @@ def test_search_with_level_refused_returns_empty(monkeypatch, tmp_path, capsys):
 
     rez = t.search("salariati", level="localitate")
     assert list(rez) == []
-    assert "Fara indexul de nivele nu pot filtra" in capsys.readouterr().out
+    assert "Fara indexul de metadate nu pot filtra" in capsys.readouterr().out
 
 
 def test_search_unknown_level(monkeypatch):
@@ -1266,6 +1266,156 @@ def test_search_without_query_walks_whole_catalogue(monkeypatch, tmp_path):
 
     assert len(t.search()) == 3
     assert [m.code for m in t.search(level="localitate")] == ["FOM104D"]
+
+
+INDEX_COMPLET = {
+    "FOM104D": {"levels": ["national", "judet", "localitate"],
+                "periodicity": ["Anuala"], "has_caen": False,
+                "domain": "A. STATISTICA SOCIALA"},
+    "SOM101B": {"levels": ["national", "judet"],
+                "periodicity": ["Lunara", "Anuala"], "has_caen": False,
+                "domain": "A. STATISTICA SOCIALA"},
+    "FOM101A": {"levels": ["national", "judet"],
+                "periodicity": ["Anuala"], "has_caen": False,
+                "domain": "A. STATISTICA SOCIALA"},
+    "FOM104F": {"levels": ["national", "judet"],
+                "periodicity": ["Trimestriala"], "has_caen": True,
+                "domain": "B. STATISTICA ECONOMICA"},
+}
+
+
+def _index_pe_disc(monkeypatch, tmp_path, continut=INDEX_COMPLET):
+    cale = _cache_in(monkeypatch, tmp_path)
+    cale.parent.mkdir(parents=True, exist_ok=True)
+    cale.write_text(json.dumps(continut), encoding="utf-8")
+    return cale
+
+
+def _catalog_de_test(monkeypatch):
+    monkeypatch.setattr(catalog, "_INDEX",
+                        [{"code": c, "name": f"Indicator {c}"}
+                         for c in INDEX_COMPLET])
+
+
+def test_search_filter_caen(monkeypatch, tmp_path):
+    _index_pe_disc(monkeypatch, tmp_path)
+    _catalog_de_test(monkeypatch)
+    assert [m.code for m in t.search(caen=True)] == ["FOM104F"]
+    assert sorted(m.code for m in t.search(caen=False)) == [
+        "FOM101A", "FOM104D", "SOM101B"]
+    assert len(t.search()) == 4          # caen=None ignora filtrul
+
+
+def test_search_filter_domeniu_is_substring_and_diacritics_free(
+        monkeypatch, tmp_path):
+    _index_pe_disc(monkeypatch, tmp_path)
+    _catalog_de_test(monkeypatch)
+    # 'economic' prinde 'B. STATISTICA ECONOMICA', fara forma exacta
+    assert [m.code for m in t.search(domeniu="economic")] == ["FOM104F"]
+    assert len(t.search(domeniu="sociala")) == 3
+    # diacriticele din cerere nu strica potrivirea
+    assert [m.code for m in t.search(domeniu="ecOnOmică")] == ["FOM104F"]
+    assert len(t.search(domeniu="socială")) == 3
+    # un cuvant care chiar nu apare nu potriveste nimic
+    assert list(t.search(domeniu="agricultura")) == []
+
+
+def test_search_filter_periodicitate(monkeypatch, tmp_path):
+    _index_pe_disc(monkeypatch, tmp_path)
+    _catalog_de_test(monkeypatch)
+    assert sorted(m.code for m in t.search(periodicitate="anual")) == [
+        "FOM101A", "FOM104D", "SOM101B"]
+    assert [m.code for m in t.search(periodicitate="lunar")] == ["SOM101B"]
+    assert [m.code for m in t.search(periodicitate="trimestrial")] == ["FOM104F"]
+
+
+def test_search_filters_combine(monkeypatch, tmp_path):
+    _index_pe_disc(monkeypatch, tmp_path)
+    _catalog_de_test(monkeypatch)
+    assert [m.code for m in
+            t.search(domeniu="economic", caen=True, level="judet")] == ["FOM104F"]
+    # aceleasi filtre, dar cu un nivel pe care nu il are: nimic
+    assert list(t.search(domeniu="economic", caen=True,
+                         level="localitate")) == []
+    # filtrele se combina si cu cuvantul cautat
+    assert [m.code for m in t.search("FOM104F", caen=True)] == ["FOM104F"]
+    assert list(t.search("SOM101B", caen=True)) == []
+
+
+def test_search_results_carry_index_fields(monkeypatch, tmp_path):
+    """Nivelele si periodicitatea vin din index, fara apel de retea."""
+    _index_pe_disc(monkeypatch, tmp_path)
+    apeluri = _index_and_meta(monkeypatch, TOATE_META)
+    _catalog_de_test(monkeypatch)
+
+    m = t.search(level="localitate")[0]
+    assert m.code == "FOM104D"
+    assert m.levels == ["national", "judet", "localitate"]
+    assert m.periodicity == ["Anuala"]
+    assert apeluri == []
+
+
+def test_search_metadata_filter_triggers_build(monkeypatch, tmp_path):
+    cale = _cache_in(monkeypatch, tmp_path)
+    _index_and_meta(monkeypatch, TOATE_META | {"FOM104F": FOM104F})
+    monkeypatch.setattr("builtins.input", lambda _: "d")
+
+    rez = t.search(caen=True)
+    assert cale.exists()
+    # din fixture-urile de metadate, doar FOM104F are dimensiune CAEN
+    assert [m.code for m in rez] == ["FOM104F"]
+
+
+def test_build_index_stores_new_fields(monkeypatch, tmp_path):
+    cale = _cache_in(monkeypatch, tmp_path)
+    _index_and_meta(monkeypatch, TOATE_META | {"FOM104F": FOM104F})
+
+    idx = t.build_index(confirm=False, progress=False)
+    assert set(idx["FOM104D"]) == set(catalog.INDEX_FIELDS)
+    assert idx["FOM104D"]["periodicity"] == ["Anuala"]
+    assert idx["FOM104D"]["has_caen"] is False
+    assert idx["FOM104F"]["has_caen"] is True
+    assert idx["FOM104D"]["domain"] == "A. STATISTICA SOCIALA"
+    assert json.loads(cale.read_text(encoding="utf-8"))["FOM104F"]["has_caen"]
+
+
+def test_old_index_is_handled_gently(monkeypatch, tmp_path, capsys):
+    """Un index vechi, doar cu levels, nu crapa; filtrele noi nu potrivesc."""
+    vechi = {cod: {"levels": f["levels"]} for cod, f in INDEX_COMPLET.items()}
+    _index_pe_disc(monkeypatch, tmp_path, vechi)
+    _catalog_de_test(monkeypatch)
+
+    # level merge in continuare, e singurul camp prezent
+    assert [m.code for m in t.search(level="localitate")] == ["FOM104D"]
+    iesire = capsys.readouterr().out
+    assert "versiune mai veche" in iesire
+    assert "build_index(refresh=True)" in iesire
+
+    # filtrele pe campurile lipsa nu potrivesc nimic, dar nu arunca
+    assert list(t.search(caen=True)) == []
+    assert list(t.search(domeniu="economic")) == []
+    assert list(t.search(periodicitate="anual")) == []
+
+
+def test_filters_runs_with_index(monkeypatch, tmp_path, capsys):
+    _index_pe_disc(monkeypatch, tmp_path)
+    _fake_api(monkeypatch)
+    t.filters()
+    iesire = capsys.readouterr().out
+    assert "level" in iesire and "localitate" in iesire
+    assert "caen" in iesire
+    assert "A. STATISTICA SOCIALA" in iesire     # din domains()
+    assert "Trimestriala" in iesire              # periodicitati reale din index
+    assert "t.search(domeniu='economic'" in iesire
+
+
+def test_filters_runs_without_index(monkeypatch, tmp_path, capsys):
+    _cache_in(monkeypatch, tmp_path)
+    _fake_api(monkeypatch)
+    t.filters()
+    iesire = capsys.readouterr().out
+    assert "Anuala" in iesire and "Lunara" in iesire   # exemple uzuale
+    assert "Indexul nu exista inca" in iesire
 
 
 def test_matrix_unknown_code(monkeypatch):

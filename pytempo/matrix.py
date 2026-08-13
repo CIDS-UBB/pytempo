@@ -127,6 +127,8 @@ class Matrix:
     dimensions: list = field(default_factory=list)
     details: dict = field(default_factory=dict)
     ancestors: list = field(default_factory=list)  # [{name, code}] domeniu -> parinte
+    # nivelele venite din indexul local, cand metadatele nu au fost aduse
+    cached_levels: list = field(default_factory=list)
 
     @property
     def url(self) -> str:
@@ -139,8 +141,13 @@ class Matrix:
 
     @property
     def levels(self) -> list[str]:
-        """Nivelele teritoriale prezente, de la general la specific."""
-        return territory.levels_present(self.dimensions, self.details)
+        """Nivelele teritoriale prezente, de la general la specific.
+
+        Din metadate dacă sunt aduse, altfel din index, dacă search le-a pus.
+        """
+        if self.dimensions:
+            return territory.levels_present(self.dimensions, self.details)
+        return list(self.cached_levels)
 
     @property
     def has_siruta(self) -> bool:
