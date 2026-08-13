@@ -40,6 +40,19 @@ gives you `import pytempo` either way.
 `get()` prints one line saying what it decided before it starts, for example
 `FOM101A: level judet (finest), single, 1 request`.
 
+## Examples
+
+Two guided notebooks in `examples/` walk through the library end to end,
+identical in structure, one in English and one in Romanian. They run live
+against INS and are saved with their outputs, so you can read them without
+running anything:
+
+    examples/tutorial_en.ipynb
+    examples/tutorial_ro.ipynb
+
+There is also `examples/check_links.py`, a quick script that confirms the live
+endpoints answer.
+
 ## What it does
 
 * **Finds indicators.** 1916 of them, searchable by keyword, or filtered by

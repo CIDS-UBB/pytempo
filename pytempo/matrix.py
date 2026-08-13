@@ -617,7 +617,7 @@ class Matrix:
                 client.post_pivot(payload), self))
             if vorbeste:
                 total = sum(len(c) for c in cadre)
-                print(f"  {i}/{len(planuri)}: +{len(cadre[-1])} randuri "
+                print(f"  {i}/{len(planuri)}: +{len(cadre[-1])} rows "
                       f"(total {total})")
 
         df = cadre[0] if len(cadre) == 1 else pd.concat(cadre, ignore_index=True)
