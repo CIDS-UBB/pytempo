@@ -13,9 +13,6 @@ from . import territory
 # pragul peste care un singur POST la pivot nu mai e rezonabil
 MAX_CELLS = 100000
 
-# cate localitati intr-un grup, cand un singur judet tot depaseste pragul
-COUNTY_CHUNK = 100
-
 
 def split_options(codes: list[int], size: int = 100) -> list[list[int]]:
     """Sparge o listă de coduri în grupuri de cel mult `size` (din R)."""
@@ -73,13 +70,40 @@ def _county_index(matrix, selection, loc_index: int, parents) -> int | None:
     return None
 
 
+def split_selection(selection: list[list[int]],
+                    max_cells: int) -> list[list[list[int]]]:
+    """Sparge o selecție în bucăți care încap fiecare sub prag.
+
+    Taie dimensiunea cu cele mai multe opțiuni, în bucăți dimensionate după
+    cât loc lasă celelalte. Dacă nici bucata de o singură opțiune nu ajunge,
+    recursia coboară pe următoarea dimensiune. Așa orice matrice devine
+    descărcabilă, doar în mai multe cereri.
+    """
+    if cells(selection) <= max_cells:
+        return [selection]
+
+    spargibile = [i for i, codes in enumerate(selection) if len(codes) > 1]
+    if not spargibile:
+        return [selection]          # o singura celula, nu mai avem ce taia
+
+    i = max(spargibile, key=lambda k: len(selection[k]))
+    restul = max(1, cells(selection) // len(selection[i]))
+    marime = max(1, max_cells // restul)
+
+    bucati = []
+    for bucata in split_options(selection[i], marime):
+        sub = list(selection)
+        sub[i] = bucata
+        bucati.extend(split_selection(sub, max_cells))
+    return bucati
+
+
 def plan_requests(matrix, selection: list[list[int]],
                   max_cells: int | None = None) -> list[dict]:
     """Din selecția pe dimensiuni, produce lista de payload-uri POST.
 
-    Sub prag, un singur payload. Peste prag, câte unul per județ, cu
-    localitățile acelui județ, grupate prin parentId. Dacă un singur județ tot
-    depășește pragul, localitățile lui se sparg în grupuri de COUNTY_CHUNK.
+    Sub prag, un singur payload. Peste prag, câte unul per județ la matricele
+    cu localități, altfel spargere pe dimensiunea cea mai mare.
     """
     if max_cells is None:
         max_cells = MAX_CELLS
@@ -88,11 +112,8 @@ def plan_requests(matrix, selection: list[list[int]],
 
     loc_index = _locality_index(matrix)
     if loc_index is None:
-        raise ValueError(
-            f"{matrix.code} ar cere {cells(selection):,} celule intr-un singur "
-            f"POST, peste pragul de {max_cells:,}, si nu are dimensiune de "
-            f"localitati dupa care sa fie spart. Incearca un filtru pe nivel, "
-            f"ex. get(level='judet'). Nivele disponibile: {matrix.levels}.")
+        return [_payload(matrix, sel)
+                for sel in split_selection(selection, max_cells)]
 
     loc_dim = matrix.dimensions[loc_index]
     ceruta = set(selection[loc_index])
@@ -109,12 +130,10 @@ def plan_requests(matrix, selection: list[list[int]],
         if county_index is not None and parent in selection[county_index]:
             baza[county_index] = [parent]
 
-        incercare = list(baza)
-        incercare[loc_index] = ids
-        bucati = ([ids] if cells(incercare) <= max_cells
-                  else split_options(ids, COUNTY_CHUNK))
-        for bucata in bucati:
-            sel = list(baza)
-            sel[loc_index] = bucata
-            payloads.append(_payload(matrix, sel))
+        sel = list(baza)
+        sel[loc_index] = ids
+        # un judet care tot nu incape se sparge mai departe, pe orice
+        # dimensiune, nu doar pe localitati
+        for bucata in split_selection(sel, max_cells):
+            payloads.append(_payload(matrix, bucata))
     return payloads

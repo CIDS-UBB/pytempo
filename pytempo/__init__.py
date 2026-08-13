@@ -9,7 +9,7 @@ from .catalog import (build_index, domains, filters, find, load_index,
 from .matrix import Matrix, MatrixList, get, info, matrix
 from .explore import init, browse
 
-__version__ = "0.14.1"
+__version__ = "0.15.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
@@ -43,11 +43,13 @@ DESCOPERIRE CU FILTRE, toate optionale si combinabile
 
 INTELEGI un indicator
   m = t.matrix('FOM104D')      aduce metadatele
+  m.what()                     ce masoara, pe scurt: definitie, UM, cat de des
+  m.where()                    unde sta si ce acopera: domeniu, teritoriu, ani
+  m.how()                      manualul lui de descarcare, gata de copiat
   m.show()                     rezumat scurt: domeniu, nivele, dimensiuni
   m.describe()                 fisa completa, cu tot textul de la INS
   m.options()                  ce dimensiuni are, cu rol si numar de optiuni
   t.info('FOM104D')            aceleasi metadate, ca dictionar
-  m.where()                    breadcrumb-ul de domeniu
   m.related()                  ceilalti indicatori din acelasi nod
   m.levels                     nivele, ex. ['national', 'judet', 'localitate']
   m.has_siruta                 True daca localitatile poarta prefix SIRUTA
@@ -55,19 +57,22 @@ INTELEGI un indicator
   m.help()                     acest ghid, dar pentru un indicator
 
 TRAGI datele
-  df = m.get()                 toate datele, ca DataFrame in format lung
+  df = m.get()                 nivelul cel mai fin, curatat, cu progres
   m.get(level='judet')         doar un nivel teritorial
   m.get(levels=['judet','regiune'])   mai multe nivele
-  m.get(tidy=True)             plus coloane derivate: SIRUTA, nivel, tip, an
-  m.get(progress=True)         spune cat s-a tras, la matricele mari
+  m.get(level=None)            toate nivelele la un loc, vechiul implicit
+  m.get(raw=True)              exact ce da INS, fara coloane derivate
   t.get('FOM101A')             acelasi lucru, pornind de la cod
 
+get() executa planul din registry: citeste strategia, o ruleaza, aplica tidy.
+Implicit ia cel mai fin nivel pe care il are indicatorul si spune intr-o linie
+ce a hotarat. Cine nu are un nivel util, ca neteritorialii, primeste tot.
+
 Datele vin rare: combinatiile fara date lipsesc ca randuri intregi, nu ca
-valori goale. Filtrul pe nivel merge pe matricele cu o singura dimensiune
-teritoriala, cazul obisnuit. Matricele care nu incap intr-un singur POST, ca
-FOM104D, se descarca automat judet cu judet si se concateneaza; cele prea mari
-care nu au localitati dupa care sa fie sparte se opresc cu un mesaj clar.
-tidy=True doar adauga coloane, nu sterge si nu rearanjeaza nimic: denumirea
+valori goale. Matricele care nu incap intr-un singur POST se descarca in mai
+multe cereri si se concateneaza: judet cu judet la cele cu localitati, altfel
+pe cea mai mare dimensiune. Peste 50 de cereri get() intreaba intai; pune
+confirm=False in scripturi. tidy nu sterge si nu rearanjeaza nimic: denumirea
 originala ramane, cu prefixul SIRUTA cu tot.
 
 find si search sunt lucruri diferite. find e cautarea rapida pe nume, fara

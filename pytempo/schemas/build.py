@@ -121,7 +121,11 @@ def plan_for(entry: dict) -> dict:
     levels = entry.get("levels") or []
     celule = entry.get("total_cells") or 0
 
-    fin = [lv for lv in territory._LEVEL_ORDER if lv in levels]
+    # 'necunoscut' nu e un nivel de cerut: denumirile care nu se incadreaza in
+    # nomenclator nu formeaza o felie utila. Cel mai fin nivel REAL conteaza,
+    # iar daca nu exista niciunul, get() nu filtreaza teritorial deloc.
+    fin = [lv for lv in territory._LEVEL_ORDER
+           if lv in levels and lv != "necunoscut"]
     plan = {
         "default_level": fin[-1] if fin else None,
         "tidy_ready": any(d.get("role") in ("teritoriu", "timp") for d in dims),

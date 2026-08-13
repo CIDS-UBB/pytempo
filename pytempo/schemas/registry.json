@@ -10401,7 +10401,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/ART102D",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "judet",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -10946,7 +10946,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/ART105B",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "judet",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -11430,7 +11430,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/ART109C",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "judet",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -11583,7 +11583,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/ART110C",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "judet",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -24530,7 +24530,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/CON103A",
    "family": "teritorial_caen",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "regiune",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -24627,7 +24627,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/CON103C",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "judet",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -24677,7 +24677,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/CON103H",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "judet",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -24727,7 +24727,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/CON103I",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "judet",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -24783,7 +24783,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/CON103J",
    "family": "teritorial_caen",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "judet",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -27047,7 +27047,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/CON116A",
    "family": "teritorial_caen",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "regiune",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -27102,7 +27102,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/CON117A",
    "family": "teritorial_caen",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "regiune",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -27163,7 +27163,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/CON118A",
    "family": "teritorial_caen",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "judet",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -27225,7 +27225,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/CON119A",
    "family": "teritorial_caen",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "regiune",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -27290,7 +27290,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/CON120A",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "regiune",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -31580,7 +31580,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/EXP101J",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "judet",
     "est_requests": 11,
     "strategy": "split:Luni",
     "tidy_ready": true
@@ -32316,7 +32316,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/EXP102J",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "judet",
     "est_requests": 11,
     "strategy": "split:Luni",
     "tidy_ready": true
@@ -46678,7 +46678,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/INT111M",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "regiune",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -70160,7 +70160,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/TAW0213",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "national",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -71200,7 +71200,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/TCJ0331",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "regiune",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -80364,7 +80364,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/TLC1015",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "regiune",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -81508,7 +81508,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/TMP1173",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": null,
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -82236,7 +82236,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/TNM1223",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "macroregiune",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true
@@ -94958,7 +94958,7 @@
    "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/ZDF1123",
    "family": "teritorial_simplu",
    "fetch_plan": {
-    "default_level": "necunoscut",
+    "default_level": "judet",
     "est_requests": 1,
     "strategy": "single",
     "tidy_ready": true

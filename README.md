@@ -125,6 +125,9 @@ The substring filters are deliberately forgiving: `economic` matches
 Understanding an indicator:
 
     m = t.matrix('FOM104D')      fetch the metadata
+    m.what()                     what it measures, in a few lines
+    m.where()                    where it sits and what it covers
+    m.how()                      its own download manual, ready to copy
     m.show()                     short summary: domain, levels, dimensions
     m.describe()                 the full record, every word INS wrote
     t.info('FOM104D')            the same metadata, as a dict
@@ -145,10 +148,11 @@ thousand characters.
 
 Pulling the data:
 
-    df = m.get()                 all of it, as a long format DataFrame
+    df = m.get()                 the finest level it reaches, cleaned up
     m.get(level='judet')         one territorial level only
     m.get(levels=['judet', 'regiune'])   several levels
-    m.get(tidy=True)             plus derived columns: SIRUTA, level, type, year
+    m.get(level=None)            every level at once
+    m.get(raw=True)              exactly what INS returned, no derived columns
     m.get(progress=True)         report progress on large indicators
     t.get('FOM101A')             the same, starting from a code
 
@@ -207,16 +211,27 @@ for the finest territorial dimension present.
 
 ### The shape of the data
 
-`m.get()` posts every option of every dimension in one request and returns a
-long format DataFrame: one text column per dimension, in `dimensionsMap` order,
-plus a numeric `Valoare` column.
+`m.get()` executes the indicator's `fetch_plan`: it reads the strategy, runs it,
+and applies tidy. Nothing is decided at request time. It returns a long format
+DataFrame: one text column per dimension, in `dimensionsMap` order, a numeric
+`Valoare` column, and the derived columns.
 
-`level` or `levels` restrict the territorial dimension to the levels you name,
-which is what you usually want, since a territorial dimension normally mixes
-the country total, macroregions, regions and counties in one column:
+By default `get()` takes the finest territorial level the indicator actually
+reaches, because a territorial dimension normally mixes the country total,
+macroregions, regions and counties in one column and you rarely want them
+stacked together. It prints one line saying what it decided before it starts.
 
+    m.get()                               # the finest level, cleaned up
     m.get(level="judet")                  # counties only, no TOTAL, no regions
     m.get(levels=["judet", "regiune"])    # both
+    m.get(level=None)                     # everything, the old default
+    m.get(raw=True)                       # no derived columns
+
+Indicators with no usable territorial level get no filter at all and `get()`
+returns everything: that covers the 1362 non territorial ones, and the handful
+whose territorial names are not administrative units. Indicators that keep
+county and locality as two separate dimensions are downloaded whole, county by
+county, which already delivers the locality level.
 
 Naming a level the indicator does not have raises `ValueError`, lists the
 levels it does have, and suggests the closest one, so a typo is cheap:
@@ -257,22 +272,24 @@ carry no SIRUTA at all.
 
 A single POST is capped at `MAX_CELLS`, currently 100000 cells, counted as the
 product of the selected options per dimension. Above that, `get()` splits the
-work instead of sending one doomed request.
+work. Every indicator is downloadable; large ones just take more requests.
 
 Indicators that carry a locality dimension are downloaded one county at a time,
 using `parentId`, which ties a locality to its county. The county dimension is
 narrowed to that same county for each request, so a request covers one county
 and its own localities rather than the mostly empty product of all counties
-against a few localities. If a single county still exceeds the threshold, its
-localities are split into groups of `COUNTY_CHUNK`, currently 100. The frames
-are concatenated with `ignore_index=True`. FOM104D takes 43 requests this way.
+against a few localities. FOM104D takes 43 requests this way.
 
-    df = t.matrix("FOM104D").get(progress=True)
+Everything else is split on its largest dimension, in pieces sized by how much
+room the other dimensions leave, and the split recurses onto the next dimension
+when even a single option does not fit. The frames are concatenated with
+`ignore_index=True`.
 
-`progress=True` reports each request as it lands, with the row count and the
-running total. Indicators that are over the threshold but have no locality
-dimension to split by, such as SOM101B unfiltered, still raise `ValueError`,
-which names the levels you can filter on instead.
+    df = t.matrix("FOM106E").get(progress=True)
+
+`progress="auto"`, the default, reports each request only when there is more
+than one. Above 50 requests `get()` asks before starting, since that is minutes
+of work; pass `confirm=False` in scripts.
 
 The result is sparse. Combinations with no data are absent as whole rows, not
 present as blanks, and this reflects real administrative history: Ilfov and

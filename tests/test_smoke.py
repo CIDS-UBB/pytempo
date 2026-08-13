@@ -387,7 +387,7 @@ def test_info_dict(monkeypatch):
 
 def test_where_breadcrumb(monkeypatch):
     _fake_api(monkeypatch)
-    crumbs = t.matrix("FOM104D").where()
+    crumbs = t.matrix("FOM104D")._breadcrumb()
     # 'home' cade (nu are cod), iar ancora din nume dispare cu tot cu textul ei
     assert list(crumbs) == ["A. STATISTICA SOCIALA", "FORTA DE MUNCA", "SALARIATI"]
     assert repr(crumbs) == "A. STATISTICA SOCIALA > FORTA DE MUNCA > SALARIATI"
@@ -639,7 +639,8 @@ def test_get_builds_payload_and_parses(monkeypatch):
         return CSV_FOM101A
 
     monkeypatch.setattr(client, "post_pivot", fake_post)
-    df = t.matrix("FOM101A").get()
+    df = t.matrix("FOM101A").get(level=None, raw=True,
+                                 progress=False)
 
     assert trimis["matCode"] == "FOM101A"
     assert trimis["language"] == "ro"
@@ -731,8 +732,9 @@ def test_get_level_two_territorial_dimensions(monkeypatch):
         raise AssertionError("trebuia NotImplementedError, nu tot setul tacut")
 
 
-def test_size_guard_blocks_huge_pull(monkeypatch):
-    """Fara filtru, o matrice mare nu mai pleaca la drum."""
+def test_big_matrix_without_localities_is_split(monkeypatch):
+    """Fara localitati dupa care sa se sparga, se sparge pe cea mai mare
+    dimensiune. Nimic nu mai esueaza cu eroare de marime."""
     mare = dict(SOM101B, dimensionsMap=[
         dict(SOM101B["dimensionsMap"][0]),
         {"dimCode": 4, "label": "Ani", "options": [
@@ -743,20 +745,26 @@ def test_size_guard_blocks_huge_pull(monkeypatch):
              "parentId": None} for i in range(900)]},
     ])
     _fake_api(monkeypatch, extra={endpoints.matrix("SOM101B"): mare})
-    _capture_post(monkeypatch)
     m = t.matrix("SOM101B")
     assert 5 * 35 * 900 > MAX_CELLS
-    try:
-        m.get()
-    except ValueError as e:
-        # nu are dimensiune de localitati, deci nu poate fi spart pe judete
-        assert "celule" in str(e) and "localitati" in str(e)
-    else:
-        raise AssertionError("trebuia ValueError de la paza de marime")
 
-    # cu filtru pe nivel coboara sub prag si trece
+    selectie = [[o.nom_item_id for o in d.options] for d in m.dimensions]
+    planuri = chunking.plan_requests(m, selectie)
+    assert len(planuri) > 1
+    # fiecare cerere incape sub prag
+    for p in planuri:
+        bucati = [bloc.split(",") for bloc in p["encQuery"].split(":")]
+        produs = 1
+        for b in bucati:
+            produs *= len(b)
+        assert produs <= MAX_CELLS
+    # nicio optiune pierduta pe dimensiunea sparta
+    toate = [c for p in planuri for c in p["encQuery"].split(":")[2].split(",")]
+    assert len(set(toate)) == 900
+
+    # cu filtru pe nivel incape intr-o singura cerere
     trimis = _capture_post(monkeypatch)
-    m.get(level="judet")
+    m.get(level="judet", progress=False)
     assert _dim_codes(trimis["encQuery"], 0) == [4, 5]
 
 
@@ -834,8 +842,10 @@ def test_standardize_adds_columns_without_losing_anything(monkeypatch):
 def test_get_tidy(monkeypatch):
     _fake_api(monkeypatch)
     trimis = _capture_post(monkeypatch)
-    brut = t.matrix("SOM101B").get(level="judet")
-    tidy = t.matrix("SOM101B").get(level="judet", tidy=True)
+    brut = t.matrix("SOM101B").get(level="judet", raw=True,
+                                   progress=False)
+    tidy = t.matrix("SOM101B").get(level="judet", tidy=True,
+                                   progress=False)
     assert trimis["matCode"] == "SOM101B"
     # tidy adauga coloane, nu randuri
     assert len(tidy) == len(brut)
@@ -919,17 +929,37 @@ def test_plan_requests_one_payload_per_county(monkeypatch):
 
 
 def test_plan_requests_splits_a_big_county(monkeypatch):
-    """Un singur judet peste prag se mai sparge in grupuri."""
+    """Un judet care nu incape se sparge mai departe, sub prag."""
     _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): FOM104D_MIC})
     m = t.matrix("FOM104D")
     # cu prag 2, judetul Alba (3 localitati x 2 ani = 6) nu incape intreg
-    planuri = _plan_for(m, max_cells=2)
-    alba = [p for p in planuri if p["encQuery"].startswith("3064:")]
-    assert len(alba) == 1  # 3 localitati intr-un grup de 100
-    monkeypatch.setattr(chunking, "COUNTY_CHUNK", 2)
     alba = [p for p in _plan_for(m, max_cells=2)
             if p["encQuery"].startswith("3064:")]
-    assert [p["encQuery"].split(":")[1] for p in alba] == ["113,114", "115"]
+    assert [p["encQuery"].split(":")[1] for p in alba] == ["113", "114", "115"]
+    # bucata de o localitate x 2 ani chiar incape sub prag
+    assert all(p["encQuery"].split(":")[2] == "4247,4266" for p in alba)
+
+
+def test_split_selection_fits_every_chunk():
+    """Bucatile ies dimensionate dupa cat loc lasa celelalte dimensiuni."""
+    selectie = [list(range(10)), list(range(4)), [99]]   # 40 de celule
+    bucati = chunking.split_selection(selectie, max_cells=8)
+    assert all(chunking.cells(b) <= 8 for b in bucati)
+    # nimic pierdut, nimic repetat: bucatile insumeaza exact selectia
+    assert sum(chunking.cells(b) for b in bucati) == 40
+    acoperite = {(a, b_, c) for b in bucati
+                 for a in b[0] for b_ in b[1] for c in b[2]}
+    assert len(acoperite) == 40
+
+
+def test_split_selection_recurses_when_one_option_is_still_too_big():
+    """Daca nici o singura optiune nu incape, coboara pe alta dimensiune."""
+    selectie = [list(range(5)), list(range(20))]        # 100 de celule
+    bucati = chunking.split_selection(selectie, max_cells=6)
+    assert all(chunking.cells(b) <= 6 for b in bucati)
+    assert sum(chunking.cells(b) for b in bucati) == 100
+    # a trebuit sa taie si a doua dimensiune, nu doar prima
+    assert any(len(b[1]) < 20 for b in bucati)
 
 
 def test_get_concatenates_chunked_results(monkeypatch):
@@ -1000,9 +1030,9 @@ def test_county_index_absent_when_no_second_territorial_dimension(monkeypatch):
     _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): fara_judete})
     m = t.matrix("FOM104D")
     planuri = _plan_for(m, max_cells=4)
-    # cate o cerere per grup de parentId, doar cu localitatile grupului
+    # cate o cerere per grup de parentId; grupul care nu incape se mai sparge
     blocuri = sorted(p["encQuery"].split(":")[0] for p in planuri)
-    assert blocuri == ["112", "113,114,115", "116"]
+    assert blocuri == ["112", "113,114", "115", "116"]
 
 
 def test_chunked_requests_keep_row_order(monkeypatch):
@@ -1041,9 +1071,10 @@ def test_big_county_produces_several_requests(monkeypatch):
     m = t.matrix("FOM104D")
     # un singur judet, 250 localitati x 2 ani = 500 celule, peste pragul 100
     planuri = _plan_for(m, max_cells=100)
-    assert len(planuri) == 3          # 250 localitati in grupuri de 100
+    # 250 localitati x 2 ani: bucata se dimensioneaza dupa anii ramasi
     bucati = [p["encQuery"].split(":")[1].split(",") for p in planuri]
-    assert [len(b) for b in bucati] == [100, 100, 50]
+    assert [len(b) for b in bucati] == [50, 50, 50, 50, 50]
+    assert all(len(b) * 2 <= 100 for b in bucati)
     # nicio localitate pierduta, niciuna repetata
     toate = [c for b in bucati for c in b]
     assert len(toate) == len(set(toate)) == 250
@@ -1052,17 +1083,6 @@ def test_big_county_produces_several_requests(monkeypatch):
 def test_level_filter_runs_before_planning(monkeypatch):
     """level reduce selectia inainte de planificare, deci nu se mai sparge."""
     _fake_api(monkeypatch)
-    m = t.matrix("SOM101B")
-    # fara filtru selectia depaseste un prag mic si nu are localitati de spart
-    monkeypatch.setattr(chunking, "MAX_CELLS", 3)
-    try:
-        m.get()
-    except ValueError as e:
-        assert "localitati" in str(e)
-    else:
-        raise AssertionError("trebuia ValueError fara filtru")
-
-    # cu filtru pe nivel incape intr-o singura cerere, deci nu se sparge
     cereri = []
 
     def fake_post(payload, **kw):
@@ -1070,7 +1090,16 @@ def test_level_filter_runs_before_planning(monkeypatch):
         return CSV_SOM101B
 
     monkeypatch.setattr(client, "post_pivot", fake_post)
-    m.get(level="judet")
+    monkeypatch.setattr(chunking, "MAX_CELLS", 3)
+    m = t.matrix("SOM101B")
+
+    # fara filtru, selectia depaseste pragul mic si se sparge in mai multe
+    m.get(level=None, progress=False)
+    assert len(cereri) > 1
+
+    # cu filtru pe nivel incape intr-o singura cerere
+    cereri.clear()
+    m.get(level="judet", progress=False)
     assert len(cereri) == 1
     assert cereri[0]["encQuery"].split(":")[0] == "4,5"
 

@@ -21,6 +21,10 @@ from . import chunking, client, endpoints, parse, territory
 from .chunking import MAX_CELLS
 from .models import Dimension, Node, Option
 
+# peste atatea cereri intrebam intai, ca sa nu pornim din greseala o
+# descarcare de zeci de minute
+POLITE_REQUESTS = 50
+
 _ANCHORS = re.compile(r"<a\b[^>]*>.*?</a>", re.IGNORECASE | re.DOTALL)
 _TAGS = re.compile(r"<[^>]+>")
 _EMPTY = re.compile(r"\(\s*\)|\[\s*\]")
@@ -38,6 +42,29 @@ def _clean(text: str) -> str:
     out = _TAGS.sub(" ", _ANCHORS.sub(" ", html.unescape(text)))
     out = _EMPTY.sub(" ", out)
     return " ".join(out.split()).strip(" ;,-")
+
+
+def _decision_line(m, wanted, plan, planuri) -> str:
+    """Ce s-a hotarat, intr-o linie, inainte de descarcare."""
+    if wanted:
+        nivel = ", ".join(wanted)
+        coada = " (cel mai fin)" if nivel == plan.get("default_level") else ""
+        bucata = f"nivel {nivel}{coada}"
+    else:
+        bucata = "toate nivelele" if m.levels else "fara filtru teritorial"
+    strategie = plan.get("strategy", "single")
+    cereri = f"{len(planuri)} cerere" if len(planuri) == 1 else \
+        f"{len(planuri)} cereri"
+    return f"{bucata}, {strategie}, {cereri}"
+
+
+def _ask_big(cod: str, cereri: int) -> bool:
+    print(f"{cod}: {cereri} de cereri, cateva minute bune.")
+    try:
+        return input("Continui? [d/N] ").strip().lower() in ("d", "da", "y",
+                                                             "yes")
+    except (EOFError, OSError):
+        return False
 
 
 class TextList(list):
@@ -211,11 +238,112 @@ class Matrix:
                 setattr(self, f, getattr(fresh, f))
         return self
 
-    def where(self) -> TextList:
-        """Breadcrumb-ul de domeniu, de la domeniul de sus spre indicator."""
+    def _breadcrumb(self) -> TextList:
+        """Doar drumul prin domenii, de la domeniul de sus spre indicator."""
         self._ensure_meta()
         names = [_clean(a.get("name", "")) for a in self.ancestors]
         return TextList([n for n in names if n], sep=" > ", show=10)
+
+    def what(self) -> None:
+        """Esența indicatorului, în câteva rânduri. Fișa lungă e describe()."""
+        self._ensure_meta()
+        print(f"{self.code}  {_clean(self.name)}")
+        definitie = (self.definition or "").strip()
+        if definitie:
+            prima = re.split(r"\.\s", definitie, maxsplit=1)[0].strip()
+            print(f"  {prima}.")
+        um = [_clean(d.label).split(":", 1)[-1].strip()
+              for d in self.dimensions if d.role == "um"]
+        if um:
+            print(f"  unitate     : {', '.join(um)}")
+        if self.periodicity:
+            print(f"  periodicitate: {', '.join(self.periodicity)}")
+        if self.last_updated:
+            print(f"  actualizat  : {self.last_updated}")
+        ani = sorted(set(re.findall(r"\b(?:19|20)\d{2}\b",
+                                    self.observations or "")))
+        if ani:
+            print(f"  atentie     : observatiile mentioneaza anii "
+                  f"{', '.join(ani)}, deci pot fi rupturi de serie")
+            print("                citeste-le cu .describe()")
+
+    def where(self) -> None:
+        """Unde stă indicatorul și ce acoperă: domeniu, teritoriu, ani."""
+        self._ensure_meta()
+        crumbs = self._breadcrumb()
+        if crumbs:
+            print(f"domeniu : {crumbs!r}")
+
+        for d in self.dimensions:
+            if d.role != "teritoriu":
+                continue
+            print(f"teritoriu: {_clean(d.label)} ({len(d.options)} optiuni)")
+            if territory.is_locality_dimension(d, self.details):
+                print(f"    localitate      {len(d.options)}")
+            else:
+                pe_nivel = {}
+                for o in d.options:
+                    nivel = territory.option_level(o.label)
+                    pe_nivel[nivel] = pe_nivel.get(nivel, 0) + 1
+                for nivel in territory._LEVEL_ORDER:
+                    if nivel in pe_nivel:
+                        print(f"    {nivel:15} {pe_nivel[nivel]}")
+        if not self.levels:
+            print("teritoriu: niciunul, indicatorul nu e teritorial")
+        else:
+            print(f"SIRUTA  : {'da' if self.has_siruta else 'nu'}")
+
+        for d in self.dimensions:
+            if d.role != "timp":
+                continue
+            ani = [parse._year_of(o.label) for o in d.options]
+            ani = [a for a in ani if a]
+            interval = f"{min(ani)} pana in {max(ani)}" if ani else "necunoscut"
+            print(f"timp    : {_clean(d.label)}, {len(d.options)} perioade, "
+                  f"{interval}")
+
+    def how(self) -> None:
+        """Manualul de descărcare al acestui indicator, gata de copiat."""
+        self._ensure_meta()
+        plan = self.fetch_plan()
+        strategie = plan.get("strategy", "single")
+        cereri = plan.get("est_requests", 1)
+        implicit = plan.get("default_level")
+
+        print(f"Cum descarci {self.code}:")
+        print(f"  m = t.matrix({self.code!r})")
+        print(f"  df = m.get()          "
+              f"{'nivel ' + implicit if implicit else 'fara filtru teritorial'}"
+              f", curatat")
+        teritoriale = [d for d in self.dimensions if d.role == "teritoriu"]
+        if len(teritoriale) > 1:
+            # filtrul pe nivel nu merge cand judetul si localitatea sunt
+            # dimensiuni separate; nu propunem ce ar arunca eroare
+            print("  (filtrul pe nivel nu se aplica aici: judetul si "
+                  "localitatea sunt")
+            print("   dimensiuni separate, iar get() le aduce oricum pe "
+                  "amandoua)")
+        elif not implicit:
+            motiv = ("indicatorul nu e teritorial" if not teritoriale else
+                     "denumirile teritoriale nu se incadreaza in nomenclator")
+            print(f"  (filtrul pe nivel nu se aplica aici: {motiv},")
+            print("   deci get() ia tot)")
+        else:
+            for nivel in self.levels:
+                if nivel != implicit:
+                    print(f"  m.get(level={nivel!r})")
+            if self.levels:
+                print("  m.get(level=None)     toate nivelele la un loc")
+        print("  m.get(raw=True)       exact ce da INS, fara coloane derivate")
+        print()
+        print(f"  strategie: {strategie}, aproximativ {cereri} "
+              f"{'cerere' if cereri == 1 else 'cereri'}")
+        if cereri > POLITE_REQUESTS:
+            print(f"  ATENTIE: peste {POLITE_REQUESTS} de cereri, dureaza. "
+                  f"get() te intreaba intai;")
+            print("  pune confirm=False daca rulezi dintr-un script.")
+        elif cereri > 1:
+            print("  se descarca in mai multe cereri si se concateneaza")
 
     def related(self, limit: int = 25) -> MatrixList:
         """Ceilalți indicatori din același nod-părinte."""
@@ -290,7 +418,7 @@ class Matrix:
         """Rezumatul indicatorului, citibil: unde e, ce nivele, ce dimensiuni."""
         self._ensure_meta()
         print(f"{self.code}  {_clean(self.name)}")
-        crumbs = self.where()
+        crumbs = self._breadcrumb()
         if crumbs:
             print(f"  unde      : {crumbs!r}")
         if self.levels:
@@ -313,7 +441,7 @@ class Matrix:
         """
         self._ensure_meta()
         print(f"{self.code}  {_clean(self.name)}")
-        crumbs = self.where()
+        crumbs = self._breadcrumb()
         if crumbs:
             print(f"domeniu     : {crumbs!r}")
         if self.levels:
@@ -389,45 +517,101 @@ class Matrix:
                                   if territory.option_level(o.label) in wanted])
         return selection
 
-    def get(self, level: territory.Level | None = None,
+    def fetch_plan(self) -> dict:
+        """Planul de extragere: din registry dacă e acolo, altfel calculat.
+
+        Registrul vine cu pachetul, deci în mod normal planul e deja scris.
+        Fallback-ul ține biblioteca funcțională fără registru.
+        """
+        from . import schemas  # local: schemas importa matrix, altfel ciclu
+
+        try:
+            registru = schemas.load_registry()
+        except ValueError:
+            registru = None
+        fisa = (registru or {}).get("entries", {}).get(self.code, {})
+        plan = fisa.get("fetch_plan")
+        if plan:
+            return plan
+
+        self._ensure_meta()
+        return schemas.plan_for({
+            "dims": [{"label": d.label.strip(), "role": d.role,
+                      "n_options": len(d.options), "dim_code": d.dim_code}
+                     for d in self.dimensions],
+            "levels": self.levels,
+            "total_cells": chunking.cells(
+                [[o.nom_item_id for o in d.options] for d in self.dimensions]),
+            "family": ("judet_localitate"
+                       if any(territory.is_locality_dimension(d, self.details)
+                              for d in self.dimensions) else "alt"),
+        })
+
+    def _wanted_levels(self, level, levels, plan) -> list[str]:
+        """Nivelele cerute efectiv, după rezolvarea lui 'finest'.
+
+        O listă explicită în levels bate implicitul: cine scrie
+        levels=['judet', 'regiune'] a spus deja ce vrea.
+        """
+        explicite = list(levels or [])
+        if isinstance(level, str) and level != "finest":
+            explicite = [level] + explicite
+        if explicite:
+            return explicite
+        if level != "finest":
+            return []               # level=None cere tot
+
+        implicit = plan.get("default_level")
+        teritoriale = [d for d in self.dimensions if d.role == "teritoriu"]
+        # la judet plus localitate, cel mai fin nivel inseamna descarcarea
+        # intreaga: by_county livreaza chiar localitatile
+        if not implicit or len(teritoriale) > 1:
+            return []
+        return [implicit]
+
+    def get(self, level: territory.Level | str | None = "finest",
             levels: list[territory.Level] | None = None,
-            tidy: bool = False, progress: bool = False):
+            tidy: bool = True, progress="auto", raw: bool = False,
+            confirm: bool = True):
         """Datele indicatorului, ca DataFrame în format lung.
 
-        level sau levels restrâng dimensiunea teritorială la nivelele cerute,
-        pentru cazul obișnuit al unei singure dimensiuni teritoriale ierarhice.
-        Fără ele, ia toate opțiunile fiecărei dimensiuni.
+        Execută planul din registry: citește strategia, o rulează, aplică tidy.
 
-        tidy=True adaugă coloane derivate peste rezultat: SIRUTA, nivel, tip și
-        nume pentru dimensiunile teritoriale, anul pentru cele de timp. Nu
-        șterge nimic, implicit datele rămân exact cum le dă INS.
+        level='finest' (implicit) ia nivelul cel mai fin pe care îl are
+        indicatorul; la matricele neteritoriale nu filtrează nimic. level=None
+        cere tot. Un nivel anume se cere ca atare, ex. level='judet'.
 
-        Matricele care nu încap într-un singur POST se descarcă județ cu județ
-        și se concatenează. progress=True spune cât s-a tras pe parcurs.
-
-        TODO: filtrul pe nivel pentru matricele cu județ și localitate ca
-        dimensiuni separate.
+        tidy=True adaugă coloanele derivate; raw=True dă exact ce a dat INS.
+        progress='auto' vorbește doar când planul are mai multe cereri.
+        confirm=False taie întrebarea de la descărcările scumpe, pentru
+        scripturi.
         """
         self._ensure_meta()
-        wanted = [level] if isinstance(level, str) else []
-        wanted += list(levels or [])
+        plan = self.fetch_plan()
+        wanted = self._wanted_levels(level, levels, plan)
         selection = self._build_selection(wanted)
-
         planuri = chunking.plan_requests(self, selection)
-        if progress and len(planuri) > 1:
-            print(f"{self.code}: {len(planuri)} cereri, se descarca pe rand")
+
+        vorbeste = (len(planuri) > 1) if progress == "auto" else bool(progress)
+        if progress is not False:
+            print(f"{self.code}: {_decision_line(self, wanted, plan, planuri)}")
+        if confirm and len(planuri) > POLITE_REQUESTS and not _ask_big(
+                self.code, len(planuri)):
+            raise ValueError(
+                f"{self.code}: descarcare anulata. Incearca un filtru pe "
+                f"nivel, sau get(confirm=False) daca esti sigur.")
 
         cadre = []
         for i, payload in enumerate(planuri, 1):
             cadre.append(parse.pivot_csv_to_dataframe(
                 client.post_pivot(payload), self))
-            if progress and len(planuri) > 1:
+            if vorbeste:
                 total = sum(len(c) for c in cadre)
                 print(f"  {i}/{len(planuri)}: +{len(cadre[-1])} randuri "
                       f"(total {total})")
 
         df = cadre[0] if len(cadre) == 1 else pd.concat(cadre, ignore_index=True)
-        return parse.standardize(df, self) if tidy else df
+        return df if raw or not tidy else parse.standardize(df, self)
 
     def _repr_html_(self) -> str:
         """Cardul unui singur indicator. Aici nivelele chiar sunt disponibile.
@@ -443,7 +627,7 @@ class Matrix:
         if self.periodicity:
             rows.append(("periodicitate", ", ".join(self.periodicity)))
         if self.ancestors:
-            rows.append(("unde", repr(self.where())))
+            rows.append(("unde", repr(self._breadcrumb())))
         meta = "".join(
             f"<tr><th align='left'>{html.escape(k)}</th>"
             f"<td>{html.escape(v)}</td></tr>" for k, v in rows
