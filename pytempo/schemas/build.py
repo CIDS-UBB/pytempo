@@ -33,17 +33,17 @@ def load_registry(path: pathlib.Path | None = None) -> dict | None:
     path = path or REGISTRY_PATH
     if not path.exists():
         return None
-    date = json.loads(path.read_text(encoding="utf-8"))
-    versiune = date.get("registry_version")
-    if versiune != REGISTRY_VERSION:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    version = data.get("registry_version")
+    if version != REGISTRY_VERSION:
         raise ValueError(
-            f"registry.json has registry_version={versiune!r}, but the code "
+            f"registry.json has registry_version={version!r}, but the code "
             f"expects {REGISTRY_VERSION}. Run "
             f"schemas.build_registry(refresh=True) to rebuild it.")
-    return date
+    return data
 
 
-def _save(date: dict, path: pathlib.Path) -> None:
+def _save(data: dict, path: pathlib.Path) -> None:
     """Write the registry canonically: sorted keys, one field per line.
 
     The file is versioned in the repo, so its shape matters: sorting keeps it
@@ -51,7 +51,7 @@ def _save(date: dict, path: pathlib.Path) -> None:
     change on the INS side shows up line by line.
     """
     path.write_text(
-        json.dumps(date, ensure_ascii=False, indent=1, sort_keys=True),
+        json.dumps(data, ensure_ascii=False, indent=1, sort_keys=True),
         encoding="utf-8")
 
 
@@ -60,9 +60,9 @@ def _entry_from_matrix(m) -> dict:
     dims = [{"label": d.label.strip(), "role": d.role,
              "n_options": len(d.options), "dim_code": d.dim_code}
             for d in m.dimensions]
-    celule = 1
+    cells_needed = 1
     for d in m.dimensions:
-        celule *= len(d.options)
+        cells_needed *= len(d.options)
 
     entry = {
         "name": m.name,
@@ -76,7 +76,7 @@ def _entry_from_matrix(m) -> dict:
         "has_caen": any(d.role == "caen" for d in m.dimensions),
         "has_sex": any("sex" in territory._norm(d.label) for d in m.dimensions),
         "has_siruta": m.has_siruta,
-        "total_cells": celule if m.dimensions else 0,
+        "total_cells": cells_needed if m.dimensions else 0,
         "periodicity": list(m.periodicity or []),
         "domain": m.ancestors[0]["name"] if m.ancestors else "",
         "last_updated": m.last_updated,
@@ -101,9 +101,9 @@ def _county_dim(entry: dict) -> dict | None:
     terr = [d for d in (entry.get("dims") or []) if d.get("role") == "teritoriu"]
     if len(terr) < 2:
         return None
-    localitati = max(terr, key=lambda d: d.get("n_options") or 0)
-    restul = [d for d in terr if d is not localitati]
-    return restul[0] if restul else None
+    localities = max(terr, key=lambda d: d.get("n_options") or 0)
+    rest = [d for d in terr if d is not localities]
+    return rest[0] if rest else None
 
 
 def plan_for(entry: dict) -> dict:
@@ -118,66 +118,66 @@ def plan_for(entry: dict) -> dict:
     """
     dims = entry.get("dims") or []
     levels = entry.get("levels") or []
-    celule = entry.get("total_cells") or 0
+    cells_needed = entry.get("total_cells") or 0
 
     # 'necunoscut' is not a level to ask for: names that do not fit the
     # nomenclator do not form a useful slice. The finest REAL level is what
     # counts, and if there is none, get() applies no territorial filter.
-    fin = [lv for lv in territory._LEVEL_ORDER
+    finest = [lv for lv in territory._LEVEL_ORDER
            if lv in levels and lv != "necunoscut"]
     plan = {
-        "default_level": fin[-1] if fin else None,
+        "default_level": finest[-1] if finest else None,
         "tidy_ready": any(d.get("role") in ("teritoriu", "timp") for d in dims),
     }
 
-    if not dims or celule <= MAX_CELLS:
+    if not dims or cells_needed <= MAX_CELLS:
         plan["strategy"] = "single"
         plan["est_requests"] = 1
         return plan
 
-    judete = (_county_dim(entry)
+    counties = (_county_dim(entry)
               if entry.get("family") == "judet_localitate" else None)
-    if judete:
+    if counties:
         plan["strategy"] = "by_county"
-        plan["est_requests"] = judete.get("n_options") or 1
+        plan["est_requests"] = counties.get("n_options") or 1
         return plan
 
     # over the threshold with no county plus locality pair: split on the
     # largest dimension, so each request fits under the threshold
-    cea_mai_mare = max(dims, key=lambda d: d.get("n_options") or 0)
-    n = cea_mai_mare.get("n_options") or 1
-    pe_optiune = max(1, celule // n)
-    pe_cerere = max(1, MAX_CELLS // pe_optiune)
-    plan["strategy"] = f"split:{cea_mai_mare.get('label', '')}"
-    plan["est_requests"] = -(-n // pe_cerere)
+    largest = max(dims, key=lambda d: d.get("n_options") or 0)
+    n = largest.get("n_options") or 1
+    per_option = max(1, cells_needed // n)
+    per_request = max(1, MAX_CELLS // per_option)
+    plan["strategy"] = f"split:{largest.get('label', '')}"
+    plan["est_requests"] = -(-n // per_request)
     return plan
 
 
 def refresh_plans(path: pathlib.Path | None = None, progress: bool = True) -> dict:
     """Recompute fetch_plan for the whole registry, with no network."""
     path = path or REGISTRY_PATH
-    date = load_registry(path)
-    if not date:
+    data = load_registry(path)
+    if not data:
         print("There is no registry.json. Run schemas.build_registry().")
         return {}
-    for e in date["entries"].values():
+    for e in data["entries"].values():
         if e.get("status") == "ok":
             e["fetch_plan"] = plan_for(e)
-    _save(date, path)
+    _save(data, path)
     if progress:
         from collections import Counter
-        strategii = Counter(
+        strategies = Counter(
             (e.get("fetch_plan") or {}).get("strategy", "").split(":")[0]
-            for e in date["entries"].values() if e.get("status") == "ok")
-        print(f"plans recomputed: {dict(strategii)}")
-    return date
+            for e in data["entries"].values() if e.get("status") == "ok")
+        print(f"plans recomputed: {dict(strategies)}")
+    return data
 
 
 _VALIDATION_FIELDS = ("validation", "validated_at", "validated_version",
                       "slice_cells")
 
 
-def _keep_validation(veche: dict | None, noua: dict) -> dict:
+def _keep_validation(old: dict | None, fresh: dict) -> dict:
     """Carry validation forward across a rebuild of the record.
 
     A rebuild recomputes the shape of the indicator, but it does not
@@ -185,29 +185,29 @@ def _keep_validation(veche: dict | None, noua: dict) -> dict:
     it meanwhile. If last_updated changed, the old validation is dropped and
     resume will redo it.
     """
-    if not veche or veche.get("last_updated") != noua.get("last_updated"):
-        return noua
-    for camp in _VALIDATION_FIELDS:
-        if camp in veche:
-            noua[camp] = veche[camp]
-    return noua
+    if not old or old.get("last_updated") != fresh.get("last_updated"):
+        return fresh
+    for field in _VALIDATION_FIELDS:
+        if field in old:
+            fresh[field] = old[field]
+    return fresh
 
 
-def _uncached(coduri) -> list[str]:
+def _uncached(codes_wanted) -> list[str]:
     """The codes whose metadata is NOT in the disk cache."""
-    return [c for c in coduri
+    return [c for c in codes_wanted
             if not client._cache_path(endpoints.matrix(c)).exists()]
 
 
-def _ask(nr_apeluri: int) -> bool:
-    minute = max(1, round(nr_apeluri * SECUNDE_PER_APEL / 60))
-    print(f"The build needs {nr_apeluri} uncached metadata records,")
-    print(f"about {minute} minutes of network. The rest come from cache.")
+def _ask(call_count: int) -> bool:
+    minutes = max(1, round(call_count * SECUNDE_PER_APEL / 60))
+    print(f"The build needs {call_count} uncached metadata records,")
+    print(f"about {minutes} minutes of network. The rest come from cache.")
     try:
-        raspuns = input("Build the registry now? [y/N] ")
+        answer = input("Build the registry now? [y/N] ")
     except (EOFError, OSError):
         return False
-    return raspuns.strip().lower() in ("y", "yes", "d", "da")
+    return answer.strip().lower() in ("y", "yes", "d", "da")
 
 
 def build_registry(progress: bool = True, refresh: bool = False,
@@ -224,30 +224,30 @@ def build_registry(progress: bool = True, refresh: bool = False,
     from ..matrix import matrix as fetch_matrix
 
     path = path or REGISTRY_PATH
-    vechi = {}
+    previous = {}
     if not refresh:
         existent = load_registry(path)
         if existent:
-            vechi = existent.get("entries", {})
+            previous = existent.get("entries", {})
 
-    randuri = catalog.load_index()
-    de_facut = [r["code"] for r in randuri]
+    rows = catalog.load_index()
+    todo = [r["code"] for r in rows]
     if incremental and not refresh:
-        de_facut = [c for c in de_facut
-                    if vechi.get(c, {}).get("status") != "ok"]
+        todo = [c for c in todo
+                    if previous.get(c, {}).get("status") != "ok"]
 
-    if confirm and de_facut:
-        lipsesc = de_facut if refresh else _uncached(de_facut)
-        if lipsesc and not _ask(len(lipsesc)):
+    if confirm and todo:
+        missing = todo if refresh else _uncached(todo)
+        if missing and not _ask(len(missing)):
             print("Fine, not building. The registry stays as it was.")
-            return {"registry_version": REGISTRY_VERSION, "entries": vechi}
+            return {"registry_version": REGISTRY_VERSION, "entries": previous}
 
-    entries = dict(vechi)
-    total = len(de_facut)
-    for i, cod in enumerate(de_facut, 1):
+    entries = dict(previous)
+    total = len(todo)
+    for i, cod in enumerate(todo, 1):
         try:
-            noua = _entry_from_matrix(fetch_matrix(cod, refresh=refresh))
-            entries[cod] = _keep_validation(vechi.get(cod), noua)
+            fresh = _entry_from_matrix(fetch_matrix(cod, refresh=refresh))
+            entries[cod] = _keep_validation(previous.get(cod), fresh)
         except Exception as e:
             entries[cod] = {"name": "", "status": f"error: {e}",
                             "family": "alt", "dims": [], "levels": [],
@@ -257,24 +257,24 @@ def build_registry(progress: bool = True, refresh: bool = False,
     if progress and total:
         print()
 
-    date = {"registry_version": REGISTRY_VERSION, "entries": entries}
-    _save(date, path)
+    data = {"registry_version": REGISTRY_VERSION, "entries": entries}
+    _save(data, path)
     if progress:
         print(f"registry saved to {path}, {len(entries)} indicators")
-        report(date)
-    return date
+        report(data)
+    return data
 
 
-def report(date: dict | None = None, path: pathlib.Path | None = None) -> None:
+def report(data: dict | None = None, path: pathlib.Path | None = None) -> None:
     """Reprint the census from the registry, without rebuilding."""
-    date = date or load_registry(path)
-    if not date:
+    data = data or load_registry(path)
+    if not data:
         print("There is no registry.json. Run schemas.build_registry().")
         return
 
-    entries = date.get("entries", {})
+    entries = data.get("entries", {})
     total = len(entries)
-    print(f"\nRegistry, version {date.get('registry_version')}: "
+    print(f"\nRegistry, version {data.get('registry_version')}: "
           f"{total} indicators")
 
     print("\nfamilies")
@@ -284,31 +284,31 @@ def report(date: dict | None = None, path: pathlib.Path | None = None) -> None:
             print(f"  {fam:20} {n:5}  {100.0 * n / total:5.1f}%")
 
     print("\ndomains")
-    domenii = {}
+    domains_seen = {}
     for e in entries.values():
-        domenii[e.get("domain") or "(no domain)"] = domenii.get(
+        domains_seen[e.get("domain") or "(no domain)"] = domains_seen.get(
             e.get("domain") or "(no domain)", 0) + 1
-    for nume, n in sorted(domenii.items(), key=lambda kv: -kv[1]):
-        print(f"  {n:5}  {nume[:70]}")
+    for name, n in sorted(domains_seen.items(), key=lambda kv: -kv[1]):
+        print(f"  {n:5}  {name[:70]}")
 
-    cu_siruta = sum(1 for e in entries.values() if e.get("has_siruta"))
-    mari = [c for c, e in entries.items()
+    with_siruta = sum(1 for e in entries.values() if e.get("has_siruta"))
+    large = [c for c, e in entries.items()
             if (e.get("total_cells") or 0) > MAX_CELLS]
-    print(f"\nwith SIRUTA        : {cu_siruta}")
-    print(f"over {MAX_CELLS} cells : {len(mari)} (these need splitting)")
+    print(f"\nwith SIRUTA        : {with_siruta}")
+    print(f"over {MAX_CELLS} cells : {len(large)} (these need splitting)")
 
-    erori = {c: e["status"] for c, e in entries.items()
+    errors = {c: e["status"] for c, e in entries.items()
              if e.get("status") != "ok"}
-    altele = [c for c, e in entries.items()
-              if e.get("family") == "alt" and c not in erori]
-    print(f"\nfamily 'alt'       : {len(altele)}")
-    for c in altele:
+    others = [c for c, e in entries.items()
+              if e.get("family") == "alt" and c not in errors]
+    print(f"\nfamily 'alt'       : {len(others)}")
+    for c in others:
         e = entries[c]
         print(f"  {c:10} {len(e.get('dims') or [])} dimensions, "
               f"{e.get('name', '')[:60]}")
-    print(f"errors             : {len(erori)}")
-    for c, motiv in erori.items():
-        print(f"  {c:10} {motiv[:90]}")
+    print(f"errors             : {len(errors)}")
+    for c, reason in errors.items():
+        print(f"  {c:10} {reason[:90]}")
 
 
 def registry_as_index(path: pathlib.Path | None = None) -> dict | None:
@@ -317,14 +317,14 @@ def registry_as_index(path: pathlib.Path | None = None) -> dict | None:
     A gentle migration: search prefers the registry, but carries on with the
     older data/levels_index.json if the registry is missing.
     """
-    date = load_registry(path)
-    if not date:
+    data = load_registry(path)
+    if not data:
         return None
     return {
         cod: {"levels": e.get("levels") or [],
               "periodicity": e.get("periodicity") or [],
               "has_caen": bool(e.get("has_caen")),
               "domain": e.get("domain") or ""}
-        for cod, e in date.get("entries", {}).items()
+        for cod, e in data.get("entries", {}).items()
         if e.get("status") == "ok"
     }

@@ -82,20 +82,20 @@ def split_selection(selection: list[list[int]],
     if cells(selection) <= max_cells:
         return [selection]
 
-    spargibile = [i for i, codes in enumerate(selection) if len(codes) > 1]
-    if not spargibile:
+    splittable = [i for i, codes in enumerate(selection) if len(codes) > 1]
+    if not splittable:
         return [selection]          # a single cell, nothing left to cut
 
-    i = max(spargibile, key=lambda k: len(selection[k]))
-    restul = max(1, cells(selection) // len(selection[i]))
-    marime = max(1, max_cells // restul)
+    i = max(splittable, key=lambda k: len(selection[k]))
+    rest = max(1, cells(selection) // len(selection[i]))
+    size = max(1, max_cells // rest)
 
-    bucati = []
-    for bucata in split_options(selection[i], marime):
+    pieces = []
+    for piece in split_options(selection[i], size):
         sub = list(selection)
-        sub[i] = bucata
-        bucati.extend(split_selection(sub, max_cells))
-    return bucati
+        sub[i] = piece
+        pieces.extend(split_selection(sub, max_cells))
+    return pieces
 
 
 def plan_requests(matrix, selection: list[list[int]],
@@ -107,6 +107,11 @@ def plan_requests(matrix, selection: list[list[int]],
     """
     if max_cells is None:
         max_cells = MAX_CELLS
+    if any(not codes for codes in selection):
+        # an empty block would build an encQuery INS cannot read, and the
+        # failure would surface far from the filter that caused it
+        raise ValueError(
+            "selection has an empty dimension; a filter matched nothing")
     if cells(selection) <= max_cells:
         return [_payload(matrix, selection)]
 
@@ -116,24 +121,24 @@ def plan_requests(matrix, selection: list[list[int]],
                 for sel in split_selection(selection, max_cells)]
 
     loc_dim = matrix.dimensions[loc_index]
-    ceruta = set(selection[loc_index])
-    grupuri = territory.group_localities_by_county(loc_dim)
-    county_index = _county_index(matrix, selection, loc_index, grupuri)
+    requested = set(selection[loc_index])
+    groups = territory.group_localities_by_county(loc_dim)
+    county_index = _county_index(matrix, selection, loc_index, groups)
 
     payloads = []
-    for parent, optiuni in grupuri.items():
-        ids = [o.nom_item_id for o in optiuni if o.nom_item_id in ceruta]
+    for parent, options in groups.items():
+        ids = [o.nom_item_id for o in options if o.nom_item_id in requested]
         if not ids:
             continue
 
-        baza = list(selection)
+        base = list(selection)
         if county_index is not None and parent in selection[county_index]:
-            baza[county_index] = [parent]
+            base[county_index] = [parent]
 
-        sel = list(baza)
+        sel = list(base)
         sel[loc_index] = ids
         # a county that still does not fit is split further, on any dimension,
         # not just on localities
-        for bucata in split_selection(sel, max_cells):
-            payloads.append(_payload(matrix, bucata))
+        for piece in split_selection(sel, max_cells):
+            payloads.append(_payload(matrix, piece))
     return payloads

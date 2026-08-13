@@ -24,14 +24,14 @@ def classify(entry: dict) -> str:
     if not dims:
         return "alt"
 
-    are_teritoriu = any(d.get("role") == "teritoriu" for d in dims)
+    has_territory = any(d.get("role") == "teritoriu" for d in dims)
 
     if entry.get("has_localities"):
         return "judet_localitate"
-    if are_teritoriu and entry.get("has_caen"):
+    if has_territory and entry.get("has_caen"):
         return "teritorial_caen"
-    if are_teritoriu:
+    if has_territory:
         return "teritorial_simplu"
-    if not are_teritoriu:
+    if not has_territory:
         return "neteritorial"
     return "alt"

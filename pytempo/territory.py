@@ -57,20 +57,20 @@ _SIRUTA_SAMPLE = 20
 _LABEL_HINTS = ("judet", "localit", "macroregiun", "regiun")
 
 
-def level_error(nume, disponibile, cod: str | None = None) -> ValueError:
+def level_error(name, available, cod: str | None = None) -> ValueError:
     """The error for an invalid level: what is possible, plus what you likely meant.
 
     The same shape of message in search and in get; only the list of possible
     values differs, because for one indicator its own levels are what matter.
     """
-    disponibile = list(disponibile)
-    unde = f" for {cod}" if cod else ""
-    mesaj = (f"unknown level {nume!r}{unde}. "
-             f"Available: {', '.join(disponibile) or 'none'}.")
-    apropiat = difflib.get_close_matches(str(nume).lower(), disponibile, n=1)
-    if apropiat:
-        mesaj += f" Did you mean {apropiat[0]!r}?"
-    return ValueError(mesaj)
+    available = list(available)
+    where_part = f" for {cod}" if cod else ""
+    message = (f"unknown level {name!r}{where_part}. "
+             f"Available: {', '.join(available) or 'none'}.")
+    closest = difflib.get_close_matches(str(name).lower(), available, n=1)
+    if closest:
+        message += f" Did you mean {closest[0]!r}?"
+    return ValueError(message)
 
 
 def _norm(s: str) -> str:
@@ -120,8 +120,8 @@ def is_caen(dimension, details: dict) -> bool:
     FOM104F has matCaen1 and matCaen2 at 0 even though it carries a dimension
     called 'CAEN Rev.2 (activitati ale economiei nationale)'.
     """
-    coduri = {details.get("matCaen1"), details.get("matCaen2")} - {0, None}
-    if dimension.dim_code in coduri:
+    codes_wanted = {details.get("matCaen1"), details.get("matCaen2")} - {0, None}
+    if dimension.dim_code in codes_wanted:
         return True
     return "caen" in _norm(dimension.label)
 
@@ -150,12 +150,12 @@ def _looks_like_siruta(dimension) -> bool:
 
     We only look at a sample: this is a confirmation, not a census.
     """
-    optiuni = [o for o in dimension.options
+    options = [o for o in dimension.options
                if (o.label or "").strip().upper() != "TOTAL"][:_SIRUTA_SAMPLE]
-    if not optiuni:
+    if not options:
         return False
-    cu_cod = sum(1 for o in optiuni if siruta_from_label(o.label) is not None)
-    return cu_cod * 2 > len(optiuni)
+    with_code = sum(1 for o in options if siruta_from_label(o.label) is not None)
+    return with_code * 2 > len(options)
 
 
 def is_locality_dimension(dimension, details: dict) -> bool:

@@ -44,17 +44,17 @@ def name_dict(refresh: bool = False) -> dict[str, str]:
     return {row["code"]: row["name"] for row in load_index(refresh=refresh)}
 
 
-def _passes_filters(fisa: dict, level, caen, domeniu, periodicitate) -> bool:
+def _passes_filters(record: dict, level, caen, domeniu, periodicitate) -> bool:
     """Does one indicator's index record pass every requested filter?"""
-    if level is not None and level not in (fisa.get("levels") or []):
+    if level is not None and level not in (record.get("levels") or []):
         return False
-    if caen is not None and bool(fisa.get("has_caen")) is not bool(caen):
+    if caen is not None and bool(record.get("has_caen")) is not bool(caen):
         return False
-    if domeniu is not None and _norm(domeniu) not in _norm(fisa.get("domain") or ""):
+    if domeniu is not None and _norm(domeniu) not in _norm(record.get("domain") or ""):
         return False
     if periodicitate is not None:
-        cerut = _norm(periodicitate)
-        if not any(cerut in _norm(p) for p in (fisa.get("periodicity") or [])):
+        wanted_text = _norm(periodicitate)
+        if not any(wanted_text in _norm(p) for p in (record.get("periodicity") or [])):
             return False
     return True
 
@@ -88,34 +88,34 @@ def search(query: str = "", level: territory.Level | None = None,
         raise territory.level_error(level, territory._LEVEL_ORDER)
 
     tokens = [_norm(t) for t in query.split()]
-    potriviri = [row for row in load_index()
+    matches = [row for row in load_index()
                  if all(tok in _norm(row["name"] + " " + row["code"])
                         for tok in tokens)]
 
-    cere_metadate = any(f is not None
+    needs_metadata = any(f is not None
                         for f in (level, caen, domeniu, periodicitate))
-    nivele = {}
-    if cere_metadate:
-        nivele = load_levels_index()
-        if nivele is None:
-            nivele = build_index(confirm=True)
-        if nivele is None:
+    levels_by_code = {}
+    if needs_metadata:
+        levels_by_code = load_levels_index()
+        if levels_by_code is None:
+            levels_by_code = build_index(confirm=True)
+        if levels_by_code is None:
             print("Without the metadata index I cannot filter. "
                   "Run t.build_index() when you have a few minutes.")
             return MatrixList([])
-        _warn_if_stale(nivele)
-        potriviri = [row for row in potriviri
-                     if _passes_filters(nivele.get(row["code"], {}), level,
+        _warn_if_stale(levels_by_code)
+        matches = [row for row in matches
+                     if _passes_filters(levels_by_code.get(row["code"], {}), level,
                                         caen, domeniu, periodicitate)]
 
     out = []
-    for row in potriviri:
-        fisa = nivele.get(row["code"], {})
-        nivele_stiute = fisa.get("levels") if cere_metadate else None
+    for row in matches:
+        record = levels_by_code.get(row["code"], {})
+        known_levels = record.get("levels") if needs_metadata else None
         out.append(Matrix(
             code=row["code"], name=row["name"],
-            periodicity=list(fisa.get("periodicity") or []),
-            cached_levels=None if nivele_stiute is None else list(nivele_stiute)))
+            periodicity=list(record.get("periodicity") or []),
+            cached_levels=None if known_levels is None else list(known_levels)))
     if limit is not None:
         out = out[:limit]
     return MatrixList(out)
@@ -123,26 +123,26 @@ def search(query: str = "", level: territory.Level | None = None,
 
 def filters() -> None:
     """Which filters search accepts, and what values each one takes."""
-    nivele = load_levels_index()
+    levels_by_code = load_levels_index()
     print("Filters for t.search(). They combine with each other and with the "
           "search words.")
     print(f"  level        : {list(territory._LEVEL_ORDER)}")
     print("  caen         : True only those with a CAEN dimension, False only "
           "those without")
     print("  domeniu      : substring of the domain name, diacritics ignored")
-    for nod in domains():
-        print(f"                 {nod.name}")
-    if nivele:
-        vazute = sorted({p for f in nivele.values()
+    for node in domains():
+        print(f"                 {node.name}")
+    if levels_by_code:
+        seen = sorted({p for f in levels_by_code.values()
                          for p in (f.get("periodicity") or [])})
     else:
-        vazute = ["Anuala", "Lunara", "Trimestriala", "Semestriala"]
+        seen = ["Anuala", "Lunara", "Trimestriala", "Semestriala"]
     print("  periodicitate: substring of the periodicity, diacritics ignored")
-    print(f"                 {vazute}")
+    print(f"                 {seen}")
     print()
     print("The metadata filters rest on the local index. If it is missing,")
     print("search asks first whether to build it (t.build_index()).")
-    if not nivele:
+    if not levels_by_code:
         print("There is no index yet, so the periodicities above are common")
         print("examples, not the real values from the catalogue.")
     print()
@@ -175,12 +175,12 @@ def load_levels_index() -> dict | None:
     from . import schemas  # local import: schemas imports catalog, else a cycle
 
     try:
-        din_registry = schemas.registry_as_index()
+        from_registry = schemas.registry_as_index()
     except ValueError as e:
         print(f"The registry cannot be read: {e}")
-        din_registry = None
-    if din_registry:
-        return din_registry
+        from_registry = None
+    if from_registry:
+        return from_registry
 
     path = _index_path()
     if not path.exists():
@@ -188,18 +188,18 @@ def load_levels_index() -> dict | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _warn_if_stale(nivele: dict) -> None:
+def _warn_if_stale(levels_by_code: dict) -> None:
     """An index built by an older version lacks the newer fields.
 
     The simple route, so we never start a multi minute rebuild out of nowhere:
     a missing field matches nothing, and the user is told how to fix it.
     """
-    if not nivele:
+    if not levels_by_code:
         return
-    oricare = next(iter(nivele.values()))
-    lipsa = [c for c in INDEX_FIELDS if c not in oricare]
-    if lipsa:
-        print(f"The index comes from an older version and lacks {lipsa}. "
+    any_record = next(iter(levels_by_code.values()))
+    missing_fields = [c for c in INDEX_FIELDS if c not in any_record]
+    if missing_fields:
+        print(f"The index comes from an older version and lacks {missing_fields}. "
               f"Filters on those fields will match nothing; "
               f"run t.build_index(refresh=True) to complete it.")
 
@@ -207,16 +207,16 @@ def _warn_if_stale(nivele: dict) -> None:
 def _ask_to_build(total: int) -> bool:
     """Ask once, clearly, before an expensive build."""
     # 0.40s per call, measured against INS; that is where the estimate comes from
-    minute = max(1, round(total * 0.4 / 60))
+    minutes = max(1, round(total * 0.4 / 60))
     print("The metadata index does not exist yet.")
     print(f"Building it needs each indicator's metadata: {total} calls,")
-    print(f"roughly {minute} minutes the first time. After that the search")
+    print(f"roughly {minutes} minutes the first time. After that the search")
     print("filters are instant, because the index is saved and reused.")
     try:
-        raspuns = input("Build the index now? [y/N] ")
+        answer = input("Build the index now? [y/N] ")
     except (EOFError, OSError):
         return False
-    return raspuns.strip().lower() in ("y", "yes", "d", "da")
+    return answer.strip().lower() in ("y", "yes", "d", "da")
 
 
 def build_index(progress: bool = True, refresh: bool = False,
@@ -231,16 +231,16 @@ def build_index(progress: bool = True, refresh: bool = False,
     if path.exists() and not refresh:
         return load_levels_index()
 
-    randuri = load_index()
-    total = len(randuri)
+    rows = load_index()
+    total = len(rows)
     if confirm and not _ask_to_build(total):
         print("Fine, not building. The level filter needs the index; "
               "you can run t.build_index() any time.")
         return None
 
     index = {}
-    sarite = []
-    for i, row in enumerate(randuri, 1):
+    skipped = []
+    for i, row in enumerate(rows, 1):
         cod = row["code"]
         try:
             m = matrix(cod)
@@ -251,7 +251,7 @@ def build_index(progress: bool = True, refresh: bool = False,
                 "domain": _clean(m.ancestors[0]["name"]) if m.ancestors else "",
             }
         except Exception:
-            sarite.append(cod)
+            skipped.append(cod)
         if progress and (i % 10 == 0 or i == total):
             print(f"\rbuilding the index: {i}/{total}", end="", flush=True)
     if progress:
@@ -261,7 +261,7 @@ def build_index(progress: bool = True, refresh: bool = False,
     path.write_text(json.dumps(index, ensure_ascii=False), encoding="utf-8")
     if progress:
         print(f"index saved to {path}, {len(index)} indicators"
-              + (f", {len(sarite)} skipped: {sarite[:5]}" if sarite else ""))
+              + (f", {len(skipped)} skipped: {skipped[:5]}" if skipped else ""))
     return index
 
 
@@ -276,7 +276,7 @@ def domains() -> MatrixList:
         for row in tree if row.get("level") == 0
     ]
     # the API returns them unordered (H before G); names start with A. ... H.
-    out.sort(key=lambda nod: nod.name)
+    out.sort(key=lambda node: node.name)
     return MatrixList(out)
 
 

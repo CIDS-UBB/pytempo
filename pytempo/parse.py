@@ -41,10 +41,10 @@ def pivot_csv_to_dataframe(csv_text: str, matrix) -> pd.DataFrame:
         decimal=".",
     )
 
-    asteptat = len(matrix.dimensions) + 1
-    if df.shape[1] != asteptat:
+    expected = len(matrix.dimensions) + 1
+    if df.shape[1] != expected:
         raise ValueError(
-            f"CSV has {df.shape[1]} columns, expected {asteptat} "
+            f"CSV has {df.shape[1]} columns, expected {expected} "
             f"({len(matrix.dimensions)} dimensions plus {VALUE_COLUMN}). "
             f"Header found: {list(df.columns)}"
         )
@@ -90,25 +90,27 @@ def standardize(df: pd.DataFrame, matrix) -> pd.DataFrame:
             continue
 
         if dim.role == "teritoriu":
-            desfacut = [territory.parse_territory(v) for v in out[col]]
-            sirute = [t[0] for t in desfacut]
-            tipuri = [t[2] for t in desfacut]
-            nume = [t[3] for t in desfacut]
-            originale = [str(v).strip() for v in out[col]]
+            # str() first: a column can hold NaN or a number if the response
+            # was odd, and parse_territory expects text
+            parsed = [territory.parse_territory(str(v)) for v in out[col]]
+            codes = [t[0] for t in parsed]
+            kinds = [t[2] for t in parsed]
+            name = [t[3] for t in parsed]
+            originals = [str(v).strip() for v in out[col]]
 
             # only add a derived column when it carries something. A county
             # dimension has no SIRUTA and no settlement type, so adding empty
             # <label>_siruta and <label>_tip columns was noise.
-            if any(s is not None for s in sirute):
-                out[f"{col}_siruta"] = pd.array(sirute, dtype="Int64")
+            if any(s is not None for s in codes):
+                out[f"{col}_siruta"] = pd.array(codes, dtype="Int64")
             # the level is always worth having
             # nullable string: a missing value is pd.NA, not a float NaN
             out[f"{col}_nivel"] = pd.array(
-                [t[1] for t in desfacut], dtype="string")
-            if any(t is not None for t in tipuri):
-                out[f"{col}_tip"] = pd.array(tipuri, dtype="string")
-            if any(n != o for n, o in zip(nume, originale)):
-                out[f"{col}_nume"] = pd.array(nume, dtype="string")
+                [t[1] for t in parsed], dtype="string")
+            if any(t is not None for t in kinds):
+                out[f"{col}_tip"] = pd.array(kinds, dtype="string")
+            if any(n != o for n, o in zip(name, originals)):
+                out[f"{col}_nume"] = pd.array(name, dtype="string")
 
         elif dim.role == "timp":
             out[f"{col}_an"] = pd.array(

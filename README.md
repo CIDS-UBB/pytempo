@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.16.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.16.1-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -240,7 +240,7 @@ reinstalling:
 To use your working copy from another project while you develop, install it
 editable into that project's own environment, pointing at your local path:
 
-    pip install -e C:/PROJECTS/Tempo/pytempo
+    pip install -e path/to/your/pytempo
 
 In a notebook, reload edited modules without restarting the kernel:
 
@@ -371,7 +371,7 @@ by county. It is described in:
 
 * Necula, M., Tiru, A.M., Oancea, B. (2019). Tempo, an R package to access the
   TEMPO-Online database. *Romanian Statistical Review*, no. 3/2019.
-* Tiru, A.M., Toma, C., Necula, M. (2017). The earlier rTempo package.
+* Tiru, A.M., Toma, I.E., Necula, M. (2017). The earlier rTempo package.
   *Romanian Statistical Review*, vol. 65, no. 4.
 
 Code at [RProjectRomania/TEMPO](https://github.com/RProjectRomania/TEMPO).

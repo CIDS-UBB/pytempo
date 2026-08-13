@@ -7,15 +7,16 @@ show, describe, options) and fetching the data (get).
 from .catalog import (build_index, domains, filters, find, load_index,
                       name_dict, overview, search)
 from .matrix import Matrix, MatrixList, get, info, matrix
-from .explore import init, browse
 
-__version__ = "0.16.0"
+# explore.init and explore.browse are sketches that still raise
+# NotImplementedError, so they are deliberately not exported yet
+
+__version__ = "0.16.1"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
     "matrix", "info", "get",
     "Matrix", "MatrixList",
-    "init", "browse",
     "help",
     "__version__",
 ]

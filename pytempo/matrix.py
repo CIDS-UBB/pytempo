@@ -51,22 +51,28 @@ def _is_total(option) -> bool:
 
 def _totals_or_all(dimension) -> list:
     """Just the total of a dimension, or everything if it carries no total."""
-    totaluri = [o for o in dimension.options if _is_total(o)]
-    return totaluri or list(dimension.options)
+    totals = [o for o in dimension.options if _is_total(o)]
+    return totals or list(dimension.options)
 
 
-def _decision_line(m, wanted, plan, planuri) -> str:
-    """What was decided, in one line, before the download starts."""
+def _decision_line(m, wanted, plan, requests) -> str:
+    """What was decided, in one line, before the download starts.
+
+    The strategy shown is the one this call actually uses, not the plan's
+    strategy for the whole indicator: a level filter often shrinks a by_county
+    download to a single request, and saying by_county there would be a lie.
+    """
     if wanted:
-        nivel = ", ".join(wanted)
-        coada = " (the finest)" if nivel == plan.get("default_level") else ""
-        bucata = f"level {nivel}{coada}"
+        level = ", ".join(wanted)
+        suffix = " (the finest)" if level == plan.get("default_level") else ""
+        chosen = f"level {level}{suffix}"
     else:
-        bucata = "all levels" if m.levels else "no territorial filter"
-    strategie = plan.get("strategy", "single")
-    cereri = f"{len(planuri)} request" if len(planuri) == 1 else \
-        f"{len(planuri)} requests"
-    return f"{bucata}, {strategie}, {cereri}"
+        chosen = "all levels" if m.levels else "no territorial filter"
+    strategy = ("single" if len(requests) == 1
+                else plan.get("strategy", "single"))
+    count = f"{len(requests)} request" if len(requests) == 1 else \
+        f"{len(requests)} requests"
+    return f"{chosen}, {strategy}, {count}"
 
 
 def _excluded_hint(m, wanted) -> str | None:
@@ -78,16 +84,16 @@ def _excluded_hint(m, wanted) -> str | None:
     """
     if not wanted:
         return None
-    lasate = [lv for lv in m.levels if lv not in wanted]
-    if not lasate:
+    left_out = [lv for lv in m.levels if lv not in wanted]
+    if not left_out:
         return None
-    lista = (lasate[0] if len(lasate) == 1
-             else f"{', '.join(lasate[:-1])} and {lasate[-1]}")
-    return f"  for every level, including {lista}, use get(level=None)"
+    listed = (left_out[0] if len(left_out) == 1
+             else f"{', '.join(left_out[:-1])} and {left_out[-1]}")
+    return f"  for every level, including {listed}, use get(level=None)"
 
 
-def _ask_big(cod: str, cereri: int) -> bool:
-    print(f"{cod}: {cereri} requests, several minutes of work.")
+def _ask_big(cod: str, request_count: int) -> bool:
+    print(f"{cod}: {request_count} requests, several minutes of work.")
     try:
         return input("Continue? [y/N] ").strip().lower() in ("y", "yes", "d",
                                                             "da")
@@ -126,41 +132,41 @@ class MatrixList(list):
         return bool(self) and all(getattr(it, "levels_known", False)
                                   for it in self)
 
-    def _rows(self, cu_nivele: bool) -> list[tuple]:
-        if not cu_nivele:
+    def _rows(self, with_levels: bool) -> list[tuple]:
+        if not with_levels:
             return [(it.code, _clean(it.name)) for it in self]
         return [(it.code, _clean(it.name), ", ".join(it.levels)) for it in self]
 
     def __repr__(self) -> str:
         if not self:
             return "no results"
-        cu_nivele = self._shows_levels()
-        rows = self._rows(cu_nivele)
+        with_levels = self._shows_levels()
+        rows = self._rows(with_levels)
         wcode = max(len(r[0]) for r in rows)
         out = []
         for row in rows:
-            linie = f"{row[0]:<{wcode}}  {row[1][:90]}"
-            if cu_nivele:
-                linie += f"  [{row[2]}]"
-            out.append(linie)
+            line = f"{row[0]:<{wcode}}  {row[1][:90]}"
+            if with_levels:
+                line += f"  [{row[2]}]"
+            out.append(line)
         out.append(f"({len(rows)} results)")
         return "\n".join(out)
 
     def _repr_html_(self) -> str:
         if not self:
             return "<p>no results</p>"
-        cu_nivele = self._shows_levels()
-        antet = "<th>code</th><th>name</th>" + ("<th>levels</th>" if cu_nivele
+        with_levels = self._shows_levels()
+        header = "<th>code</th><th>name</th>" + ("<th>levels</th>" if with_levels
                                                else "")
         cells = ""
-        for row in self._rows(cu_nivele):
+        for row in self._rows(with_levels):
             cells += (f"<tr><td><code>{html.escape(row[0])}</code></td>"
                       f"<td>{html.escape(row[1])}</td>")
-            if cu_nivele:
+            if with_levels:
                 cells += f"<td>{html.escape(row[2])}</td>"
             cells += "</tr>"
         return (
-            f"<table><thead><tr>{antet}</tr>"
+            f"<table><thead><tr>{header}</tr>"
             f"</thead><tbody>{cells}</tbody></table>"
             f"<p>{len(self)} results</p>"
         )
@@ -280,23 +286,23 @@ class Matrix:
         full record."""
         self._ensure_meta()
         print(f"{self.code}  {_clean(self.name)}")
-        definitie = (self.definition or "").strip()
-        if definitie:
-            prima = re.split(r"\.\s", definitie, maxsplit=1)[0].strip()
-            print(f"  {prima}.")
-        um = [_clean(d.label).split(":", 1)[-1].strip()
+        definition = (self.definition or "").strip()
+        if definition:
+            first_sentence = re.split(r"\.\s", definition, maxsplit=1)[0].strip()
+            print(f"  {first_sentence}.")
+        units = [_clean(d.label).split(":", 1)[-1].strip()
               for d in self.dimensions if d.role == "um"]
-        if um:
-            print(f"  unit        : {', '.join(um)}")
+        if units:
+            print(f"  unit        : {', '.join(units)}")
         if self.periodicity:
             print(f"  periodicity : {', '.join(self.periodicity)}")
         if self.last_updated:
             print(f"  updated     : {self.last_updated}")
-        ani = sorted(set(re.findall(r"\b(?:19|20)\d{2}\b",
+        years = sorted(set(re.findall(r"\b(?:19|20)\d{2}\b",
                                     self.observations or "")))
-        if ani:
+        if years:
             print(f"  warning     : the observations mention the years "
-                  f"{', '.join(ani)}, so there may be series breaks")
+                  f"{', '.join(years)}, so there may be series breaks")
             print("                read them with .describe()")
 
     def where(self) -> None:
@@ -314,13 +320,13 @@ class Matrix:
             if territory.is_locality_dimension(d, self.details):
                 print(f"    localitate      {len(d.options)}")
             else:
-                pe_nivel = {}
+                per_level = {}
                 for o in d.options:
-                    nivel = territory.option_level(o.label)
-                    pe_nivel[nivel] = pe_nivel.get(nivel, 0) + 1
-                for nivel in territory._LEVEL_ORDER:
-                    if nivel in pe_nivel:
-                        print(f"    {nivel:15} {pe_nivel[nivel]}")
+                    level_name = territory.option_level(o.label)
+                    per_level[level_name] = per_level.get(level_name, 0) + 1
+                for level_name in territory._LEVEL_ORDER:
+                    if level_name in per_level:
+                        print(f"    {level_name:15} {per_level[level_name]}")
         if not self.levels:
             print("territory: none, this indicator is not territorial")
         else:
@@ -329,32 +335,32 @@ class Matrix:
         for d in self.dimensions:
             if d.role != "timp":
                 continue
-            ani = [parse._year_of(o.label) for o in d.options]
-            ani = [a for a in ani if a]
-            interval = f"{min(ani)} to {max(ani)}" if ani else "unknown"
+            years = [parse._year_of(o.label) for o in d.options]
+            years = [a for a in years if a]
+            span = f"{min(years)} to {max(years)}" if years else "unknown"
             print(f"time     : {_clean(d.label)}, {len(d.options)} periods, "
-                  f"{interval}")
+                  f"{span}")
 
     def how(self) -> None:
         """This indicator's own download manual, ready to copy."""
         self._ensure_meta()
         plan = self.fetch_plan()
-        strategie = plan.get("strategy", "single")
-        cereri = plan.get("est_requests", 1)
-        implicit = plan.get("default_level")
+        strategy = plan.get("strategy", "single")
+        request_count = plan.get("est_requests", 1)
+        default_level = plan.get("default_level")
 
         print(f"How to download {self.code}:")
         print(f"  m = t.matrix({self.code!r})")
         print(f"  df = m.get()          "
-              f"{'level ' + implicit if implicit else 'no territorial filter'}"
+              f"{'level ' + default_level if default_level else 'no territorial filter'}"
               f", tidied")
-        teritoriale = [d for d in self.dimensions if d.role == "teritoriu"]
-        if len(teritoriale) > 1:
+        territorial = [d for d in self.dimensions if d.role == "teritoriu"]
+        if len(territorial) > 1:
             # county and locality are separate dimensions here, so a level
             # picks which one is active and puts the other on its total
-            for nivel in self.levels:
-                if nivel != implicit:
-                    print(f"  m.get(level={nivel!r})")
+            for level_name in self.levels:
+                if level_name != default_level:
+                    print(f"  m.get(level={level_name!r})")
             print("  m.get(level=None)     every level at once")
             print()
             print("  county and locality are separate dimensions here, so a "
@@ -364,26 +370,26 @@ class Matrix:
             print("  one row per county in a single request, level="
                   "'localitate' gives the")
             print("  localities, county by county.")
-        elif not implicit:
-            motiv = ("this indicator is not territorial" if not teritoriale
+        elif not default_level:
+            reason = ("this indicator is not territorial" if not territorial
                      else "its territorial names are not administrative units")
-            print(f"  (the level filter does not apply here: {motiv},")
+            print(f"  (the level filter does not apply here: {reason},")
             print("   so get() takes everything)")
         else:
-            for nivel in self.levels:
-                if nivel != implicit:
-                    print(f"  m.get(level={nivel!r})")
+            for level_name in self.levels:
+                if level_name != default_level:
+                    print(f"  m.get(level={level_name!r})")
             if self.levels:
                 print("  m.get(level=None)     every level at once")
         print("  m.get(raw=True)       exactly what INS returns, no extras")
         print()
-        print(f"  strategy: {strategie}, roughly {cereri} "
-              f"{'request' if cereri == 1 else 'requests'}")
-        if cereri > POLITE_REQUESTS:
+        print(f"  strategy: {strategy}, roughly {request_count} "
+              f"{'request' if request_count == 1 else 'requests'}")
+        if request_count > POLITE_REQUESTS:
             print(f"  WARNING: over {POLITE_REQUESTS} requests, this takes a "
                   f"while. get() asks first;")
             print("  pass confirm=False when running from a script.")
-        elif cereri > 1:
+        elif request_count > 1:
             print("  downloaded in several requests and concatenated")
 
     def related(self, limit: int = 25) -> MatrixList:
@@ -430,9 +436,9 @@ class Matrix:
         if hit:
             return hit[0]
 
-        avem = ", ".join(f"{d.label.strip()} ({d.role})" for d in self.dimensions)
+        available = ", ".join(f"{d.label.strip()} ({d.role})" for d in self.dimensions)
         raise ValueError(
-            f"unknown dimension: {dimension!r}. Available: {avem}")
+            f"unknown dimension: {dimension!r}. Available: {available}")
 
     def options(self, dimension=None, limit: int | None = None) -> TextList:
         """The option names of a dimension, so you know what you can filter on.
@@ -494,19 +500,19 @@ class Matrix:
         if self.last_updated:
             print(f"updated     : {self.last_updated}")
 
-        for titlu, text in (("DEFINITION", self.definition),
+        for heading, text in (("DEFINITION", self.definition),
                             ("METHODOLOGY", self.methodology)):
             if text and text.strip():
-                print(f"\n{titlu}\n{text.strip()}")
+                print(f"\n{heading}\n{text.strip()}")
 
         if self.sources:
             print("\nSOURCES")
             for s in self.sources:
-                nume = s.get("nume") if isinstance(s, dict) else str(s)
+                name = s.get("nume") if isinstance(s, dict) else str(s)
                 # no _clean here: a source name carries the INS marker
                 # <<6263>>, which HTML cleaning would eat
-                if nume and nume.strip():
-                    print(f"  {nume.strip()}")
+                if name and name.strip():
+                    print(f"  {name.strip()}")
 
         if self.observations and self.observations.strip():
             print(f"\nOBSERVATIONS\n{self.observations.strip()}")
@@ -531,7 +537,7 @@ class Matrix:
   .get(raw=True)       exactly what INS returns, no derived columns
   .get(progress=True)  report progress on large indicators""")
 
-    def _territorial_options(self, d, wanted: list[str], loc_activa: bool):
+    def _territorial_options(self, d, wanted: list[str], locality_active: bool):
         """Which options of one territorial dimension to send.
 
         A locality dimension stands for exactly one level, so it is either all
@@ -543,7 +549,7 @@ class Matrix:
                 return [o for o in d.options if not _is_total(o)]
             return _totals_or_all(d)
 
-        if loc_activa:
+        if locality_active:
             # the data is keyed by the real county and locality pair, so
             # pinning the county to its total returns nothing at all. Verified
             # against INS: county TOTAL crossed with real localities gives zero
@@ -551,9 +557,9 @@ class Matrix:
             # stays whole and the county by county split pairs them up.
             return list(d.options)
 
-        potrivite = [o for o in d.options
+        matching = [o for o in d.options
                      if territory.option_level(o.label) in wanted]
-        return potrivite or _totals_or_all(d)
+        return matching or _totals_or_all(d)
 
     def _build_selection(self, wanted: list[str]) -> list[list[int]]:
         """The nomItemIds to send, per dimension, in dimensionsMap order.
@@ -574,7 +580,7 @@ class Matrix:
             if lv not in self.levels:
                 raise territory.level_error(lv, self.levels, cod=self.code)
 
-        loc_activa = "localitate" in wanted and any(
+        locality_active = "localitate" in wanted and any(
             territory.is_locality_dimension(d, self.details)
             for d in self.dimensions if d.role == "teritoriu")
 
@@ -585,7 +591,7 @@ class Matrix:
             else:
                 selection.append([o.nom_item_id for o in
                                   self._territorial_options(d, wanted,
-                                                            loc_activa)])
+                                                            locality_active)])
         return selection
 
     def fetch_plan(self) -> dict:
@@ -597,11 +603,11 @@ class Matrix:
         from . import schemas  # local import: schemas imports matrix, else a cycle
 
         try:
-            registru = schemas.load_registry()
+            registry = schemas.load_registry()
         except ValueError:
-            registru = None
-        fisa = (registru or {}).get("entries", {}).get(self.code, {})
-        plan = fisa.get("fetch_plan")
+            registry = None
+        record = (registry or {}).get("entries", {}).get(self.code, {})
+        plan = record.get("fetch_plan")
         if plan:
             return plan
 
@@ -624,21 +630,21 @@ class Matrix:
         An explicit list in levels beats the default: someone who writes
         levels=['judet', 'regiune'] has already said what they want.
         """
-        explicite = list(levels or [])
+        explicit_levels = list(levels or [])
         if isinstance(level, str) and level != "finest":
-            explicite = [level] + explicite
-        if explicite:
-            return explicite
+            explicit_levels = [level] + explicit_levels
+        if explicit_levels:
+            return explicit_levels
         if level != "finest":
             return []               # level=None asks for everything
 
-        implicit = plan.get("default_level")
-        teritoriale = [d for d in self.dimensions if d.role == "teritoriu"]
+        default_level = plan.get("default_level")
+        territorial = [d for d in self.dimensions if d.role == "teritoriu"]
         # with county plus locality, the finest level means the whole
         # download: by_county already delivers the localities
-        if not implicit or len(teritoriale) > 1:
+        if not default_level or len(territorial) > 1:
             return []
-        return [implicit]
+        return [default_level]
 
     def get(self, level: territory.Level | str | None = "finest",
             levels: list[territory.Level] | None = None,
@@ -663,30 +669,30 @@ class Matrix:
         plan = self.fetch_plan()
         wanted = self._wanted_levels(level, levels, plan)
         selection = self._build_selection(wanted)
-        planuri = chunking.plan_requests(self, selection)
+        requests = chunking.plan_requests(self, selection)
 
-        vorbeste = (len(planuri) > 1) if progress == "auto" else bool(progress)
+        speaks = (len(requests) > 1) if progress == "auto" else bool(progress)
         if progress is not False:
-            print(f"{self.code}: {_decision_line(self, wanted, plan, planuri)}")
-            indiciu = _excluded_hint(self, wanted)
-            if indiciu:
-                print(indiciu)
-        if confirm and len(planuri) > POLITE_REQUESTS and not _ask_big(
-                self.code, len(planuri)):
+            print(f"{self.code}: {_decision_line(self, wanted, plan, requests)}")
+            hint = _excluded_hint(self, wanted)
+            if hint:
+                print(hint)
+        if confirm and len(requests) > POLITE_REQUESTS and not _ask_big(
+                self.code, len(requests)):
             raise ValueError(
                 f"{self.code}: download cancelled. Try a level filter, or "
                 f"get(confirm=False) if you are sure.")
 
-        cadre = []
-        for i, payload in enumerate(planuri, 1):
-            cadre.append(parse.pivot_csv_to_dataframe(
+        frames = []
+        for i, payload in enumerate(requests, 1):
+            frames.append(parse.pivot_csv_to_dataframe(
                 client.post_pivot(payload), self))
-            if vorbeste:
-                total = sum(len(c) for c in cadre)
-                print(f"  {i}/{len(planuri)}: +{len(cadre[-1])} rows "
+            if speaks:
+                total = sum(len(c) for c in frames)
+                print(f"  {i}/{len(requests)}: +{len(frames[-1])} rows "
                       f"(total {total})")
 
-        df = cadre[0] if len(cadre) == 1 else pd.concat(cadre, ignore_index=True)
+        df = frames[0] if len(frames) == 1 else pd.concat(frames, ignore_index=True)
         return df if raw or not tidy else parse.standardize(df, self)
 
     def _repr_html_(self) -> str:
@@ -698,13 +704,13 @@ class Matrix:
         """
         rows = []
         if self.levels:
-            rows.append(("nivele", ", ".join(self.levels)))
+            rows.append(("levels", ", ".join(self.levels)))
         if self.last_updated:
-            rows.append(("actualizat", self.last_updated))
+            rows.append(("updated", self.last_updated))
         if self.periodicity:
-            rows.append(("periodicitate", ", ".join(self.periodicity)))
+            rows.append(("periodicity", ", ".join(self.periodicity)))
         if self.ancestors:
-            rows.append(("unde", repr(self._breadcrumb())))
+            rows.append(("where", repr(self._breadcrumb())))
         meta = "".join(
             f"<tr><th align='left'>{html.escape(k)}</th>"
             f"<td>{html.escape(v)}</td></tr>" for k, v in rows
@@ -720,8 +726,8 @@ class Matrix:
             out.append(f"<table><tbody>{meta}</tbody></table>")
         if dims:
             out.append(
-                "<table><thead><tr><th>#</th><th>dimensiune</th><th>rol</th>"
-                f"<th>optiuni</th></tr></thead><tbody>{dims}</tbody></table>")
+                "<table><thead><tr><th>#</th><th>dimension</th><th>role</th>"
+                f"<th>options</th></tr></thead><tbody>{dims}</tbody></table>")
         return "".join(out)
 
     def __repr__(self) -> str:

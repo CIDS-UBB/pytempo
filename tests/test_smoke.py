@@ -949,6 +949,37 @@ def test_plan_requests_splits_a_big_county(monkeypatch):
     assert all(p["encQuery"].split(":")[2] == "4247,4266" for p in alba)
 
 
+def test_empty_dimension_is_rejected(monkeypatch):
+    """A filter that matched nothing must not build a broken encQuery."""
+    _fake_api(monkeypatch)
+    m = t.matrix("FOM104D")
+    selection = [[o.nom_item_id for o in d.options] for d in m.dimensions]
+    selection[1] = []
+    try:
+        chunking.plan_requests(m, selection)
+    except ValueError as e:
+        assert "empty dimension" in str(e)
+    else:
+        raise AssertionError("an empty dimension should raise")
+
+
+def test_standardize_survives_non_string_values(monkeypatch):
+    """A territorial column holding numbers or NaN must not crash the parse."""
+    _fake_api(monkeypatch)
+    m = t.matrix("FOM104D")
+    df = pd.DataFrame({
+        m.dimensions[0].label.strip(): ["Alba", "Cluj"],
+        m.dimensions[1].label.strip(): [1017, float("nan")],
+        m.dimensions[2].label.strip(): ["Anul 1990"] * 2,
+        m.dimensions[3].label.strip(): ["Numar persoane"] * 2,
+        "Valoare": [1.0, 2.0],
+    })
+    out = parse.standardize(df, m)
+    assert len(out) == 2
+    loc = m.dimensions[1].label.strip()
+    assert out[f"{loc}_nivel"][0] == "necunoscut"
+
+
 def test_split_selection_fits_every_chunk():
     """Pieces are sized by how much room the other dimensions leave."""
     selectie = [list(range(10)), list(range(4)), [99]]   # 40 de celule

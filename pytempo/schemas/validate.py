@@ -36,27 +36,27 @@ def stratified_sample(entries: dict, n: int, seed=None) -> list[str]:
     entirely from a strictly proportional sample.
     """
     rnd = random.Random(seed)
-    pe_familie = {}
+    by_family = {}
     for cod, e in entries.items():
         if e.get("status") == "ok":
-            pe_familie.setdefault(e.get("family", "alt"), []).append(cod)
+            by_family.setdefault(e.get("family", "alt"), []).append(cod)
 
-    total = sum(len(v) for v in pe_familie.values())
-    ales = []
-    for fam, coduri in sorted(pe_familie.items()):
-        cota = max(MIN_PER_FAMILY, round(n * len(coduri) / total)) if total else 0
-        cota = min(cota, len(coduri))
-        ales += rnd.sample(sorted(coduri), cota)
-    rnd.shuffle(ales)
-    return ales
+    total = sum(len(v) for v in by_family.values())
+    chosen = []
+    for fam, codes_wanted in sorted(by_family.items()):
+        quota = max(MIN_PER_FAMILY, round(n * len(codes_wanted) / total)) if total else 0
+        quota = min(quota, len(codes_wanted))
+        chosen += rnd.sample(sorted(codes_wanted), quota)
+    rnd.shuffle(chosen)
+    return chosen
 
 
 def _year_option(dim):
     """The option for the most recent year on a time dimension."""
-    cu_an = [(parse._year_of(o.label), o) for o in dim.options]
-    cu_an = [(an, o) for an, o in cu_an if an is not None]
-    if cu_an:
-        return max(cu_an, key=lambda pereche: pereche[0])[1]
+    with_year = [(parse._year_of(o.label), o) for o in dim.options]
+    with_year = [(an, o) for an, o in with_year if an is not None]
+    if with_year:
+        return max(with_year, key=lambda pair: pair[0])[1]
     return dim.options[-1]
 
 
@@ -65,47 +65,47 @@ def _slice_for(m, entry: dict) -> list[list[int]]:
 
     The target is a single POST of a few dozen cells, whatever the family.
     """
-    familie = entry.get("family")
+    family = entry.get("family")
     terr = [d for d in m.dimensions if d.role == "teritoriu"]
-    localitati = next((d for d in terr
+    localities = next((d for d in terr
                        if territory.is_locality_dimension(d, m.details)), None)
-    judete = None
-    if localitati is not None and len(terr) > 1:
-        judete = max((d for d in terr if d is not localitati),
+    counties = None
+    if localities is not None and len(terr) > 1:
+        counties = max((d for d in terr if d is not localities),
                      key=lambda d: len(d.options))
 
     # the county we test: the first one that is not the TOTAL aggregate
-    judet_ales = None
-    if judete is not None:
-        judet_ales = next((o for o in judete.options
+    chosen_county = None
+    if counties is not None:
+        chosen_county = next((o for o in counties.options
                            if o.label.strip().upper() != "TOTAL"), None)
 
-    selectie = []
+    selection = []
     for d in m.dimensions:
         if d.role == "timp":
-            selectie.append([_year_option(d).nom_item_id])
-        elif d is localitati and familie == "judet_localitate":
-            if judet_ales is not None:
-                grupuri = territory.group_localities_by_county(d)
+            selection.append([_year_option(d).nom_item_id])
+        elif d is localities and family == "judet_localitate":
+            if chosen_county is not None:
+                groups = territory.group_localities_by_county(d)
                 ids = [o.nom_item_id
-                       for o in grupuri.get(judet_ales.nom_item_id, [])]
+                       for o in groups.get(chosen_county.nom_item_id, [])]
             else:
                 ids = []
             # with no county plus locality pair we take the head of the list
-            selectie.append(ids or [o.nom_item_id for o in d.options[:20]])
-        elif d is judete and judet_ales is not None:
-            selectie.append([judet_ales.nom_item_id])
+            selection.append(ids or [o.nom_item_id for o in d.options[:20]])
+        elif d is counties and chosen_county is not None:
+            selection.append([chosen_county.nom_item_id])
         elif d.role == "teritoriu":
-            selectie.append([o.nom_item_id for o in d.options])
+            selection.append([o.nom_item_id for o in d.options])
         else:
-            selectie.append([d.options[0].nom_item_id])
-    return selectie
+            selection.append([d.options[0].nom_item_id])
+    return selection
 
 
-def _payload(m, selectie) -> dict:
+def _payload(m, selection) -> dict:
     return {
         "language": "ro",
-        "encQuery": chunking.build_encquery(selectie),
+        "encQuery": chunking.build_encquery(selection),
         "matCode": m.code,
         "matMaxDim": m.details.get("matMaxDim"),
         "matUMSpec": m.details.get("matUMSpec"),
@@ -119,22 +119,22 @@ def _norm_label(text) -> str:
 
 def _point_check(m, df) -> str | None:
     """Ask for a single cell of the slice and compare. None when it matches."""
-    rand = df.iloc[len(df) // 2]
-    selectie = []
+    row = df.iloc[len(df) // 2]
+    selection = []
     for d in m.dimensions:
-        eticheta = _norm_label(rand[d.label.strip()])
-        gasit = next((o for o in d.options
-                      if _norm_label(o.label) == eticheta), None)
-        if gasit is None:
-            return (f"cannot map label {rand[d.label.strip()]!r} back to a "
+        label_text = _norm_label(row[d.label.strip()])
+        found = next((o for o in d.options
+                      if _norm_label(o.label) == label_text), None)
+        if found is None:
+            return (f"cannot map label {row[d.label.strip()]!r} back to a "
                     f"code on dimension {d.label.strip()!r}")
-        selectie.append([gasit.nom_item_id])
+        selection.append([found.nom_item_id])
 
-    text = client.post_pivot(_payload(m, selectie))
-    singur = parse.pivot_csv_to_dataframe(text, m)
-    if len(singur) != 1:
-        return f"the point cell returned {len(singur)} rows, expected 1"
-    a, b = rand["Valoare"], singur.iloc[0]["Valoare"]
+    text = client.post_pivot(_payload(m, selection))
+    single_cell = parse.pivot_csv_to_dataframe(text, m)
+    if len(single_cell) != 1:
+        return f"the point cell returned {len(single_cell)} rows, expected 1"
+    a, b = row["Valoare"], single_cell.iloc[0]["Valoare"]
     if a != b:
         return f"point cell differs: {a} in the slice, {b} on its own"
     return None
@@ -151,9 +151,9 @@ _BALANCE_WORDS = ("spor", "sold", "migrat", "crestere", "variatia",
 
 def _allows_negative(m) -> bool:
     """Is this a balance style indicator, where negative values are correct?"""
-    texte = [m.name] + [d.label for d in m.dimensions]
-    return any(cuvant in territory._norm(text)
-               for text in texte for cuvant in _BALANCE_WORDS)
+    texts = [m.name] + [d.label for d in m.dimensions]
+    return any(word in territory._norm(text)
+               for text in texts for word in _BALANCE_WORDS)
 
 
 def _why_unparsable(m, text: str) -> str:
@@ -166,13 +166,13 @@ def _why_unparsable(m, text: str) -> str:
     if any("\n" in (d.label or "") for d in m.dimensions):
         return ("a dimension label contains a newline, so the CSV header "
                 "spans two lines")
-    randuri = [r for r in text.split("\n") if r.strip()][1:]
-    valori = {r.rsplit(",", 1)[-1].strip() for r in randuri if "," in r}
-    ne_numerice = {x for x in valori
+    rows = [r for r in text.split("\n") if r.strip()][1:]
+    values_seen = {r.rsplit(",", 1)[-1].strip() for r in rows if "," in r}
+    non_numeric = {x for x in values_seen
                    if x and not x.replace(".", "", 1).lstrip("-").isdigit()}
-    if ne_numerice:
+    if non_numeric:
         return (f"the value column carries non numeric markers "
-                f"{sorted(ne_numerice)[:3]}, most likely INS flags for "
+                f"{sorted(non_numeric)[:3]}, most likely INS flags for "
                 f"suppressed or unavailable data")
     return "unrecognized response shape"
 
@@ -185,18 +185,18 @@ def _checks(m, entry, df) -> str | None:
                if d.role == "teritoriu"
                and territory.is_locality_dimension(d, m.details)]
         for d in loc:
-            coloana = tidy[f"{d.label.strip()}_siruta"]
-            localitati = tidy[f"{d.label.strip()}_nivel"] == "localitate"
-            if localitati.any() and coloana[localitati].isna().all():
+            column = tidy[f"{d.label.strip()}_siruta"]
+            localities = tidy[f"{d.label.strip()}_nivel"] == "localitate"
+            if localities.any() and column[localities].isna().all():
                 return (f"has_siruta is True, but SIRUTA is empty for every "
                         f"locality in {d.label.strip()!r}")
 
-    um = [d for d in m.dimensions if d.role == "um"]
-    if any("persoane" in territory._norm(d.label) for d in um) \
+    units = [d for d in m.dimensions if d.role == "um"]
+    if any("persoane" in territory._norm(d.label) for d in units) \
             and not _allows_negative(m):
-        negative = (df["Valoare"] < 0).sum()
-        if negative:
-            return f"{negative} negative values where the unit counts people"
+        negatives = (df["Valoare"] < 0).sum()
+        if negatives:
+            return f"{negatives} negative values where the unit counts people"
 
     return _point_check(m, df)
 
@@ -217,37 +217,37 @@ def validate(sample: int | None = None, codes: list[str] | None = None,
     one is a documented exception to read by hand.
     """
     path = path or build.REGISTRY_PATH
-    date = load_registry(path)
-    if not date:
+    data = load_registry(path)
+    if not data:
         print("There is no registry.json. Run schemas.build_registry().")
         return {}
-    entries = date["entries"]
+    entries = data["entries"]
 
     if codes:
-        lipsa = [c for c in codes if c not in entries]
-        if lipsa:
-            raise ValueError(f"codes not in the registry: {lipsa}")
-        coduri = list(codes)
+        missing_fields = [c for c in codes if c not in entries]
+        if missing_fields:
+            raise ValueError(f"codes not in the registry: {missing_fields}")
+        codes_wanted = list(codes)
     elif sample:
-        coduri = stratified_sample(entries, sample, seed=seed)
+        codes_wanted = stratified_sample(entries, sample, seed=seed)
     else:
-        coduri = [c for c, e in entries.items() if e.get("status") == "ok"]
+        codes_wanted = [c for c, e in entries.items() if e.get("status") == "ok"]
     if resume:
-        coduri = [c for c in coduri
+        codes_wanted = [c for c in codes_wanted
                   if not (entries[c].get("validation") == "ok"
                           and entries[c].get("validated_version")
                           == REGISTRY_VERSION)]
 
-    total = len(coduri)
-    pornit = time.time()
-    for i, cod in enumerate(coduri, 1):
+    total = len(codes_wanted)
+    started = time.time()
+    for i, cod in enumerate(codes_wanted, 1):
         e = entries[cod]
         try:
             m = fetch_matrix(cod)
-            selectie = _slice_for(m, e)
-            celule = chunking.cells(selectie)
-            text = client.post_pivot(_payload(m, selectie))
-            e["slice_cells"] = celule
+            selection = _slice_for(m, e)
+            cells_needed = chunking.cells(selection)
+            text = client.post_pivot(_payload(m, selection))
+            e["slice_cells"] = cells_needed
             try:
                 df = parse.pivot_csv_to_dataframe(text, m)
             except ValueError as exc:
@@ -259,8 +259,8 @@ def validate(sample: int | None = None, codes: list[str] | None = None,
                 if df.empty:
                     e["validation"] = "empty"
                 else:
-                    motiv = _checks(m, e, df)
-                    e["validation"] = f"error: {motiv}" if motiv else "ok"
+                    reason = _checks(m, e, df)
+                    e["validation"] = f"error: {reason}" if reason else "ok"
         except Exception as exc:
             e["validation"] = f"error: {type(exc).__name__}: {exc}"
             e["slice_cells"] = 0
@@ -268,47 +268,47 @@ def validate(sample: int | None = None, codes: list[str] | None = None,
         e["validated_version"] = REGISTRY_VERSION
 
         if progress:
-            scurs = time.time() - pornit
-            ramas = scurs / i * (total - i)
-            print(f"\rvalidating: {i}/{total}, ~{ramas / 60:.1f} min left",
+            elapsed = time.time() - started
+            remaining = elapsed / i * (total - i)
+            print(f"\rvalidating: {i}/{total}, ~{remaining / 60:.1f} min left",
                   end="", flush=True)
         if delay and i < total:
             time.sleep(delay)
     if progress and total:
         print()
 
-    _save(date, path)
+    _save(data, path)
     if progress:
-        validation_report(date)
-    return date
+        validation_report(data)
+    return data
 
 
-def validation_report(date: dict | None = None, path=None) -> None:
+def validation_report(data: dict | None = None, path=None) -> None:
     """The validation report: how many ok, how many empty, what went wrong."""
-    date = date or load_registry(path)
-    if not date:
+    data = data or load_registry(path)
+    if not data:
         print("There is no registry.json.")
         return
-    entries = date["entries"]
+    entries = data["entries"]
     validate_le = {c: e for c, e in entries.items() if e.get("validation")}
 
     ok = [c for c, e in validate_le.items() if e["validation"] == "ok"]
-    goi = [c for c, e in validate_le.items() if e["validation"] == "empty"]
-    erori = {c: e["validation"] for c, e in validate_le.items()
+    empties = [c for c, e in validate_le.items() if e["validation"] == "empty"]
+    errors = {c: e["validation"] for c, e in validate_le.items()
              if e["validation"].startswith("error:")}
-    de_citit = {c: e["validation"] for c, e in validate_le.items()
+    to_review = {c: e["validation"] for c, e in validate_le.items()
                 if e["validation"].startswith("needs_review:")}
 
     print(f"\nValidation: {len(validate_le)} indicators checked")
     print(f"  ok           : {len(ok)}")
-    print(f"  empty        : {len(goi)}" + (f"  {goi[:8]}" if goi else ""))
-    print(f"  errors       : {len(erori)}")
-    for cod, motiv in erori.items():
-        print(f"    {cod:10} {motiv[:110]}")
-    print(f"  needs review : {len(de_citit)}"
-          + ("  (documented exceptions, not failures)" if de_citit else ""))
-    for cod, motiv in de_citit.items():
-        print(f"    {cod:10} {motiv[:110]}")
+    print(f"  empty        : {len(empties)}" + (f"  {empties[:8]}" if empties else ""))
+    print(f"  errors       : {len(errors)}")
+    for cod, reason in errors.items():
+        print(f"    {cod:10} {reason[:110]}")
+    print(f"  needs review : {len(to_review)}"
+          + ("  (documented exceptions, not failures)" if to_review else ""))
+    for cod, reason in to_review.items():
+        print(f"    {cod:10} {reason[:110]}")
 
     fara_siruta = [c for c, e in entries.items()
                    if e.get("has_localities") and not e.get("has_siruta")]
@@ -336,43 +336,43 @@ def audit_standardization(sample: int | None = None, seed=None,
       all_unknown     a territorial dimension whose levels are all necunoscut
       nothing_added   tidy added no column at all
     """
-    date = load_registry(path)
-    if not date:
+    data = load_registry(path)
+    if not data:
         print("There is no registry.json. Run schemas.build_registry().")
         return {}
-    entries = date["entries"]
+    entries = data["entries"]
 
     if sample:
-        coduri = stratified_sample(entries, sample, seed=seed)
+        codes_wanted = stratified_sample(entries, sample, seed=seed)
     else:
-        coduri = [c for c, e in entries.items() if e.get("status") == "ok"]
+        codes_wanted = [c for c, e in entries.items() if e.get("status") == "ok"]
 
-    gasite = {"empty_derived": [], "all_unknown": [], "nothing_added": []}
-    sarite = []
-    total = len(coduri)
-    for i, cod in enumerate(coduri, 1):
+    found_kinds = {"empty_derived": [], "all_unknown": [], "nothing_added": []}
+    skipped = []
+    total = len(codes_wanted)
+    for i, cod in enumerate(codes_wanted, 1):
         e = entries[cod]
         try:
             m = fetch_matrix(cod)
             df = parse.pivot_csv_to_dataframe(
                 client.post_pivot(_payload(m, _slice_for(m, e))), m)
             if df.empty:
-                sarite.append(cod)
+                skipped.append(cod)
                 continue
             tidy = parse.standardize(df, m)
         except Exception:
-            sarite.append(cod)
+            skipped.append(cod)
             continue
 
-        adaugate = [c for c in tidy.columns if c not in df.columns]
-        if not adaugate:
-            gasite["nothing_added"].append(cod)
-        if any(tidy[c].isna().all() for c in adaugate):
-            gasite["empty_derived"].append(cod)
+        added = [c for c in tidy.columns if c not in df.columns]
+        if not added:
+            found_kinds["nothing_added"].append(cod)
+        if any(tidy[c].isna().all() for c in added):
+            found_kinds["empty_derived"].append(cod)
         for d in m.dimensions:
-            coloana = f"{d.label.strip()}_nivel"
-            if coloana in tidy.columns and (tidy[coloana] == "necunoscut").all():
-                gasite["all_unknown"].append(cod)
+            column = f"{d.label.strip()}_nivel"
+            if column in tidy.columns and (tidy[column] == "necunoscut").all():
+                found_kinds["all_unknown"].append(cod)
                 break
 
         if progress and (i % 5 == 0 or i == total):
@@ -382,13 +382,13 @@ def audit_standardization(sample: int | None = None, seed=None,
     if progress and total:
         print()
 
-    print(f"\nStandardization audit: {len(coduri) - len(sarite)} indicators "
-          f"inspected, {len(sarite)} skipped (empty or unreadable slice)")
-    for tip, coduri_gasite in gasite.items():
+    print(f"\nStandardization audit: {len(codes_wanted) - len(skipped)} indicators "
+          f"inspected, {len(skipped)} skipped (empty or unreadable slice)")
+    for tip, coduri_gasite in found_kinds.items():
         print(f"  {tip:14} {len(coduri_gasite)}")
         if coduri_gasite:
             print(f"    {sorted(coduri_gasite)[:12]}")
-    return gasite
+    return found_kinds
 
 
 def spot_check_list(n: int = 10, seed=None, path=None) -> list[dict]:
@@ -399,40 +399,40 @@ def spot_check_list(n: int = 10, seed=None, path=None) -> list[dict]:
     independent check is a person reading the site, and our job is to hand them
     a ready made list.
     """
-    date = load_registry(path)
-    if not date:
+    data = load_registry(path)
+    if not data:
         print("There is no registry.json.")
         return []
-    ok = sorted(c for c, e in date["entries"].items()
+    ok = sorted(c for c, e in data["entries"].items()
                 if e.get("validation") == "ok")
     if not ok:
         print("No indicator validated ok. Run schemas.validate(...).")
         return []
 
     rnd = random.Random(seed)
-    randuri = []
+    rows = []
     for cod in rnd.sample(ok, min(n, len(ok))):
-        e = date["entries"][cod]
+        e = data["entries"][cod]
         try:
             m = fetch_matrix(cod)
             df = parse.pivot_csv_to_dataframe(
                 client.post_pivot(_payload(m, _slice_for(m, e))), m)
             if df.empty:
                 continue
-            rand = df.iloc[len(df) // 2]
-            combinatie = {d.label.strip(): rand[d.label.strip()]
+            row = df.iloc[len(df) // 2]
+            combination = {d.label.strip(): row[d.label.strip()]
                           for d in m.dimensions}
-            randuri.append({"code": cod, "name": e.get("name", ""),
-                            "combination": combinatie,
-                            "value": rand["Valoare"], "url": e.get("endpoint")})
+            rows.append({"code": cod, "name": e.get("name", ""),
+                            "combination": combination,
+                            "value": row["Valoare"], "url": e.get("endpoint")})
         except Exception as exc:
             print(f"  {cod}: cannot compose a cell ({exc})")
 
-    print(f"\nTo check by hand on the site, {len(randuri)} cells:")
-    for r in randuri:
+    print(f"\nTo check by hand on the site, {len(rows)} cells:")
+    for r in rows:
         print(f"\n{r['code']}  {r['name'][:70]}")
-        for eticheta, valoare in r["combination"].items():
-            print(f"    {eticheta[:40]:42} {valoare}")
+        for label_text, valoare in r["combination"].items():
+            print(f"    {label_text[:40]:42} {valoare}")
         print(f"    {'OUR VALUE':42} {r['value']}")
         print(f"    {r['url']}")
-    return randuri
+    return rows
