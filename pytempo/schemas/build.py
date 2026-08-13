@@ -170,6 +170,26 @@ def refresh_plans(path: pathlib.Path | None = None, progress: bool = True) -> di
     return date
 
 
+_VALIDATION_FIELDS = ("validation", "validated_at", "validated_version",
+                      "slice_cells")
+
+
+def _keep_validation(veche: dict | None, noua: dict) -> dict:
+    """Duce validarea mai departe peste o reconstrucție a fișei.
+
+    O reconstrucție recalculează forma indicatorului, dar nu invalidează o
+    verificare făcută pe date reale, atâta timp cât INS nu l-a actualizat
+    între timp. Dacă last_updated s-a schimbat, validarea veche pică, iar
+    resume o va relua.
+    """
+    if not veche or veche.get("last_updated") != noua.get("last_updated"):
+        return noua
+    for camp in _VALIDATION_FIELDS:
+        if camp in veche:
+            noua[camp] = veche[camp]
+    return noua
+
+
 def _uncached(coduri) -> list[str]:
     """Codurile ale căror metadate NU sunt în cache-ul de disc."""
     return [c for c in coduri
@@ -223,7 +243,8 @@ def build_registry(progress: bool = True, refresh: bool = False,
     total = len(de_facut)
     for i, cod in enumerate(de_facut, 1):
         try:
-            entries[cod] = _entry_from_matrix(fetch_matrix(cod, refresh=refresh))
+            noua = _entry_from_matrix(fetch_matrix(cod, refresh=refresh))
+            entries[cod] = _keep_validation(vechi.get(cod), noua)
         except Exception as e:
             entries[cod] = {"name": "", "status": f"error: {e}",
                             "family": "alt", "dims": [], "levels": [],

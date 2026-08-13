@@ -179,10 +179,24 @@ optional here either. FOM104F carries a dimension called
 `details` are 0.
 
 `m.levels` lists the territorial levels present, from coarse to fine, out of
-`national`, `macroregiune`, `regiune`, `judet` and `localitate`. Levels come
-from the option labels of a territorial dimension: `TOTAL` is national,
-`MACROREGIUNEA ...` is a macroregion, `REGIUNEA ...` is a region, anything else
-is a county. A locality dimension reports `localitate` directly.
+`national`, `macroregiune`, `regiune`, `judet`, `localitate` and `necunoscut`.
+Levels come from the option labels of a territorial dimension: `TOTAL` and
+`Nivel National` are national, `MACROREGIUNEA ...` is a macroregion,
+`REGIUNEA ...` is a region, and a county is a name that appears in the actual
+list of Romanian counties. A confirmed locality dimension reports `localitate`
+directly.
+
+Anything else is `necunoscut`, and that is deliberate. Territorial dimensions
+also carry names that are not administrative units at all: air quality
+monitoring stations, multi county groupings such as `Arges, Valcea`,
+`Extra-regiuni`, `Nespecificat`. Calling those counties, which is what a
+catch all default does, quietly corrupts any analysis that groups by county.
+
+A dimension counts as holding localities when `details.nomLoc` says so, or when
+its label says so and either `matSiruta` is set or its options actually carry
+SIRUTA prefixes. The label alone is not enough: TMP1173 has a dimension called
+`Statii de monitorizare de tip fond urban - Localitate` whose options are
+monitoring stations.
 
     t.matrix("FOM104D").levels   # ['national', 'judet', 'localitate']
     t.matrix("SOM101B").levels   # ['national', 'macroregiune', 'regiune', 'judet']

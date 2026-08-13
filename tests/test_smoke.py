@@ -177,7 +177,8 @@ def test_search_offline(monkeypatch):
 
 
 def _fake_index(monkeypatch,
-                codes=("FOM104D", "SOM101B", "FOM101A", "FOM104F")):
+                codes=("FOM104D", "SOM101B", "FOM101A", "FOM104F",
+                       "TMP1173")):
     """Catalogul, injectat: matrix() verifica in el inainte de fetch."""
     monkeypatch.setattr(catalog, "_INDEX",
                         [{"code": c, "name": c} for c in codes])
@@ -218,6 +219,92 @@ def test_roles_from_details(monkeypatch):
     assert [d.dim_index for d in m.dimensions] == [0, 1, 2, 3]
 
 
+# TMP1173: labelul zice 'Localitate', dar matSiruta e 0 si optiunile sunt
+# statii de monitorizare, nu localitati cu prefix SIRUTA
+TMP1173 = {
+    "matrixName": "Niveluri medii anuale de particule in suspensie",
+    "definitie": "", "metodologie": "", "observatii": "",
+    "ultimaActualizare": "01-06-2025",
+    "periodicitati": ["Anuala"], "surseDeDate": [],
+    "ancestors": [{"name": "E. MEDIU INCONJURATOR", "code": "5"}],
+    "details": {"nomJud": 0, "nomLoc": 0, "matTime": 3, "matCaen1": 0,
+                "matCaen2": 0, "matSiruta": 0, "matRegJ": 0, "matMaxDim": 4,
+                "matUMSpec": 0},
+    "dimensionsMap": [
+        {"dimCode": 1, "label": "Categorii de emisii", "options": [
+            {"label": "Total", "nomItemId": 60, "offset": 1, "parentId": None}]},
+        {"dimCode": 2,
+         "label": "Statii de monitorizare de tip fond urban - Localitate",
+         "options": [
+             {"label": "AB-1 - Municipiul Alba Iulia", "nomItemId": 61,
+              "offset": 1, "parentId": None},
+             {"label": "BT-1 - Municipiul Botosani", "nomItemId": 62,
+              "offset": 2, "parentId": None},
+             {"label": "BV-2 - Municipiul Brasov", "nomItemId": 63,
+              "offset": 3, "parentId": None}]},
+        {"dimCode": 3, "label": "Ani", "options": [
+            {"label": "Anul 2024", "nomItemId": 64, "offset": 1,
+             "parentId": None}]},
+        {"dimCode": 4, "label": "Unitati de masura", "options": [
+            {"label": "Micrograme", "nomItemId": 65, "offset": 1,
+             "parentId": None}]},
+    ],
+}
+
+
+def test_station_dimension_is_not_localities(monkeypatch):
+    """Labelul singur nu face o dimensiune de localitati."""
+    _fake_api(monkeypatch, extra={endpoints.matrix("TMP1173"): TMP1173})
+    m = t.matrix("TMP1173")
+    statii = m.dimensions[1]
+    assert statii.role == "teritoriu"          # ramane teritoriala
+    assert territory.is_locality_dimension(statii, m.details) is False
+    # nivelele vin din optiuni, nu din label
+    assert m.levels == ["necunoscut"]
+    assert territory.dimension_levels(statii, m.details) == {"necunoscut"}
+
+
+def test_station_labels_are_not_counties(monkeypatch):
+    _fake_api(monkeypatch, extra={endpoints.matrix("TMP1173"): TMP1173})
+    m = t.matrix("TMP1173")
+    tidy = parse.standardize(
+        pd.DataFrame({
+            "Categorii de emisii": ["Total"],
+            "Statii de monitorizare de tip fond urban - Localitate":
+                ["BT-1 - Municipiul Botosani"],
+            "Ani": ["Anul 2024"],
+            "Unitati de masura": ["Micrograme"],
+            "Valoare": [26.23],
+        }), m)
+    col = "Statii de monitorizare de tip fond urban - Localitate"
+    assert tidy[f"{col}_nivel"][0] == "necunoscut"
+    assert tidy[f"{col}_siruta"][0] is pd.NA
+
+
+def test_real_localities_still_detected(monkeypatch):
+    """FOM104D are nomLoc pus, deci nimic nu se schimba pentru el."""
+    _fake_api(monkeypatch)
+    m = t.matrix("FOM104D")
+    localitati = m.dimensions[1]
+    assert territory.is_locality_dimension(localitati, m.details) is True
+    assert m.levels == ["national", "judet", "localitate"]
+    assert m.has_siruta is True
+
+
+def test_localities_confirmed_by_siruta_prefixes(monkeypatch):
+    """Fara nomLoc, dar cu prefixe SIRUTA pe optiuni: tot localitati."""
+    fara_nomloc = dict(
+        FOM104D,
+        details=dict(FOM104D["details"], nomLoc=0, nomJud=0, matSiruta=0),
+    )
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): fara_nomloc})
+    m = t.matrix("FOM104D")
+    localitati = m.dimensions[1]
+    assert "localit" in localitati.label.lower()
+    assert territory.is_locality_dimension(localitati, m.details) is True
+    assert "localitate" in m.levels
+
+
 def test_levels_and_siruta(monkeypatch):
     _fake_matrix(monkeypatch)
     m = t.matrix("FOM104D")
@@ -230,7 +317,16 @@ def test_option_level():
     assert territory.option_level("MACROREGIUNEA UNU") == "macroregiune"
     assert territory.option_level("Regiunea NORD-VEST") == "regiune"
     assert territory.option_level("Bistrita-Nasaud") == "judet"
-    assert territory.option_level("") == "judet"
+    assert territory.option_level("Municipiul Bucuresti") == "judet"
+    # totalul national nu se scrie mereu 'TOTAL'
+    assert territory.option_level("Nivel National") == "national"
+    # grupari de judete si reziduuri nu sunt judete
+    assert territory.option_level("Arges, Valcea") == "necunoscut"
+    assert territory.option_level("Extra-regiuni") == "necunoscut"
+    # ce nu e in nomenclatorul real nu mai cade automat pe judet
+    assert territory.option_level("BT-1 - Municipiul Botosani") == "necunoscut"
+    assert territory.option_level("Punct de trecere Nadlac") == "necunoscut"
+    assert territory.option_level("") == "necunoscut"
 
 
 def test_levels_hierarchical_from_details(monkeypatch):
@@ -1002,7 +1098,7 @@ def test_parse_territory_empty_and_blank():
         siruta, nivel, tip, nume = territory.parse_territory(gol)
         assert siruta is None and tip is None
         assert nume == ""
-        assert nivel == "judet"   # option_level nu are alt raspuns pentru gol
+        assert nivel == "necunoscut"   # gol nu e nici judet, nici altceva
 
 
 def test_standardize_malformed_year_gives_na(monkeypatch):

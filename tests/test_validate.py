@@ -326,6 +326,36 @@ def test_refresh_plans_writes_every_entry(monkeypatch, tmp_path, capsys):
         "localitate"
 
 
+def test_rebuild_keeps_validation(monkeypatch, tmp_path):
+    """O reconstrucție nu arunca validarea daca indicatorul nu s-a schimbat."""
+    cale = _registry(monkeypatch, tmp_path)
+    _post(monkeypatch)
+    v.validate(progress=False, delay=0, path=cale)
+
+    schemas.build_registry(confirm=False, progress=False, incremental=False,
+                           path=cale)
+    e = schemas.load_registry(cale)["entries"]["FOM104D"]
+    assert e["validation"] == "ok"
+    assert e["validated_at"]
+    assert e["slice_cells"] > 0
+
+
+def test_rebuild_drops_validation_when_indicator_changed(monkeypatch, tmp_path):
+    """Daca INS a actualizat indicatorul, validarea veche nu mai conteaza."""
+    cale = _registry(monkeypatch, tmp_path)
+    _post(monkeypatch)
+    v.validate(progress=False, delay=0, path=cale)
+
+    _api(monkeypatch, dict(TOATE, FOM104D=dict(
+        FOM104D, ultimaActualizare="01-01-2099")))
+    schemas.build_registry(confirm=False, progress=False, incremental=False,
+                           path=cale)
+    e = schemas.load_registry(cale)["entries"]["FOM104D"]
+    assert "validation" not in e
+    # ceilalti isi pastreaza validarea
+    assert schemas.load_registry(cale)["entries"]["SOM101B"]["validation"] == "ok"
+
+
 def test_build_registry_includes_plan(monkeypatch, tmp_path):
     cale = _registry(monkeypatch, tmp_path)
     date = schemas.load_registry(cale)

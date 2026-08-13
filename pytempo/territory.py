@@ -17,12 +17,39 @@ from typing import Literal
 
 _TERRITORY_KEYS = ("nomJud", "nomLoc", "matRegJ")
 
-# de la general la specific
-_LEVEL_ORDER = ("national", "macroregiune", "regiune", "judet", "localitate")
+# de la general la specific; 'necunoscut' sta la coada, pentru denumirile
+# teritoriale care nu se incadreaza in nomenclatorul administrativ
+_LEVEL_ORDER = ("national", "macroregiune", "regiune", "judet", "localitate",
+                "necunoscut")
 
 # acelasi lucru, ca tip: editoarele sugereaza valorile la tastare.
 # Un test tine Literal-ul si tuplul sincronizate.
-Level = Literal["national", "macroregiune", "regiune", "judet", "localitate"]
+Level = Literal["national", "macroregiune", "regiune", "judet", "localitate",
+                "necunoscut"]
+
+# cele 42 de judete plus variantele de Bucuresti din datele INS, normalizate.
+# Fara lista asta, orice denumire teritoriala nerecunoscuta cadea pe 'judet',
+# iar statiile de monitorizare ale unui indicator de mediu ieseau judete.
+_COUNTIES = frozenset((
+    "alba", "arad", "arges", "bacau",
+    "bihor", "bistrita-nasaud", "botosani", "braila",
+    "brasov", "buzau", "calarasi", "caras-severin",
+    "cluj", "constanta", "covasna", "dambovita",
+    "dolj", "galati", "giurgiu", "gorj",
+    "harghita", "hunedoara", "ialomita", "iasi",
+    "ilfov", "maramures", "mehedinti", "mun. bucuresti -incl. sai",
+    "municipiul bucuresti", "mures", "neamt", "olt",
+    "prahova", "salaj", "satu mare", "sibiu",
+    "suceava", "teleorman", "timis", "tulcea",
+    "valcea", "vaslui", "vrancea",
+))
+
+# totalul national nu se scrie mereu 'TOTAL'; unele matrice AMIGO si CON il
+# numesc 'Nivel National'
+_NATIONAL_LABELS = frozenset(("nivel national", "total national"))
+
+# cate optiuni ne uitam ca sa decidem daca o dimensiune chiar tine localitati
+_SIRUTA_SAMPLE = 20
 
 
 def level_error(nume, disponibile, cod: str | None = None) -> ValueError:
@@ -51,15 +78,24 @@ def _norm(s: str) -> str:
 
 
 def option_level(label: str) -> str:
-    """Nivelul unei opțiuni teritoriale, după prefixul denumirii."""
-    u = (label or "").strip().upper()
-    if u.startswith("TOTAL"):
+    """Nivelul unei opțiuni teritoriale, după denumire.
+
+    Agregatele se recunosc după prefix. Județul se recunoaște prin apartenența
+    la nomenclatorul real, nu ca implicit: altfel orice denumire teritorială
+    necunoscută, de la stații de monitorizare la puncte de trecere a
+    frontierei, ar fi ieșit județ.
+    """
+    text = (label or "").strip()
+    u = text.upper()
+    if u.startswith("TOTAL") or _norm(text) in _NATIONAL_LABELS:
         return "national"
     if u.startswith("MACROREGIUNEA"):
         return "macroregiune"
     if u.startswith("REGIUNEA"):
         return "regiune"
-    return "judet"
+    if _norm(text) in _COUNTIES:
+        return "judet"
+    return "necunoscut"
 
 
 def _territory_dimcodes(details: dict) -> set:
@@ -107,18 +143,45 @@ def assign_roles(dimensions: list, details: dict) -> None:
             d.role = "alt"
 
 
+def _looks_like_siruta(dimension) -> bool:
+    """Opțiunile poartă majoritar prefix numeric SIRUTA?
+
+    Ne uităm doar pe un eșantion: e o confirmare, nu un recensământ.
+    """
+    optiuni = [o for o in dimension.options
+               if (o.label or "").strip().upper() != "TOTAL"][:_SIRUTA_SAMPLE]
+    if not optiuni:
+        return False
+    cu_cod = sum(1 for o in optiuni if siruta_from_label(o.label) is not None)
+    return cu_cod * 2 > len(optiuni)
+
+
 def is_locality_dimension(dimension, details: dict) -> bool:
-    """True dacă dimensiunea ține localități, din details sau din label."""
-    return (dimension.dim_code == details.get("nomLoc")
-            or "localit" in _norm(dimension.label))
+    """True dacă dimensiunea chiar ține localități.
+
+    details.nomLoc e semnalul autoritar al INS și se ia ca atare. Label-ul
+    singur nu ajunge: TMP1173 are o dimensiune numită 'Statii de monitorizare
+    de tip fond urban - Localitate' care ține stații, nu localități. De aceea
+    label-ul cere confirmare, fie din matSiruta, fie din prefixele numerice
+    ale opțiunilor.
+    """
+    if dimension.dim_code == details.get("nomLoc"):
+        return True
+    if "localit" not in _norm(dimension.label):
+        return False
+    return bool(details.get("matSiruta")) or _looks_like_siruta(dimension)
 
 
 def dimension_levels(dimension, details: dict) -> set:
-    """Nivelele acoperite de o singură dimensiune."""
+    """Nivelele acoperite de o singură dimensiune.
+
+    O dimensiune de localități confirmată dă direct 'localitate'. Una care
+    doar se numește așa, fără confirmare, își spune nivelele din opțiuni, ceea
+    ce pentru stații de monitorizare înseamnă 'necunoscut'.
+    """
     if not is_territorial(dimension, details):
         return set()
-    lab = _norm(dimension.label)
-    if dimension.dim_code == details.get("nomLoc") or "localit" in lab:
+    if is_locality_dimension(dimension, details):
         return {"localitate"}
     return {option_level(o.label) for o in dimension.options}
 
