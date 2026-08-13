@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.16.1-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.17.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -229,6 +229,55 @@ concatenated with `ignore_index=True`.
 `progress="auto"`, the default, reports each request only when there is more
 than one. Above 50 requests `get()` asks before starting; pass `confirm=False`
 in scripts.
+
+## Loading into PostgreSQL
+
+pytempo never connects to a database. It writes the SQL as text, and the
+project downstream decides how to run it. That keeps the dependencies at
+requests and pandas, and keeps the loading policy where it belongs.
+
+The whole pipeline, on FOM101A:
+
+    import pytempo as t
+    from sqlalchemy import create_engine
+
+    m = t.matrix("FOM101A")
+
+    open("catalog.sql", "w").write(t.schema_catalog())   # shared tables
+    open("fom101a.sql", "w").write(m.schema())           # one indicator
+
+    # psql -f catalog.sql -f fom101a.sql
+
+    df = m.get()
+    df = df.rename(columns=t.column_mapping(m))
+    engine = create_engine("postgresql://user@host/db")
+    df.to_sql("fom101a", engine, schema="tempo", if_exists="append",
+              index=False)
+
+`m.schema()` generates `CREATE TABLE IF NOT EXISTS tempo.fom104d`, one text
+column per dimension, a numeric value column, and exactly the derived columns
+that `get(tidy=True)` produces for that indicator. Nothing is guessed twice:
+the derived set is read from the standardization itself, so the table cannot
+drift away from the DataFrame. A county dimension gets only its level column,
+a locality dimension gets SIRUTA as `integer`, the type, the clean name and the
+level, and time dimensions get the year as `smallint`. Indexes are generated on
+SIRUTA and on the year where they exist.
+
+`t.column_mapping(m)` gives the mapping from DataFrame column names to SQL
+identifiers, so renaming is one line. Identifiers are folded to snake_case
+without diacritics, truncated to fit Postgres, and made unique with a numeric
+suffix on collision.
+
+`t.schema_catalog()` generates the shared infrastructure: `indicators` and
+`dimensions` describe the catalogue, and `territory` is a SIRUTA lookup keyed
+by the code, which you fill from the data you extract. There are no hard
+foreign keys pointing at the per indicator tables, because those may not exist
+yet.
+
+Both functions take `schema="..."` if you do not want the `tempo` schema, and
+`m.schema(include_comments=False)` drops the `COMMENT ON` statements. The
+comments carry the full INS name, the first sentence of the definition, and the
+unit of measure, so the meaning travels with the table.
 
 ## Development
 

@@ -392,6 +392,13 @@ class Matrix:
         elif request_count > 1:
             print("  downloaded in several requests and concatenated")
 
+    def schema(self, schema: str = "tempo", include_comments: bool = True) -> str:
+        """PostgreSQL DDL for this indicator, as text. Nothing is executed."""
+        from . import schema as schema_mod  # local: keeps the import graph flat
+
+        return schema_mod.table_ddl(self, schema=schema,
+                                    include_comments=include_comments)
+
     def related(self, limit: int = 25) -> MatrixList:
         """The other indicators under the same parent node."""
         self._ensure_meta()

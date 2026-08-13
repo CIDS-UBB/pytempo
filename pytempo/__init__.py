@@ -7,16 +7,19 @@ show, describe, options) and fetching the data (get).
 from .catalog import (build_index, domains, filters, find, load_index,
                       name_dict, overview, search)
 from .matrix import Matrix, MatrixList, get, info, matrix
+from .schema import catalog_ddl as schema_catalog
+from .schema import column_mapping
 
 # explore.init and explore.browse are sketches that still raise
 # NotImplementedError, so they are deliberately not exported yet
 
-__version__ = "0.16.1"
+__version__ = "0.17.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
     "matrix", "info", "get",
     "Matrix", "MatrixList",
+    "schema_catalog", "column_mapping",
     "help",
     "__version__",
 ]
@@ -64,6 +67,11 @@ FETCH the data
   m.get(level=None)            every level at once, the old default
   m.get(raw=True)              exactly what INS returns, no derived columns
   t.get('FOM101A')             the same, starting from a code
+
+LOAD it into PostgreSQL, pytempo writes the SQL, you run it
+  m.schema()                   CREATE TABLE for this indicator, as text
+  t.schema_catalog()           the shared indicators, dimensions and territory
+  t.column_mapping(m)          DataFrame names to SQL names, for df.rename
 
 get() executes the plan from the registry: it reads the strategy, runs it and
 applies tidy. By default it takes the finest level the indicator reaches and
