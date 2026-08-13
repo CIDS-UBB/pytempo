@@ -1,0 +1,333 @@
+"""Teste offline pentru validare si planurile de extragere. Fara retea."""
+import json
+import sys
+
+import pytempo as t
+import pytempo.schemas.validate  # noqa: F401  (ca sa intre in sys.modules)
+from pytempo import catalog, client, endpoints, schemas
+
+# schemas.validate e functia; modulul se ia din sys.modules
+v = sys.modules["pytempo.schemas.validate"]
+
+from .test_smoke import FOM101A, FOM104D, FOM104F, SOM101B
+
+TOATE = {"FOM104D": FOM104D, "SOM101B": SOM101B, "FOM101A": FOM101A,
+         "FOM104F": FOM104F}
+
+
+def _api(monkeypatch, meta=TOATE):
+    monkeypatch.setattr(catalog, "_INDEX",
+                        [{"code": c, "name": f"Indicator {c}"} for c in meta])
+
+    def fake_get_json(url, **kw):
+        for cod, date in meta.items():
+            if url == endpoints.matrix(cod):
+                return date
+        raise AssertionError(f"URL neasteptat: {url}")
+
+    monkeypatch.setattr(client, "get_json", fake_get_json)
+
+
+def _registry(monkeypatch, tmp_path, meta=TOATE):
+    _api(monkeypatch, meta)
+    cale = tmp_path / "registry.json"
+    schemas.build_registry(confirm=False, progress=False, path=cale)
+    monkeypatch.setattr(schemas.build, "REGISTRY_PATH", cale)
+    return cale
+
+
+# CSV-uri fixture, cu antetul asa cum il da INS
+CSV = {
+    "FOM104D": ("Judete, Localitati, Ani, UM: Numar persoane, Valoare\n"
+                "Alba, 1017 MUNICIPIUL ALBA IULIA, Anul 1990, Numar persoane, 31.5\n"
+                "Alba, 1026 ORAS ABRUD, Anul 1990, Numar persoane, 12.0\n"),
+    "SOM101B": ("Macroregiuni  regiuni de dezvoltare si judete, Ani, "
+                "UM: Numar persoane, Valoare\n"
+                "TOTAL, Anul 2020, Numar persoane, 100.0\n"
+                "Bihor, Anul 2020, Numar persoane, 12.5\n"),
+    "FOM101A": ("Sexe, Macroregiuni  regiuni de dezvoltare si judete, Ani, "
+                "UM: Mii persoane, Valoare\n"
+                "Total, TOTAL, Anul 2020, Mii persoane, 500.0\n"
+                "Total, Cluj, Anul 2020, Mii persoane, 40.0\n"),
+    "FOM104F": ("CAEN Rev.2  (activitati ale economiei nationale), Sexe, "
+                "Macroregiuni  regiuni de dezvoltare si judete, Ani, "
+                "UM: Numar persoane, Valoare\n"
+                "TOTAL, Total, TOTAL, Anul 2024, Numar persoane, 9.0\n"
+                "TOTAL, Total, Bihor, Anul 2024, Numar persoane, 3.0\n"),
+}
+
+
+def _post(monkeypatch, raspunsuri=None, punctual=None):
+    """Mock pe POST: prima cerere da felia, a doua celula punctuala."""
+    raspunsuri = raspunsuri or CSV
+    cereri = []
+
+    def fake_post(payload, **kw):
+        cereri.append(payload)
+        cod = payload["matCode"]
+        felie = raspunsuri[cod]
+        # o cerere cu o singura optiune pe fiecare dimensiune e celula punctuala
+        e_punctuala = all("," not in bloc
+                          for bloc in payload["encQuery"].split(":"))
+        if e_punctuala and punctual is not None and cod in punctual:
+            return punctual[cod]
+        if e_punctuala:
+            antet, *randuri = felie.strip().split("\n")
+            mijloc = randuri[len(randuri) // 2]
+            return f"{antet}\n{mijloc}\n"
+        return felie
+
+    monkeypatch.setattr(client, "post_pivot", fake_post)
+    return cereri
+
+
+# ------------------------------------------------------------ stratificare
+
+def test_stratified_sample_respects_minimum_per_family():
+    entries = {}
+    for i in range(1000):
+        entries[f"N{i}"] = {"status": "ok", "family": "neteritorial"}
+    for i in range(5):
+        entries[f"L{i}"] = {"status": "ok", "family": "judet_localitate"}
+    for i in range(4):
+        entries[f"C{i}"] = {"status": "ok", "family": "teritorial_caen"}
+
+    ales = v.stratified_sample(entries, 20, seed=1)
+    familii = {}
+    for cod in ales:
+        familii[entries[cod]["family"]] = familii.get(
+            entries[cod]["family"], 0) + 1
+
+    assert familii["judet_localitate"] >= v.MIN_PER_FAMILY
+    assert familii["teritorial_caen"] >= v.MIN_PER_FAMILY
+    # neteritorialul e majoritar, deci ia mult mai mult decat minimul
+    assert familii["neteritorial"] > v.MIN_PER_FAMILY
+    # seed fix: acelasi esantion
+    assert v.stratified_sample(entries, 20, seed=1) == ales
+    assert v.stratified_sample(entries, 20, seed=2) != ales
+
+
+def test_stratified_sample_skips_non_ok():
+    entries = {"A": {"status": "ok", "family": "neteritorial"},
+               "B": {"status": "error: mort", "family": "alt"}}
+    assert v.stratified_sample(entries, 5, seed=0) == ["A"]
+
+
+# ------------------------------------------------------------------- felia
+
+def test_slice_neteritorial_uses_one_year_only(monkeypatch, tmp_path):
+    _registry(monkeypatch, tmp_path)
+    m = t.matrix("FOM101A")
+    e = schemas.load_registry()["entries"]["FOM101A"]
+    selectie = v._slice_for(m, e)
+    # Sexe: prima optiune; teritoriu: tot; Ani: un singur an; UM: prima
+    assert len(selectie[0]) == 1
+    assert len(selectie[2]) == 1
+    assert len(selectie[3]) == 1
+
+
+def test_slice_judet_localitate_takes_one_county(monkeypatch, tmp_path):
+    _registry(monkeypatch, tmp_path)
+    m = t.matrix("FOM104D")
+    e = schemas.load_registry()["entries"]["FOM104D"]
+    selectie = v._slice_for(m, e)
+    # judetul ales e Alba (primul care nu e TOTAL), cu localitatile lui
+    assert selectie[0] == [3064]
+    assert sorted(selectie[1]) == [113, 114]
+    assert len(selectie[2]) == 1          # un singur an
+
+
+def test_slice_is_small(monkeypatch, tmp_path):
+    _registry(monkeypatch, tmp_path)
+    from pytempo import chunking
+    for cod in TOATE:
+        m = t.matrix(cod)
+        e = schemas.load_registry()["entries"][cod]
+        assert chunking.cells(v._slice_for(m, e)) <= 500, cod
+
+
+# --------------------------------------------------------------- validate
+
+def test_validate_writes_status(monkeypatch, tmp_path):
+    cale = _registry(monkeypatch, tmp_path)
+    _post(monkeypatch)
+    date = v.validate(progress=False, delay=0, path=cale)
+
+    for cod in TOATE:
+        e = date["entries"][cod]
+        assert e["validation"] == "ok", (cod, e["validation"])
+        assert e["validated_at"]
+        assert e["validated_version"] == schemas.REGISTRY_VERSION
+        assert e["slice_cells"] > 0
+    assert json.loads(cale.read_text(encoding="utf-8")) == date
+
+
+def test_validate_resume_skips_done(monkeypatch, tmp_path):
+    cale = _registry(monkeypatch, tmp_path)
+    cereri = _post(monkeypatch)
+    v.validate(progress=False, delay=0, path=cale)
+    nr = len(cereri)
+    assert nr > 0
+
+    cereri.clear()
+    v.validate(progress=False, delay=0, path=cale)
+    assert cereri == []                       # totul era deja ok
+
+    cereri.clear()
+    v.validate(progress=False, delay=0, resume=False, path=cale)
+    assert len(cereri) == nr
+
+
+def test_validate_point_cell_mismatch_is_error(monkeypatch, tmp_path):
+    cale = _registry(monkeypatch, tmp_path)
+    # a doua cerere intoarce alta valoare decat felia
+    stricat = {
+        "SOM101B": ("Macroregiuni  regiuni de dezvoltare si judete, Ani, "
+                    "UM: Numar persoane, Valoare\n"
+                    "Bihor, Anul 2020, Numar persoane, 999.0\n"),
+    }
+    _post(monkeypatch, punctual=stricat)
+    date = v.validate(sample=None, progress=False, delay=0, path=cale)
+    assert date["entries"]["SOM101B"]["validation"].startswith("error:")
+    assert "celula punctuala difera" in date["entries"]["SOM101B"]["validation"]
+    # ceilalti nu sunt afectati
+    assert date["entries"]["FOM104D"]["validation"] == "ok"
+
+
+def test_validate_empty_is_not_an_error(monkeypatch, tmp_path):
+    cale = _registry(monkeypatch, tmp_path)
+    gol = dict(CSV)
+    gol["SOM101B"] = ("Macroregiuni  regiuni de dezvoltare si judete, Ani, "
+                      "UM: Numar persoane, Valoare\n")
+    _post(monkeypatch, raspunsuri=gol)
+    date = v.validate(progress=False, delay=0, path=cale)
+    assert date["entries"]["SOM101B"]["validation"] == "empty"
+
+
+def test_validate_negative_persons_is_an_error(monkeypatch, tmp_path):
+    cale = _registry(monkeypatch, tmp_path)
+    negativ = dict(CSV)
+    negativ["SOM101B"] = ("Macroregiuni  regiuni de dezvoltare si judete, Ani, "
+                          "UM: Numar persoane, Valoare\n"
+                          "Bihor, Anul 2020, Numar persoane, -5.0\n")
+    _post(monkeypatch, raspunsuri=negativ)
+    date = v.validate(progress=False, delay=0, path=cale)
+    assert "negative" in date["entries"]["SOM101B"]["validation"]
+
+
+def test_validation_report_names_locality_without_siruta(monkeypatch, tmp_path,
+                                                         capsys):
+    cale = _registry(monkeypatch, tmp_path)
+    date = schemas.load_registry(cale)
+    date["entries"]["FOM104D"]["has_siruta"] = False   # simulam TMP1173
+    v._save(date, cale)
+
+    v.validation_report(path=cale)
+    iesire = capsys.readouterr().out
+    assert "localitati fara SIRUTA" in iesire
+    assert "FOM104D" in iesire
+
+
+# --------------------------------------------------------- spot_check_list
+
+def test_spot_check_list_returns_rows_with_url(monkeypatch, tmp_path, capsys):
+    cale = _registry(monkeypatch, tmp_path)
+    _post(monkeypatch)
+    v.validate(progress=False, delay=0, path=cale)
+    capsys.readouterr()
+
+    randuri = v.spot_check_list(3, seed=7, path=cale)
+    assert len(randuri) == 3
+    for r in randuri:
+        assert r["url"].endswith(f"matrix/{r['code']}")
+        assert r["combination"]
+        assert r["value"] is not None
+    iesire = capsys.readouterr().out
+    assert "VALOAREA NOASTRA" in iesire
+    assert "tempo-ins/matrix/" in iesire
+
+
+# ------------------------------------------------------------- fetch_plan
+
+def test_plan_single_under_threshold():
+    plan = schemas.plan_for({"dims": [{"label": "Ani", "role": "timp",
+                                       "n_options": 10}],
+                             "levels": [], "total_cells": 10,
+                             "family": "neteritorial"})
+    assert plan["strategy"] == "single"
+    assert plan["est_requests"] == 1
+    assert plan["default_level"] is None
+    assert plan["tidy_ready"] is True
+
+
+def test_plan_by_county_for_localities():
+    plan = schemas.plan_for({
+        "dims": [{"label": "Judete", "role": "teritoriu", "n_options": 43},
+                 {"label": "Localitati", "role": "teritoriu",
+                  "n_options": 3183},
+                 {"label": "Ani", "role": "timp", "n_options": 35}],
+        "levels": ["national", "judet", "localitate"],
+        "total_cells": 43 * 3183 * 35,
+        "family": "judet_localitate"})
+    assert plan["strategy"] == "by_county"
+    assert plan["est_requests"] == 43
+    assert plan["default_level"] == "localitate"
+
+
+def test_plan_split_for_big_without_localities():
+    """Cei peste prag fara localitati primesc split, nu eroare."""
+    plan = schemas.plan_for({
+        "dims": [{"label": "Macroregiuni, regiuni si judete",
+                  "role": "teritoriu", "n_options": 56},
+                 {"label": "Categorii", "role": "alt", "n_options": 900},
+                 {"label": "Ani", "role": "timp", "n_options": 35}],
+        "levels": ["national", "judet"],
+        "total_cells": 56 * 900 * 35,
+        "family": "teritorial_simplu"})
+    assert plan["strategy"] == "split:Categorii"
+    assert plan["est_requests"] > 1
+    assert plan["default_level"] == "judet"
+
+
+def test_plan_split_when_localities_have_no_county_dim():
+    """O singura dimensiune teritoriala, ca TMP1173: split, nu by_county."""
+    plan = schemas.plan_for({
+        "dims": [{"label": "Statii de monitorizare", "role": "teritoriu",
+                  "n_options": 121},
+                 {"label": "Ani", "role": "timp", "n_options": 17},
+                 {"label": "Categorii", "role": "alt", "n_options": 200}],
+        "levels": ["localitate"],
+        "total_cells": 121 * 17 * 200,
+        "family": "judet_localitate"})
+    assert plan["strategy"].startswith("split:")
+    assert plan["default_level"] == "localitate"
+
+
+def test_plan_tidy_ready_false_without_territory_or_time():
+    plan = schemas.plan_for({"dims": [{"label": "Sexe", "role": "alt",
+                                       "n_options": 3}],
+                             "levels": [], "total_cells": 3,
+                             "family": "neteritorial"})
+    assert plan["tidy_ready"] is False
+
+
+def test_refresh_plans_writes_every_entry(monkeypatch, tmp_path, capsys):
+    cale = _registry(monkeypatch, tmp_path)
+    date = schemas.load_registry(cale)
+    for e in date["entries"].values():
+        e.pop("fetch_plan", None)
+    v._save(date, cale)
+
+    date = schemas.refresh_plans(path=cale, progress=False)
+    for cod, e in date["entries"].items():
+        assert "fetch_plan" in e, cod
+        assert e["fetch_plan"]["strategy"]
+    assert date["entries"]["FOM104D"]["fetch_plan"]["default_level"] == \
+        "localitate"
+
+
+def test_build_registry_includes_plan(monkeypatch, tmp_path):
+    cale = _registry(monkeypatch, tmp_path)
+    date = schemas.load_registry(cale)
+    assert date["entries"]["SOM101B"]["fetch_plan"]["strategy"] == "single"
+    assert date["entries"]["SOM101B"]["fetch_plan"]["default_level"] == "judet"

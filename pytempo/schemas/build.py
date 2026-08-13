@@ -88,7 +88,86 @@ def _entry_from_matrix(m) -> dict:
     from ..matrix import _clean
     entry["domain"] = _clean(entry["domain"])
     entry["family"] = classify(entry)
+    entry["fetch_plan"] = plan_for(entry)
     return entry
+
+
+def _county_dim(entry: dict) -> dict | None:
+    """Dimensiunea de județe a unui indicator cu localități, dacă are una.
+
+    Nu toate au: TMP1173 are o singură dimensiune teritorială, statii de
+    monitorizare, deci nu se poate sparge pe județ.
+    """
+    terr = [d for d in (entry.get("dims") or []) if d.get("role") == "teritoriu"]
+    if len(terr) < 2:
+        return None
+    localitati = max(terr, key=lambda d: d.get("n_options") or 0)
+    restul = [d for d in terr if d is not localitati]
+    return restul[0] if restul else None
+
+
+def plan_for(entry: dict) -> dict:
+    """Planul de extragere al unui indicator, calculat din fișa lui.
+
+    Get-ul final va fi un simplu executor al acestui plan: citește strategia,
+    o execută, aplică tidy. Nicio decizie la runtime, niciun calcul de cost în
+    momentul cererii.
+
+    strategy: 'single' sub prag; 'by_county' la matricele cu localități care
+    au și o dimensiune de județe; 'split:<label>' altfel, pe dimensiunea cu
+    cele mai multe opțiuni.
+    """
+    dims = entry.get("dims") or []
+    levels = entry.get("levels") or []
+    celule = entry.get("total_cells") or 0
+
+    fin = [lv for lv in territory._LEVEL_ORDER if lv in levels]
+    plan = {
+        "default_level": fin[-1] if fin else None,
+        "tidy_ready": any(d.get("role") in ("teritoriu", "timp") for d in dims),
+    }
+
+    if not dims or celule <= MAX_CELLS:
+        plan["strategy"] = "single"
+        plan["est_requests"] = 1
+        return plan
+
+    judete = (_county_dim(entry)
+              if entry.get("family") == "judet_localitate" else None)
+    if judete:
+        plan["strategy"] = "by_county"
+        plan["est_requests"] = judete.get("n_options") or 1
+        return plan
+
+    # peste prag si fara pereche judet plus localitate: se sparge pe cea mai
+    # mare dimensiune, ca cererea sa incapa sub prag
+    cea_mai_mare = max(dims, key=lambda d: d.get("n_options") or 0)
+    n = cea_mai_mare.get("n_options") or 1
+    pe_optiune = max(1, celule // n)
+    pe_cerere = max(1, MAX_CELLS // pe_optiune)
+    plan["strategy"] = f"split:{cea_mai_mare.get('label', '')}"
+    plan["est_requests"] = -(-n // pe_cerere)
+    return plan
+
+
+def refresh_plans(path: pathlib.Path | None = None, progress: bool = True) -> dict:
+    """Recalculează fetch_plan pentru tot registrul, fără rețea."""
+    path = path or REGISTRY_PATH
+    date = load_registry(path)
+    if not date:
+        print("Nu exista registry.json. Ruleaza schemas.build_registry().")
+        return {}
+    for e in date["entries"].values():
+        if e.get("status") == "ok":
+            e["fetch_plan"] = plan_for(e)
+    _save(date, path)
+    if progress:
+        from collections import Counter
+        strategii = Counter(
+            (e.get("fetch_plan") or {}).get("strategy", "").split(":")[0]
+            for e in date["entries"].values() if e.get("status") == "ok")
+        print(f"planuri recalculate: {dict(strategii)}")
+    return date
 
 
 def _uncached(coduri) -> list[str]:

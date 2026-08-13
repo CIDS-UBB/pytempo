@@ -491,6 +491,17 @@ def test_parse_sparse_rows_are_absent_not_nan(monkeypatch):
     assert len(lipsa) == 0
 
 
+def test_parse_empty_csv_is_not_an_error(monkeypatch):
+    """Un raspuns fara randuri e legitim, nu o mapare gresita de coloane."""
+    _fake_api(monkeypatch)
+    doar_antet = ("Sexe, Macroregiuni  regiuni de dezvoltare si judete, Ani, "
+                  "UM: Mii persoane, Valoare\n")
+    df = parse.pivot_csv_to_dataframe(doar_antet, t.matrix("FOM101A"))
+    assert df.empty
+    assert df.shape[1] == 5
+    assert str(df["Valoare"].dtype) == "float64"
+
+
 def test_parse_wrong_column_count(monkeypatch):
     _fake_api(monkeypatch)
     stricat = "A, B, Valoare\nx, y, 1.0\n"

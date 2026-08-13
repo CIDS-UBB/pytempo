@@ -334,6 +334,54 @@ anything that affects classification, rebuild and check the diff:
 
     git diff --stat pytempo/schemas/registry.json
 
+### Fetch plans
+
+Every `ok` entry carries a `fetch_plan`, precomputed so that fetching data is
+execution rather than decision making: read the plan, run the strategy, apply
+tidy. Nothing is worked out at request time.
+
+    default_level   the finest level the indicator reaches, null if it has none
+    strategy        single, by_county, or split:<dimension label>
+    est_requests    how many POSTs the strategy will take
+    tidy_ready      whether there is anything to standardize
+
+`single` covers 1752 indicators, `by_county` 79, and `split` 85. The split
+dimension is the largest one, chosen so each request stays under the cell
+limit. Recompute the plans without touching the network:
+
+    schemas.refresh_plans()
+
+### Validating against real data
+
+The registry says what should happen. Validation asks for a small real slice of
+each indicator, a few dozen cells in a single POST, and checks what came back:
+the CSV parses, the column count matches, values are numeric, SIRUTA appears
+where the entry claims it should, no negative counts of persons, and a cell
+picked out of the slice returns the same value when requested on its own.
+
+    schemas.validate(sample=15, seed=42)   # stratified sample, minutes
+    schemas.validate()                     # the whole catalogue, hours
+    schemas.validate()                     # again: resume skips what passed
+
+Sampling is stratified by family with a floor of three per family, so the small
+families do not vanish behind the 71 percent that is `neteritorial`. Each
+indicator gets `validated_at`, `validation` (`ok`, `empty`, or `error: what`)
+and `slice_cells` written back, and `resume=True` skips anything already `ok`
+at the same registry version, so the long run can be stopped and restarted.
+`delay` spaces the requests out.
+
+An empty result is recorded as `empty`, not as an error: a combination with no
+data is a legitimate answer.
+
+Finally, a list to check by hand:
+
+    schemas.spot_check_list(5)
+
+This is deliberately manual. The TEMPO site and the API are the same system, so
+comparing them automatically would compare the API with itself and always
+agree. A human reading the site is the only independent check, so the job here
+is to hand them a ready made list of cells, each with the indicator URL.
+
 ## Contributing
 
     git clone https://github.com/CIDS-UBB/pytempo.git

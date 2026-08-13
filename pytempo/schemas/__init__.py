@@ -10,10 +10,13 @@ Se folosește din dezvoltare, nu din pytempo direct:
     schemas.report()
 """
 from .build import (REGISTRY_PATH, REGISTRY_VERSION, build_registry,
-                    load_registry, registry_as_index, report)
+                    load_registry, plan_for, refresh_plans, registry_as_index,
+                    report)
 from .classify import FAMILIES, classify
+from .validate import spot_check_list, validate
 
 __all__ = [
     "build_registry", "report", "load_registry", "registry_as_index",
     "classify", "FAMILIES", "REGISTRY_PATH", "REGISTRY_VERSION",
+    "plan_for", "refresh_plans", "validate", "spot_check_list",
 ]

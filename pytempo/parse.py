@@ -51,7 +51,12 @@ def pivot_csv_to_dataframe(csv_text: str, matrix) -> pd.DataFrame:
 
     df.columns = [d.label.strip() for d in matrix.dimensions] + [VALUE_COLUMN]
 
-    if not pd.api.types.is_numeric_dtype(df[VALUE_COLUMN]):
+    if df.empty:
+        # un raspuns fara randuri e legitim: combinatia ceruta nu are date.
+        # Coloana goala nu are dtype de citit, deci o fixam noi in loc sa
+        # confundam golul cu o mapare gresita de coloane.
+        df[VALUE_COLUMN] = df[VALUE_COLUMN].astype("float64")
+    elif not pd.api.types.is_numeric_dtype(df[VALUE_COLUMN]):
         raise ValueError(
             f"Coloana {VALUE_COLUMN} nu e numerica (dtype "
             f"{df[VALUE_COLUMN].dtype}). Semn ca maparea coloanelor a alunecat."
