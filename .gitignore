@@ -8,3 +8,7 @@ dist/
 build/
 .pytest_cache/
 .ipynb_checkpoints/
+
+# note de lucru, raman locale
+SPEC.md
+tests/testes.ipynb
