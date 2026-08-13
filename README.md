@@ -154,7 +154,10 @@ Pulling the data:
 
 Lists returned by `find`, `domains` and `related` render as a table, in the
 terminal and in a notebook, and carry `.recent(n)`, which orders by last update
-date. `.recent(n)` fetches metadata only for the items already in that list, so
+date. The table gains a `nivele` column when every row already knows its
+levels, which is the case for `search` results filtered on metadata. Display
+never costs a request, so a list where any row's levels are unknown, such as a
+plain `find` or `domains`, stays at code and name. `.recent(n)` fetches metadata only for the items already in that list, so
 keep the list small. There is no catalogue wide recent: it would take thousands
 of requests.
 
@@ -201,8 +204,16 @@ the country total, macroregions, regions and counties in one column:
     m.get(level="judet")                  # counties only, no TOTAL, no regions
     m.get(levels=["judet", "regiune"])    # both
 
-Naming a level the indicator does not have raises `ValueError` and lists the
-levels it does have. Indicators built with county and locality as two separate
+Naming a level the indicator does not have raises `ValueError`, lists the
+levels it does have, and suggests the closest one, so a typo is cheap:
+
+    t.matrix("FOM101A").get(level="judete")
+    ValueError: nivel necunoscut 'judete' la FOM101A. Posibile: national,
+    macroregiune, regiune, judet. Poate ai vrut 'judet'?
+
+`search(level=...)` raises the same shape of message against the full list of
+levels. Level arguments are typed as a `Literal`, so editors offer the valid
+values as you type, and `t.filters()` lists them on demand. Indicators built with county and locality as two separate
 dimensions, such as FOM104D, raise `NotImplementedError` rather than quietly
 returning everything.
 

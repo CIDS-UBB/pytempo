@@ -339,14 +339,105 @@ def test_matrixlist_recent(monkeypatch):
     assert [m.code for m in lst.recent()] == ["FOM104D", "SOM101B"]
 
 
-def test_matrixlist_html_has_no_levels_column(monkeypatch):
-    """In liste nu aratam nivele: domeniile n-au, iar indicatorii ar cere
-    cate un apel per rand."""
+def test_matrixlist_shows_levels_when_all_known(monkeypatch):
+    """Coloana apare doar daca toate elementele au nivelele deja, fara cost."""
     _fake_api(monkeypatch)
-    html_out = t.MatrixList([t.matrix("FOM104D")])._repr_html_()
-    assert "FOM104D" in html_out
+    lista = t.MatrixList([t.matrix("FOM104D")])   # metadate aduse
+    html_out = lista._repr_html_()
+    assert "<th>nivele</th>" in html_out
+    assert "judet, localitate" in html_out
+    assert "[national, judet, localitate]" in repr(lista)
+
+    # din index, fara metadate: tot stiute
+    din_index = t.MatrixList([t.Matrix("X", "x", cached_levels=["judet"])])
+    assert "<th>nivele</th>" in din_index._repr_html_()
+    # stiut ca nu are niciunul: coloana ramane, celula e goala
+    gol = t.MatrixList([t.Matrix("Y", "y", cached_levels=[])])
+    assert "<th>nivele</th>" in gol._repr_html_()
+
+
+def test_matrixlist_hides_levels_when_any_unknown(monkeypatch):
+    _fake_api(monkeypatch)
+    # find simplu: doar cod si nume, nivelele nu se stiu
+    necunoscut = t.MatrixList([t.Matrix("X", "x")])
+    html_out = necunoscut._repr_html_()
     assert "<tr><th>cod</th><th>nume</th></tr>" in html_out
     assert "<th>nivele</th>" not in html_out
+
+    # lista mixta: un singur element necunoscut ascunde coloana
+    mixta = t.MatrixList([t.matrix("FOM104D"), t.Matrix("X", "x")])
+    assert "<th>nivele</th>" not in mixta._repr_html_()
+
+    # domeniile nu au nivele deloc
+    from pytempo.models import Node
+    domenii = t.MatrixList([Node(code="1", name="A. STATISTICA SOCIALA")])
+    assert "<th>nivele</th>" not in domenii._repr_html_()
+
+
+def test_level_literal_matches_level_order():
+    """Literal-ul si tuplul trebuie sa ramana sincronizate."""
+    from typing import get_args
+    assert get_args(territory.Level) == territory._LEVEL_ORDER
+
+
+def test_unknown_level_suggests_closest():
+    from pytempo import catalog as c
+    try:
+        c.search(level="judete")
+    except ValueError as e:
+        mesaj = str(e)
+    else:
+        raise AssertionError("trebuia ValueError")
+    assert "nivel necunoscut 'judete'" in mesaj
+    assert "national, macroregiune, regiune, judet, localitate" in mesaj
+    assert "Poate ai vrut 'judet'?" in mesaj
+
+
+def test_unknown_level_without_suggestion():
+    try:
+        t.search(level="zzzzz")
+    except ValueError as e:
+        mesaj = str(e)
+    else:
+        raise AssertionError("trebuia ValueError")
+    assert "nivel necunoscut 'zzzzz'" in mesaj
+    assert "Posibile:" in mesaj
+    assert "Poate ai vrut" not in mesaj
+
+
+def test_get_and_search_share_error_format(monkeypatch):
+    _fake_api(monkeypatch)
+    try:
+        t.matrix("FOM101A").get(level="judete")
+    except ValueError as e:
+        din_get = str(e)
+    else:
+        raise AssertionError("trebuia ValueError din get")
+    try:
+        t.search(level="judete")
+    except ValueError as e:
+        din_search = str(e)
+    else:
+        raise AssertionError("trebuia ValueError din search")
+
+    for mesaj in (din_get, din_search):
+        assert mesaj.startswith("nivel necunoscut 'judete'")
+        assert "Posibile:" in mesaj
+        assert "Poate ai vrut 'judet'?" in mesaj
+    # get spune si la ce indicator, si listeaza nivelele acelui indicator
+    assert "la FOM101A" in din_get
+    assert "localitate" not in din_get      # FOM101A nu are localitate
+    assert "localitate" in din_search       # search listeaza toate nivelele
+
+
+def test_filters_levels_match_literal(monkeypatch, tmp_path, capsys):
+    from typing import get_args
+    _index_pe_disc(monkeypatch, tmp_path)
+    _fake_api(monkeypatch)
+    t.filters()
+    iesire = capsys.readouterr().out
+    for nivel in get_args(territory.Level):
+        assert nivel in iesire
 
 
 def test_matrix_card_html_has_levels(monkeypatch):
@@ -514,7 +605,8 @@ def test_get_unknown_level(monkeypatch):
     try:
         t.matrix("SOM101B").get(level="localitate")
     except ValueError as e:
-        assert "localitate" in str(e) and "Disponibile" in str(e)
+        assert "nivel necunoscut 'localitate' la SOM101B" in str(e)
+        assert "Posibile: national, macroregiune, regiune, judet" in str(e)
     else:
         raise AssertionError("trebuia ValueError pentru nivel inexistent")
 
@@ -1169,7 +1261,7 @@ def test_search_unknown_level(monkeypatch):
     try:
         t.search("salariati", level="comuna")
     except ValueError as e:
-        assert "comuna" in str(e) and "Disponibile" in str(e)
+        assert "nivel necunoscut 'comuna'" in str(e) and "Posibile:" in str(e)
     else:
         raise AssertionError("trebuia ValueError pentru nivel necunoscut")
 

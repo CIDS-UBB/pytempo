@@ -59,9 +59,10 @@ def _trece_filtrele(fisa: dict, level, caen, domeniu, periodicitate) -> bool:
     return True
 
 
-def search(query: str = "", level: str | None = None, caen: bool | None = None,
-           domeniu: str | None = None, periodicitate: str | None = None,
-           fuzzy: bool = False, limit: int | None = None) -> MatrixList:
+def search(query: str = "", level: territory.Level | None = None,
+           caen: bool | None = None, domeniu: str | None = None,
+           periodicitate: str | None = None, fuzzy: bool = False,
+           limit: int | None = None) -> MatrixList:
     """Descoperire cu filtre. Pentru căutarea simplă pe nume, vezi find.
 
     query : unul sau mai multe cuvinte; se potrivesc TOATE (în nume sau cod),
@@ -83,9 +84,7 @@ def search(query: str = "", level: str | None = None, caen: bool | None = None,
     if fuzzy:
         raise NotImplementedError("fuzzy: neimplementat (deocamdata fuzzy=False)")
     if level is not None and level not in territory._LEVEL_ORDER:
-        raise ValueError(
-            f"Nivel necunoscut: {level!r}. "
-            f"Disponibile: {list(territory._LEVEL_ORDER)}.")
+        raise territory.level_error(level, territory._LEVEL_ORDER)
 
     tokens = [_norm(t) for t in query.split()]
     potriviri = [row for row in load_index()
@@ -111,9 +110,11 @@ def search(query: str = "", level: str | None = None, caen: bool | None = None,
     out = []
     for row in potriviri:
         fisa = nivele.get(row["code"], {})
-        out.append(Matrix(code=row["code"], name=row["name"],
-                          periodicity=list(fisa.get("periodicity") or []),
-                          cached_levels=list(fisa.get("levels") or [])))
+        nivele_stiute = fisa.get("levels") if cere_metadate else None
+        out.append(Matrix(
+            code=row["code"], name=row["name"],
+            periodicity=list(fisa.get("periodicity") or []),
+            cached_levels=None if nivele_stiute is None else list(nivele_stiute)))
     if limit is not None:
         out = out[:limit]
     return MatrixList(out)

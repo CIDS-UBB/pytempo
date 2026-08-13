@@ -61,33 +61,51 @@ class TextList(list):
 class MatrixList(list):
     """Rezultatele unei căutări sau ale unei liste de noduri, ca tabel.
 
-    Ține fie Matrix, fie Node. Arată doar cod și nume: domeniile nu au nivele,
-    iar pentru indicatori nivelele cer metadatele fiecăruia, adică un apel per
-    rând. Nivelele se văd pe cardul unui singur indicator, unde chiar le avem.
+    Ține fie Matrix, fie Node. Coloana de nivele apare doar dacă TOATE
+    elementele le au deja, din index sau din metadate aduse, ca afișarea să nu
+    coste niciodată un apel. Domeniile nu au nivele, deci o listă de domenii nu
+    primește coloana.
     """
 
-    def _rows(self) -> list[tuple]:
-        return [(it.code, _clean(it.name)) for it in self]
+    def _shows_levels(self) -> bool:
+        return bool(self) and all(getattr(it, "levels_known", False)
+                                  for it in self)
+
+    def _rows(self, cu_nivele: bool) -> list[tuple]:
+        if not cu_nivele:
+            return [(it.code, _clean(it.name)) for it in self]
+        return [(it.code, _clean(it.name), ", ".join(it.levels)) for it in self]
 
     def __repr__(self) -> str:
         if not self:
             return "niciun rezultat"
-        rows = self._rows()
+        cu_nivele = self._shows_levels()
+        rows = self._rows(cu_nivele)
         wcode = max(len(r[0]) for r in rows)
-        out = [f"{code:<{wcode}}  {name[:90]}" for code, name in rows]
+        out = []
+        for row in rows:
+            linie = f"{row[0]:<{wcode}}  {row[1][:90]}"
+            if cu_nivele:
+                linie += f"  [{row[2]}]"
+            out.append(linie)
         out.append(f"({len(rows)} rezultate)")
         return "\n".join(out)
 
     def _repr_html_(self) -> str:
         if not self:
             return "<p>niciun rezultat</p>"
-        cells = "".join(
-            f"<tr><td><code>{html.escape(c)}</code></td>"
-            f"<td>{html.escape(n)}</td></tr>"
-            for c, n in self._rows()
-        )
+        cu_nivele = self._shows_levels()
+        antet = "<th>cod</th><th>nume</th>" + ("<th>nivele</th>" if cu_nivele
+                                               else "")
+        cells = ""
+        for row in self._rows(cu_nivele):
+            cells += (f"<tr><td><code>{html.escape(row[0])}</code></td>"
+                      f"<td>{html.escape(row[1])}</td>")
+            if cu_nivele:
+                cells += f"<td>{html.escape(row[2])}</td>"
+            cells += "</tr>"
         return (
-            "<table><thead><tr><th>cod</th><th>nume</th></tr>"
+            f"<table><thead><tr>{antet}</tr>"
             f"</thead><tbody>{cells}</tbody></table>"
             f"<p>{len(self)} rezultate</p>"
         )
@@ -127,8 +145,9 @@ class Matrix:
     dimensions: list = field(default_factory=list)
     details: dict = field(default_factory=dict)
     ancestors: list = field(default_factory=list)  # [{name, code}] domeniu -> parinte
-    # nivelele venite din indexul local, cand metadatele nu au fost aduse
-    cached_levels: list = field(default_factory=list)
+    # nivelele venite din indexul local, cand metadatele nu au fost aduse.
+    # None inseamna necunoscut; lista goala inseamna stiut ca nu are niciunul
+    cached_levels: list | None = None
 
     @property
     def url(self) -> str:
@@ -147,7 +166,12 @@ class Matrix:
         """
         if self.dimensions:
             return territory.levels_present(self.dimensions, self.details)
-        return list(self.cached_levels)
+        return list(self.cached_levels or [])
+
+    @property
+    def levels_known(self) -> bool:
+        """Nivelele sunt disponibile fără niciun apel de rețea?"""
+        return bool(self.dimensions) or self.cached_levels is not None
 
     @property
     def has_siruta(self) -> bool:
@@ -343,11 +367,9 @@ class Matrix:
         if not wanted:
             return [[o.nom_item_id for o in d.options] for d in self.dimensions]
 
-        lipsa = [lv for lv in wanted if lv not in self.levels]
-        if lipsa:
-            raise ValueError(
-                f"Nivelele {lipsa} nu exista la {self.code}. "
-                f"Disponibile: {self.levels}.")
+        for lv in wanted:
+            if lv not in self.levels:
+                raise territory.level_error(lv, self.levels, cod=self.code)
 
         terr = [d for d in self.dimensions if d.role == "teritoriu"]
         if len(terr) > 1:
@@ -367,7 +389,8 @@ class Matrix:
                                   if territory.option_level(o.label) in wanted])
         return selection
 
-    def get(self, level: str | None = None, levels: list[str] | None = None,
+    def get(self, level: territory.Level | None = None,
+            levels: list[territory.Level] | None = None,
             tidy: bool = False, progress: bool = False):
         """Datele indicatorului, ca DataFrame în format lung.
 
@@ -507,7 +530,8 @@ def info(cod: str) -> dict:
     return matrix(cod).info()
 
 
-def get(cod: str, level: str | None = None, levels: list[str] | None = None,
+def get(cod: str, level: territory.Level | None = None,
+        levels: list[territory.Level] | None = None,
         tidy: bool = False, progress: bool = False):
     """Scurtătură: datele unui indicator, ca DataFrame."""
     return matrix(cod).get(level=level, levels=levels, tidy=tidy,

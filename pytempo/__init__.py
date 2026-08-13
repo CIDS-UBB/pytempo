@@ -9,7 +9,7 @@ from .catalog import (build_index, domains, filters, find, load_index,
 from .matrix import Matrix, MatrixList, get, info, matrix
 from .explore import init, browse
 
-__version__ = "0.12.0"
+__version__ = "0.12.1"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
@@ -80,4 +80,7 @@ indicator, cateva minute, si se salveaza pe disc. Daca lipseste, search te
 intreaba intai daca sa il construiasca.
 
 Listele intoarse de find, domains si related se afiseaza ca tabel si au
-.recent(n), care ordoneaza dupa ultima actualizare doar elementele din set.""")
+.recent(n), care ordoneaza dupa ultima actualizare doar elementele din set.
+Tabelul arata si coloana nivele, dar doar cand toate elementele o au deja,
+adica la rezultatele lui search cu filtre. Afisarea nu costa niciodata un
+apel de retea.""")

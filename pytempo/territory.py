@@ -11,12 +11,34 @@ MACROREGIUNEA e macroregiune, REGIUNEA e regiune, restul sunt județe.
 
 Atenție: details.matMaxDim e numărul de dimensiuni, nu o limită de celule.
 """
+import difflib
 import re
+from typing import Literal
 
 _TERRITORY_KEYS = ("nomJud", "nomLoc", "matRegJ")
 
 # de la general la specific
 _LEVEL_ORDER = ("national", "macroregiune", "regiune", "judet", "localitate")
+
+# acelasi lucru, ca tip: editoarele sugereaza valorile la tastare.
+# Un test tine Literal-ul si tuplul sincronizate.
+Level = Literal["national", "macroregiune", "regiune", "judet", "localitate"]
+
+
+def level_error(nume, disponibile, cod: str | None = None) -> ValueError:
+    """Eroarea pentru un nivel invalid: ce e posibil, plus ce ai vrut probabil.
+
+    Același format în search și în get; diferă doar lista de valori posibile,
+    fiindcă la un indicator anume conteaza nivelele lui, nu toate.
+    """
+    disponibile = list(disponibile)
+    unde = f" la {cod}" if cod else ""
+    mesaj = (f"nivel necunoscut {nume!r}{unde}. "
+             f"Posibile: {', '.join(disponibile) or 'niciunul'}.")
+    apropiat = difflib.get_close_matches(str(nume).lower(), disponibile, n=1)
+    if apropiat:
+        mesaj += f" Poate ai vrut {apropiat[0]!r}?"
+    return ValueError(mesaj)
 
 # cuvinte care tradeaza o dimensiune teritoriala cand details tace
 _LABEL_HINTS = ("judet", "localit", "macroregiun", "regiun")
