@@ -27,14 +27,16 @@ be `pip install pytempo-ins`, still with `import pytempo`.
     t.overview()                  # how big the catalogue is and where to start
     t.help()                      # the navigation guide, same content as below
 
-    t.find("salariati")           # search by keyword, in name or code
-    t.find("salariati", level="localitate")   # only those reaching localities
-    t.search("someri")            # the same thing, longer name
+    t.find("salariati")           # plain keyword search, instant
+    t.search("salariati", level="localitate")   # discovery with filters
+    t.search(level="localitate")  # filters work with no keyword at all
     t.build_index()               # levels index, once, then filters are instant
     t.domains()                   # the 8 top level statistical domains
 
     m = t.matrix("FOM104D")       # fetch one indicator's metadata
-    m.show()                      # readable summary
+    m.show()                      # short summary
+    m.describe()                  # the full record, every word INS wrote
+    m.options()                   # which dimensions it has, and how big
     m.levels                      # ['national', 'judet', 'localitate']
     m.has_siruta                  # True when locality labels carry a SIRUTA prefix
     m.where()                     # A. STATISTICA SOCIALA > FORTA DE MUNCA > SALARIATI
@@ -80,11 +82,13 @@ A quick check that the live endpoints answer:
 
 ## Navigating
 
-Finding an indicator:
+Finding an indicator. `find` and `search` are different tools: `find` is the
+plain keyword search, no filters, answered instantly from the name index.
+`search` is discovery with filters, and its keyword is optional.
 
-    t.find('salariati')          search by keyword, in name or code
-    t.find('salariati', level='localitate')   only those reaching localities
-    t.search('someri')           the same thing, longer name
+    t.find('salariati')          plain keyword search, in name or code
+    t.search('salariati', level='localitate')   keyword plus a filter
+    t.search(level='localitate') filter alone, across the whole catalogue
     t.build_index()              the levels index, once, a few minutes
     t.domains()                  the 8 top level statistical domains
     t.overview()                 how big the catalogue is and where to start
@@ -92,14 +96,23 @@ Finding an indicator:
 Understanding an indicator:
 
     m = t.matrix('FOM104D')      fetch the metadata
-    m.show()                     readable summary: domain, levels, dimensions
+    m.show()                     short summary: domain, levels, dimensions
+    m.describe()                 the full record, every word INS wrote
     t.info('FOM104D')            the same metadata, as a dict
     m.where()                    the domain breadcrumb
     m.related()                  the other indicators under the same node
     m.levels                     levels, e.g. ['national', 'judet', 'localitate']
     m.has_siruta                 True when localities carry a SIRUTA prefix
-    m.options('teritoriu')       what values a dimension can take
+    m.options()                  which dimensions it has, role and size
+    m.options('teritoriu')       what values one dimension can take
     m.help()                     this guide, for one indicator
+
+`show()` is the summary you read while browsing. `describe()` is the full
+record: the domain breadcrumb, levels, periodicity, last update, then the
+complete definition, methodology, sources and observations, untruncated. Read
+it before you trust a series. FOM104D's observations are where INS notes that
+1990 is only available at county total level, and definitions run to several
+thousand characters.
 
 Pulling the data:
 

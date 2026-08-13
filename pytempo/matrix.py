@@ -233,13 +233,22 @@ class Matrix:
         avem = ", ".join(f"{d.label.strip()} ({d.role})" for d in self.dimensions)
         raise ValueError(f"dimensiune necunoscuta: {dimension!r}. Disponibile: {avem}")
 
-    def options(self, dimension, limit: int | None = None) -> TextList:
+    def options(self, dimension=None, limit: int | None = None) -> TextList:
         """Denumirile opțiunilor unei dimensiuni, ca să știi ce poți filtra.
+
+        Fără argument, listează dimensiunile indicatorului, cu rolul și câte
+        opțiuni are fiecare, ca să vezi ce poți cere.
 
         dimension acceptă indexul, rolul ('timp', 'judet', 'teritoriu') sau
         labelul ('Judete'). limit taie lista întoarsă.
         """
         self._ensure_meta()
+        if dimension is None:
+            return TextList(
+                [f"[{d.dim_index}] {_clean(d.label)} ({d.role}, "
+                 f"{len(d.options)} optiuni)" for d in self.dimensions],
+                sep="\n", show=50)
+
         dim = self._find_dimension(dimension)
         labels = [o.label for o in dim.options]
         if limit is not None:
@@ -264,16 +273,54 @@ class Matrix:
             print(f"    [{d.dim_index}] {_clean(d.label)} ({d.role}, "
                   f"{len(d.options)} optiuni)")
 
+    def describe(self) -> None:
+        """Fișa completă a indicatorului, cu tot textul de la INS, netăiat.
+
+        show() e rezumatul scurt și nu atinge textele. Aici se citește tot:
+        definiția, metodologia, sursele și observațiile, unde stau notele de
+        rupturi de serie și avertismentele despre ani incompleți.
+        """
+        self._ensure_meta()
+        print(f"{self.code}  {_clean(self.name)}")
+        crumbs = self.where()
+        if crumbs:
+            print(f"domeniu     : {crumbs!r}")
+        if self.levels:
+            print(f"nivele      : {', '.join(self.levels)}")
+        if self.periodicity:
+            print(f"periodicitate: {', '.join(self.periodicity)}")
+        if self.last_updated:
+            print(f"actualizat  : {self.last_updated}")
+
+        for titlu, text in (("DEFINITIE", self.definition),
+                            ("METODOLOGIE", self.methodology)):
+            if text and text.strip():
+                print(f"\n{titlu}\n{text.strip()}")
+
+        if self.sources:
+            print("\nSURSE")
+            for s in self.sources:
+                nume = s.get("nume") if isinstance(s, dict) else str(s)
+                # fara _clean aici: numele sursei poarta markerul INS <<6263>>,
+                # pe care curatarea de HTML l-ar manca
+                if nume and nume.strip():
+                    print(f"  {nume.strip()}")
+
+        if self.observations and self.observations.strip():
+            print(f"\nOBSERVATII\n{self.observations.strip()}")
+
     def help(self) -> None:
         """Ce poți face cu un indicator."""
         print(f"""Indicatorul {self.code}. Ce poti face cu el:
 
-  .show()              rezumat citibil: domeniu, nivele, dimensiuni
+  .show()              rezumat scurt: domeniu, nivele, dimensiuni
+  .describe()          fisa completa: definitie, metodologie, surse, observatii
   .info()              aceleasi metadate, ca dictionar
   .where()             breadcrumb-ul de domeniu
   .related()           ceilalti indicatori din acelasi nod
   .levels              nivele, ex. ['national', 'judet', 'localitate']
   .has_siruta          True daca localitatile poarta prefix SIRUTA
+  .options()           ce dimensiuni are, cu rol si numar de optiuni
   .options('teritoriu') ce valori are o dimensiune (index, rol sau label)
   .get()               datele, ca DataFrame in format lung
   .get(level='judet')  doar un nivel teritorial

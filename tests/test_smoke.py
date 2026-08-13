@@ -1125,7 +1125,7 @@ def test_build_index_refusal_without_stdin(monkeypatch, tmp_path):
     assert t.build_index() is None
 
 
-def test_find_with_level_uses_index_without_network(monkeypatch, tmp_path):
+def test_search_with_level_uses_index_without_network(monkeypatch, tmp_path):
     cale = _cache_in(monkeypatch, tmp_path)
     cale.parent.mkdir(parents=True, exist_ok=True)
     cale.write_text(json.dumps({
@@ -1135,43 +1135,137 @@ def test_find_with_level_uses_index_without_network(monkeypatch, tmp_path):
     }), encoding="utf-8")
     apeluri = _index_and_meta(monkeypatch, TOATE_META)
 
-    rez = t.find("salariati", level="localitate")
+    rez = t.search("salariati", level="localitate")
     assert [m.code for m in rez] == ["FOM104D"]
     assert apeluri == []          # indexul raspunde, fara retea
 
-    rez = t.find("salariati", level="judet")
+    rez = t.search("salariati", level="judet")
     assert sorted(m.code for m in rez) == ["FOM101A", "FOM104D", "SOM101B"]
     assert apeluri == []
 
 
-def test_find_with_level_builds_index_after_confirmation(monkeypatch, tmp_path):
+def test_search_with_level_builds_index_after_confirmation(monkeypatch, tmp_path):
     cale = _cache_in(monkeypatch, tmp_path)
     _index_and_meta(monkeypatch, TOATE_META)
     monkeypatch.setattr("builtins.input", lambda _: "d")
 
-    rez = t.find("salariati", level="localitate")
+    rez = t.search("salariati", level="localitate")
     assert [m.code for m in rez] == ["FOM104D"]
     assert cale.exists()
 
 
-def test_find_with_level_refused_returns_empty(monkeypatch, tmp_path, capsys):
+def test_search_with_level_refused_returns_empty(monkeypatch, tmp_path, capsys):
     _cache_in(monkeypatch, tmp_path)
     _index_and_meta(monkeypatch, TOATE_META)
     monkeypatch.setattr("builtins.input", lambda _: "n")
 
-    rez = t.find("salariati", level="localitate")
+    rez = t.search("salariati", level="localitate")
     assert list(rez) == []
     assert "Fara indexul de nivele nu pot filtra" in capsys.readouterr().out
 
 
-def test_find_unknown_level(monkeypatch):
+def test_search_unknown_level(monkeypatch):
     _fake_api(monkeypatch)
     try:
-        t.find("salariati", level="comuna")
+        t.search("salariati", level="comuna")
     except ValueError as e:
         assert "comuna" in str(e) and "Disponibile" in str(e)
     else:
         raise AssertionError("trebuia ValueError pentru nivel necunoscut")
+
+
+# fixture cu texte lungi, ca la INS: definitia are mai multe paragrafe si o
+# fraza distinctiva la coada, ca sa se vada daca a fost taiata
+DEFINITIE_LUNGA = (
+    "Numarul mediu al salariatilor cuprinde persoanele angajate cu contract "
+    "de munca pe durata determinata sau nedeterminata.\n"
+    + "Paragraf intermediar de umplutura. " * 40
+    + "\nIncepand cu anul 2003, din efectivele zilnice luate in calculul "
+      "numarului mediu au fost exclusi salariatii al caror contract de munca "
+      "a fost suspendat, conform prevederilor legale in vigoare."
+)
+
+FOM104D_CU_TEXT = dict(
+    FOM104D,
+    definitie=DEFINITIE_LUNGA,
+    metodologie="Repartizarea salariatilor pe judete s-a realizat in functie "
+                "de localitatea in care acestia isi desfasoara activitatea.",
+    observatii="Datele la nivel de localitati au fost recalculate.\n"
+               "Datele pentru anul 1990 sunt disponibile numai la nivel de "
+               "total judet.",
+    surseDeDate=[{"nume": "Cercetarea statistica privind costul fortei de "
+                          "munca <<6263>>", "tip": "Surse statistice (INS)"}],
+)
+
+
+def test_describe_prints_full_text(monkeypatch, capsys):
+    _fake_api(monkeypatch,
+              extra={endpoints.matrix("FOM104D"): FOM104D_CU_TEXT})
+    t.matrix("FOM104D").describe()
+    iesire = capsys.readouterr().out
+
+    assert "FOM104D" in iesire
+    assert "DEFINITIE" in iesire and "METODOLOGIE" in iesire
+    assert "SURSE" in iesire and "OBSERVATII" in iesire
+    # capul definitiei
+    assert "persoanele angajate cu contract" in iesire
+    # coada definitiei: daca lipseste, textul a fost trunchiat
+    assert "conform prevederilor legale in vigoare." in iesire
+    assert len(DEFINITIE_LUNGA) > 1000
+    # observatiile duc nota despre anul incomplet
+    assert "anul 1990" in iesire
+    # markerul INS <<6263>> nu e HTML si nu trebuie curatat ca atare
+    assert "Cercetarea statistica privind costul fortei de munca <<6263>>" \
+        in iesire
+
+
+def test_describe_skips_empty_sections(monkeypatch, capsys):
+    fara_text = dict(FOM104D, definitie="", metodologie="   ",
+                     observatii="", surseDeDate=[])
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): fara_text})
+    t.matrix("FOM104D").describe()
+    iesire = capsys.readouterr().out
+    assert "FOM104D" in iesire
+    for titlu in ("DEFINITIE", "METODOLOGIE", "SURSE", "OBSERVATII"):
+        assert titlu not in iesire
+
+
+def test_options_without_argument_lists_dimensions(monkeypatch):
+    _fake_api(monkeypatch)
+    dims = t.matrix("FOM104D").options()
+    assert len(dims) == 4
+    assert dims[0] == "[0] Judete (teritoriu, 2 optiuni)"
+    assert dims[1].startswith("[1] Localitati (teritoriu,")
+    assert dims[2] == "[2] Ani (timp, 1 optiuni)"
+    assert dims[3].startswith("[3] UM: Numar persoane (um,")
+    # cu argument, comportamentul de dinainte
+    assert list(t.matrix("FOM104D").options("Judete")) == ["TOTAL", "Alba"]
+
+
+def test_find_and_search_are_distinct(monkeypatch):
+    """find e simplu, search accepta filtre."""
+    import inspect
+    par_find = inspect.signature(t.find).parameters
+    par_search = inspect.signature(t.search).parameters
+    assert "level" not in par_find
+    assert "level" in par_search
+    assert t.find is not t.search
+    # search merge si fara cuvant
+    assert par_search["query"].default == ""
+
+
+def test_search_without_query_walks_whole_catalogue(monkeypatch, tmp_path):
+    cale = _cache_in(monkeypatch, tmp_path)
+    cale.parent.mkdir(parents=True, exist_ok=True)
+    cale.write_text(json.dumps({
+        "FOM104D": {"levels": ["national", "judet", "localitate"]},
+        "SOM101B": {"levels": ["national", "judet"]},
+        "FOM101A": {"levels": ["national", "judet"]},
+    }), encoding="utf-8")
+    _index_and_meta(monkeypatch, TOATE_META)
+
+    assert len(t.search()) == 3
+    assert [m.code for m in t.search(level="localitate")] == ["FOM104D"]
 
 
 def test_matrix_unknown_code(monkeypatch):

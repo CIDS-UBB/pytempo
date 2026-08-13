@@ -40,12 +40,13 @@ def name_dict(refresh: bool = False) -> dict[str, str]:
     return {row["code"]: row["name"] for row in load_index(refresh=refresh)}
 
 
-def search(query: str, level: str | None = None, fuzzy: bool = False,
+def search(query: str = "", level: str | None = None, fuzzy: bool = False,
            limit: int | None = None) -> MatrixList:
-    """Caută indicatori după cuvânt cheie, în nume sau cod.
+    """Descoperire cu filtre. Pentru căutarea simplă pe nume, vezi find.
 
     query : unul sau mai multe cuvinte; se potrivesc TOATE (în nume sau cod),
-            fără diacritice, insensibil la majuscule.
+            fără diacritice, insensibil la majuscule. Poate lipsi: cu query
+            gol, filtrele lucrează peste tot catalogul.
     limit : implicit None, adică toate potrivirile. Rezultatul e o listă, deci
             poți tăia și singur cu slicing.
     level : păstrează doar indicatorii care au acel nivel teritorial. Filtrează
@@ -82,10 +83,14 @@ def search(query: str, level: str | None = None, fuzzy: bool = False,
     return MatrixList(out)
 
 
-def find(query: str, level: str | None = None,
-         limit: int | None = None) -> MatrixList:
-    """Numele prietenos al căutării: t.find('salariati')."""
-    return search(query, level=level, limit=limit)
+def find(query: str, limit: int | None = None) -> MatrixList:
+    """Căutarea simplă pe nume: t.find('salariati').
+
+    Fără filtre, deci răspunde instant din indexul de nume. Când vrei să
+    filtrezi, ex. doar indicatorii care coboară la localitate, folosește
+    search(query, level='localitate').
+    """
+    return search(query, limit=limit)
 
 
 def _index_path():
