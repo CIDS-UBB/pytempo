@@ -804,9 +804,13 @@ def info(cod: str) -> dict:
     return matrix(cod).info()
 
 
-def get(cod: str, level: territory.Level | None = None,
+def get(cod: str, level: territory.Level | str | None = "finest",
         levels: list[territory.Level] | None = None,
-        tidy: bool = False, progress: bool = False):
-    """Shortcut: one indicator's data, as a DataFrame."""
+        tidy: bool = True, progress="auto", raw: bool = False,
+        confirm: bool = True):
+    """Shortcut: one indicator's data, as a DataFrame.
+
+    Exactly Matrix.get, starting from a code, defaults included.
+    """
     return matrix(cod).get(level=level, levels=levels, tidy=tidy,
-                           progress=progress)
+                           progress=progress, raw=raw, confirm=confirm)

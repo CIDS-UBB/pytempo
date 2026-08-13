@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.17.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.18.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -229,6 +229,41 @@ concatenated with `ignore_index=True`.
 `progress="auto"`, the default, reports each request only when there is more
 than one. Above 50 requests `get()` asks before starting; pass `confirm=False`
 in scripts.
+
+## Data wrangling
+
+Frames from `get(tidy=True)` carry a `df.tempo` accessor, registered when you
+import pytempo. It reshapes and summarizes, never fetches, and never changes
+the frame you give it.
+
+    df = t.get("FOM101A")
+
+    df.tempo.coverage()
+    #   Macroregiuni...judete  first_year  last_year  n_years  missing_years  min_value  min_year  max_value  max_year
+    # 0                  Alba        1990       2024       35              0       92.1      2019      246.1      1990
+    # 1                  Arad        1990       2024       35              0      123.1      2022      299.3      2011
+
+    df.tempo.wide()
+    #       Sexe  Macroregiuni...judete   1990   1991   1992
+    # 0  Feminin                   Alba  116.5  113.0  114.5
+
+`coverage()` is the first look at a series: one row per territorial unit, the
+span of years it has, how many of the years seen anywhere in the frame are
+missing for it, and the smallest and largest value with the year each occurred.
+When the frame mixes territorial levels, the level comes first, so a national
+total is never read as if it were a county.
+
+`wide()` pivots time into columns. The index is built from the original
+dimension columns, leaving out the derived ones, the original time column,
+which says the same thing as the year, and a unit of measure column that never
+varies.
+
+`df.tempo.geo()` is a documented stub. It will join on SIRUTA and return a
+GeoDataFrame, arriving as an optional `pytempo[geo]` extra so that anyone who
+only wants the numbers never pays for the geometry stack.
+
+Calling the accessor on a frame that is not tidy output says so plainly rather
+than guessing.
 
 ## Loading into PostgreSQL
 

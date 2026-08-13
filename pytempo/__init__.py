@@ -9,11 +9,12 @@ from .catalog import (build_index, domains, filters, find, load_index,
 from .matrix import Matrix, MatrixList, get, info, matrix
 from .schema import catalog_ddl as schema_catalog
 from .schema import column_mapping
+from . import wrangle  # noqa: F401  registers the df.tempo accessor
 
 # explore.init and explore.browse are sketches that still raise
 # NotImplementedError, so they are deliberately not exported yet
 
-__version__ = "0.17.0"
+__version__ = "0.18.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
@@ -67,6 +68,11 @@ FETCH the data
   m.get(level=None)            every level at once, the old default
   m.get(raw=True)              exactly what INS returns, no derived columns
   t.get('FOM101A')             the same, starting from a code
+
+RESHAPE it, on any frame from get(tidy=True)
+  df.tempo.coverage()          per unit: span of years, holes, extremes
+  df.tempo.wide()              pivot time into columns, one per year
+  df.tempo.geo()               join on SIRUTA, not implemented yet
 
 LOAD it into PostgreSQL, pytempo writes the SQL, you run it
   m.schema()                   CREATE TABLE for this indicator, as text
