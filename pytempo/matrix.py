@@ -48,7 +48,7 @@ def _decision_line(m, wanted, plan, planuri) -> str:
     """What was decided, in one line, before the download starts."""
     if wanted:
         nivel = ", ".join(wanted)
-        coada = " (finest)" if nivel == plan.get("default_level") else ""
+        coada = " (the finest)" if nivel == plan.get("default_level") else ""
         bucata = f"level {nivel}{coada}"
     else:
         bucata = "all levels" if m.levels else "no territorial filter"
@@ -56,6 +56,23 @@ def _decision_line(m, wanted, plan, planuri) -> str:
     cereri = f"{len(planuri)} request" if len(planuri) == 1 else \
         f"{len(planuri)} requests"
     return f"{bucata}, {strategie}, {cereri}"
+
+
+def _excluded_hint(m, wanted) -> str | None:
+    """Say which levels the default left out, and how to get them back.
+
+    Taking the finest level is usually what people want, but silently dropping
+    the macroregion and region rows surprises them. Naming what was left out
+    costs one line and saves a puzzled look at the row count.
+    """
+    if not wanted:
+        return None
+    lasate = [lv for lv in m.levels if lv not in wanted]
+    if not lasate:
+        return None
+    lista = (lasate[0] if len(lasate) == 1
+             else f"{', '.join(lasate[:-1])} and {lasate[-1]}")
+    return f"  for every level, including {lista}, use get(level=None)"
 
 
 def _ask_big(cod: str, cereri: int) -> bool:
@@ -605,6 +622,9 @@ class Matrix:
         vorbeste = (len(planuri) > 1) if progress == "auto" else bool(progress)
         if progress is not False:
             print(f"{self.code}: {_decision_line(self, wanted, plan, planuri)}")
+            indiciu = _excluded_hint(self, wanted)
+            if indiciu:
+                print(indiciu)
         if confirm and len(planuri) > POLITE_REQUESTS and not _ask_big(
                 self.code, len(planuri)):
             raise ValueError(

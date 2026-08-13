@@ -290,6 +290,33 @@ def test_targeted_mode_validates_only_the_given_codes(monkeypatch, tmp_path):
     assert {p["matCode"] for p in cereri} == {"SOM101B"}
 
 
+def test_audit_standardization_reports_by_kind(monkeypatch, tmp_path, capsys):
+    cale = _registry(monkeypatch, tmp_path)
+    _post(monkeypatch)
+    gasite = v.audit_standardization(delay=0, progress=False, path=cale)
+
+    assert set(gasite) == {"empty_derived", "all_unknown", "nothing_added"}
+    iesire = capsys.readouterr().out
+    assert "Standardization audit" in iesire
+    for tip in gasite:
+        assert tip in iesire
+    # nothing in these fixtures produces an empty derived column any more
+    assert gasite["empty_derived"] == []
+
+
+def test_audit_standardization_flags_all_unknown_levels(monkeypatch, tmp_path,
+                                                        capsys):
+    """A dimension whose names are not administrative units gets flagged."""
+    from .test_smoke import TMP1173
+    cale = _registry(monkeypatch, tmp_path, dict(TOATE, TMP1173=TMP1173))
+    csv_tmp = ("Categorii de emisii, Statii de monitorizare de tip fond urban "
+               "- Localitate, Ani, Unitati de masura, Valoare\n"
+               "Total, BT-1 - Municipiul Botosani, Anul 2024, Micrograme, 26.2\n")
+    _post(monkeypatch, raspunsuri=dict(CSV, TMP1173=csv_tmp))
+    gasite = v.audit_standardization(delay=0, progress=False, path=cale)
+    assert "TMP1173" in gasite["all_unknown"]
+
+
 def test_targeted_mode_rejects_unknown_codes(monkeypatch, tmp_path):
     cale = _registry(monkeypatch, tmp_path)
     _post(monkeypatch)

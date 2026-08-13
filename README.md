@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.15.1-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.15.2-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -34,11 +34,15 @@ gives you `import pytempo` either way.
     m.what()                             # what it measures, in a few lines
     m.how()                              # its own download manual
 
-    df = m.get()                         # (4392, 10), counties, tidied
-    df.columns                           # ..., Ani_an, and the SIRUTA columns
+    df = m.get()                         # (4392, 7), counties, tidied
+    df.columns                           # ..., plus _nivel and Ani_an
 
-`get()` prints one line saying what it decided before it starts, for example
-`FOM101A: level judet (finest), single, 1 request`.
+`get()` prints what it decided before it starts, and names what the default
+left out:
+
+    FOM101A: level judet (the finest), single, 1 request
+      for every level, including national, macroregiune and regiune,
+      use get(level=None)
 
 ## Examples
 
@@ -166,6 +170,12 @@ macroregions, regions and counties in one column and you rarely want them
 stacked together. Indicators with no usable territorial level get no filter at
 all and `get()` returns everything.
 
+When that default leaves levels out, `get()` says so and names them:
+
+    FOM106E: level judet (the finest), split:CAEN Rev.2 ..., 2 requests
+      for every level, including national, macroregiune and regiune,
+      use get(level=None)
+
 `get(tidy=True)`, the default, adds derived columns and only adds: nothing is
 dropped, renamed or reordered, and the original label keeps its SIRUTA prefix.
 For every territorial dimension, using its label as the prefix:
@@ -174,6 +184,12 @@ For every territorial dimension, using its label as the prefix:
     <label>_nivel     national, macroregiune, regiune, judet or localitate
     <label>_tip       municipiu, oras, comuna or sector, NA above locality
     <label>_nume      the name without the code and the type prefix
+
+Only the columns that carry something are added. `<label>_nivel` is always
+useful, so it is always there, but a county dimension gets nothing else:
+counties have no SIRUTA code and no settlement type, and their name needs no
+cleaning. FOM104D therefore ends up with `Judete_nivel` alone, and all four
+columns for `Localitati`.
 
 For every time dimension, `<label>_an` holds the year, as Int64.
 
@@ -297,6 +313,14 @@ Negative values are only flagged as implausible when the indicator is not a
 balance. Names or dimension labels containing `spor`, `sold`, `migrat`,
 `crestere`, `variatia` or `diferenta` are expected to go negative: POP214A
 really does record a natural increase of -576 for Arges in 1995.
+
+A separate survey looks at what the standardization actually produced, to tell
+whether an oddity is isolated or a pattern:
+
+    schemas.audit_standardization(sample=30)
+
+It reports derived columns that would come out empty, territorial dimensions
+whose levels are all `necunoscut`, and indicators where tidy adds nothing.
 
 Finally, a list to check by hand:
 

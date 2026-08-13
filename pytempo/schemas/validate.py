@@ -321,6 +321,76 @@ def validation_report(date: dict | None = None, path=None) -> None:
             print(f"             validation: {e.get('validation', 'not checked')}")
 
 
+def audit_standardization(sample: int | None = None, seed=None,
+                          delay: float = 1.0, progress: bool = True,
+                          path=None) -> dict:
+    """Look for post processing oddities across the catalogue.
+
+    Not a correctness check, a survey: it fetches a small standardized slice
+    and asks what tidy actually produced. The point is to tell whether a case
+    like FOM104D, where a county dimension used to get empty SIRUTA columns,
+    is isolated or a pattern.
+
+    Three things are counted:
+      empty_derived   a derived column would have come out completely empty
+      all_unknown     a territorial dimension whose levels are all necunoscut
+      nothing_added   tidy added no column at all
+    """
+    date = load_registry(path)
+    if not date:
+        print("There is no registry.json. Run schemas.build_registry().")
+        return {}
+    entries = date["entries"]
+
+    if sample:
+        coduri = stratified_sample(entries, sample, seed=seed)
+    else:
+        coduri = [c for c, e in entries.items() if e.get("status") == "ok"]
+
+    gasite = {"empty_derived": [], "all_unknown": [], "nothing_added": []}
+    sarite = []
+    total = len(coduri)
+    for i, cod in enumerate(coduri, 1):
+        e = entries[cod]
+        try:
+            m = fetch_matrix(cod)
+            df = parse.pivot_csv_to_dataframe(
+                client.post_pivot(_payload(m, _slice_for(m, e))), m)
+            if df.empty:
+                sarite.append(cod)
+                continue
+            tidy = parse.standardize(df, m)
+        except Exception:
+            sarite.append(cod)
+            continue
+
+        adaugate = [c for c in tidy.columns if c not in df.columns]
+        if not adaugate:
+            gasite["nothing_added"].append(cod)
+        if any(tidy[c].isna().all() for c in adaugate):
+            gasite["empty_derived"].append(cod)
+        for d in m.dimensions:
+            coloana = f"{d.label.strip()}_nivel"
+            if coloana in tidy.columns and (tidy[coloana] == "necunoscut").all():
+                gasite["all_unknown"].append(cod)
+                break
+
+        if progress and (i % 5 == 0 or i == total):
+            print(f"\rauditing: {i}/{total}", end="", flush=True)
+        if delay and i < total:
+            time.sleep(delay)
+    if progress and total:
+        print()
+
+    print(f"\nStandardization audit: {len(coduri) - len(sarite)} indicators "
+          f"inspected, {len(sarite)} skipped (empty or unreadable slice)")
+    for tip, coduri_gasite in gasite.items():
+        print(f"  {tip:14} {len(coduri_gasite)}")
+        if coduri_gasite:
+            print(f"    {sorted(coduri_gasite)[:12]}")
+    return gasite
+
+
 def spot_check_list(n: int = 10, seed=None, path=None) -> list[dict]:
     """A list of cells to check BY EYE on the INS site.
 

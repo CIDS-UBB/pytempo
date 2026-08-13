@@ -83,7 +83,10 @@ def test_get_uses_default_level_from_plan(monkeypatch, tmp_path, capsys):
     # the plan says judet, so only counties are requested
     assert cereri[0]["encQuery"].split(":")[0] == "4,5"
     iesire = capsys.readouterr().out
-    assert "level judet (finest)" in iesire
+    assert "level judet (the finest)" in iesire
+    # the default drops the coarser levels, so it says how to get them back
+    assert "use get(level=None)" in iesire
+    assert "national, macroregiune and regiune" in iesire
     # tidy is the default now
     assert any(c.endswith("_nivel") for c in df.columns)
 

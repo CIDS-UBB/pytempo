@@ -73,10 +73,12 @@ def _year_of(label) -> int | None:
 def standardize(df: pd.DataFrame, matrix) -> pd.DataFrame:
     """Add derived columns without dropping or reordering anything.
 
-    For every territorial dimension it adds <label>_siruta, <label>_nivel,
-    <label>_tip and <label>_nume. For every time dimension it adds <label>_an.
-    The prefix is the dimension label, so two territorial dimensions never
-    collide (FOM104D).
+    For every territorial dimension it can add <label>_siruta, <label>_nivel,
+    <label>_tip and <label>_nume, but it only adds the ones that carry
+    something: a county dimension gets just <label>_nivel, because counties
+    have no SIRUTA code and no settlement type. For every time dimension it
+    adds <label>_an. The prefix is the dimension label, so two territorial
+    dimensions never collide (FOM104D).
 
     SIRUTA is a key, so it is added as a new column; the original name stays
     untouched, prefix and all.
@@ -89,16 +91,24 @@ def standardize(df: pd.DataFrame, matrix) -> pd.DataFrame:
 
         if dim.role == "teritoriu":
             desfacut = [territory.parse_territory(v) for v in out[col]]
-            out[f"{col}_siruta"] = pd.array(
-                [t[0] for t in desfacut], dtype="Int64")
-            # nullable string: type is missing for aggregates and counties, and
-            # there we want pd.NA rather than a float NaN
+            sirute = [t[0] for t in desfacut]
+            tipuri = [t[2] for t in desfacut]
+            nume = [t[3] for t in desfacut]
+            originale = [str(v).strip() for v in out[col]]
+
+            # only add a derived column when it carries something. A county
+            # dimension has no SIRUTA and no settlement type, so adding empty
+            # <label>_siruta and <label>_tip columns was noise.
+            if any(s is not None for s in sirute):
+                out[f"{col}_siruta"] = pd.array(sirute, dtype="Int64")
+            # the level is always worth having
+            # nullable string: a missing value is pd.NA, not a float NaN
             out[f"{col}_nivel"] = pd.array(
                 [t[1] for t in desfacut], dtype="string")
-            out[f"{col}_tip"] = pd.array(
-                [t[2] for t in desfacut], dtype="string")
-            out[f"{col}_nume"] = pd.array(
-                [t[3] for t in desfacut], dtype="string")
+            if any(t is not None for t in tipuri):
+                out[f"{col}_tip"] = pd.array(tipuri, dtype="string")
+            if any(n != o for n, o in zip(nume, originale)):
+                out[f"{col}_nume"] = pd.array(nume, dtype="string")
 
         elif dim.role == "timp":
             out[f"{col}_an"] = pd.array(

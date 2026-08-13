@@ -279,7 +279,10 @@ def test_station_labels_are_not_counties(monkeypatch):
         }), m)
     col = "Statii de monitorizare de tip fond urban - Localitate"
     assert tidy[f"{col}_nivel"][0] == "necunoscut"
-    assert tidy[f"{col}_siruta"][0] is pd.NA
+    # no station carries a SIRUTA code or a settlement type, so those two
+    # derived columns are not added at all
+    assert f"{col}_siruta" not in tidy.columns
+    assert f"{col}_tip" not in tidy.columns
 
 
 def test_real_localities_still_detected(monkeypatch):
@@ -1132,6 +1135,32 @@ def test_parse_territory_empty_and_blank():
         assert nivel == "necunoscut"   # empty is neither a county nor anything else
 
 
+def test_standardize_skips_empty_derived_columns(monkeypatch):
+    """A county dimension gets only _nivel: counties have no SIRUTA, no type."""
+    _fake_api(monkeypatch)
+    m = t.matrix("FOM104D")
+    jud = m.dimensions[0].label.strip()      # 'Judete'
+    loc = m.dimensions[1].label.strip()      # 'Localitati'
+    df = pd.DataFrame({
+        jud: ["TOTAL", "Alba"],
+        loc: ["TOTAL", "1017 MUNICIPIUL ALBA IULIA"],
+        m.dimensions[2].label.strip(): ["Anul 1990"] * 2,
+        m.dimensions[3].label.strip(): ["Numar persoane"] * 2,
+        "Valoare": [1.0, 2.0],
+    })
+    out = parse.standardize(df, m)
+
+    # counties: the level is useful, the other three would be empty
+    assert f"{jud}_nivel" in out.columns
+    assert f"{jud}_siruta" not in out.columns
+    assert f"{jud}_tip" not in out.columns
+    assert f"{jud}_nume" not in out.columns
+    # localities: all four carry something
+    for sufix in ("_siruta", "_nivel", "_tip", "_nume"):
+        assert f"{loc}{sufix}" in out.columns, sufix
+    assert out[f"{loc}_siruta"].tolist()[1] == 1017
+
+
 def test_standardize_malformed_year_gives_na(monkeypatch):
     _fake_api(monkeypatch)
     m = t.matrix("FOM101A")
@@ -1157,7 +1186,10 @@ def test_standardize_empty_frame(monkeypatch):
                        {"Valoare": []})
     out = parse.standardize(gol, m)
     assert len(out) == 0
-    assert f"{m.dimensions[1].label.strip()}_siruta" in out.columns
+    # with no rows there is no evidence for the optional columns, so only the
+    # level and the year, which are always added, show up
+    assert f"{m.dimensions[1].label.strip()}_nivel" in out.columns
+    assert f"{m.dimensions[1].label.strip()}_siruta" not in out.columns
 
 
 def test_public_api_names_all_resolve():
