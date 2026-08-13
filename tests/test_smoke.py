@@ -1,4 +1,6 @@
 """Teste offline: import, API public, căutare pe un index injectat."""
+import json
+
 import pandas as pd
 
 import pytempo as t
@@ -1030,39 +1032,136 @@ def _index_and_meta(monkeypatch, meta_by_code):
     return apeluri
 
 
+def _cache_in(monkeypatch, tmp_path):
+    """Muta cache-ul si indexul de nivele intr-un director temporar."""
+    monkeypatch.setattr(client, "CACHE_DIR", tmp_path / "data" / "raw")
+    return tmp_path / "data" / catalog.INDEX_FILE
+
+
+TOATE_META = {"FOM104D": FOM104D, "SOM101B": SOM101B, "FOM101A": FOM101A}
+
+
 def test_find_without_level_fetches_no_metadata(monkeypatch):
-    apeluri = _index_and_meta(monkeypatch, {
-        "FOM104D": FOM104D, "SOM101B": SOM101B, "FOM101A": FOM101A})
+    apeluri = _index_and_meta(monkeypatch, TOATE_META)
     rez = t.find("salariati")
     assert len(rez) == 3
     assert apeluri == []          # raspuns doar din indexul de nume
 
 
-def test_find_with_level_filters_and_fetches(monkeypatch):
-    apeluri = _index_and_meta(monkeypatch, {
-        "FOM104D": FOM104D, "SOM101B": SOM101B, "FOM101A": FOM101A})
+def test_find_returns_everything_without_limit(monkeypatch):
+    _index_and_meta(monkeypatch, TOATE_META)
+    assert len(t.find("salariati")) == 3
+    assert len(t.find("salariati", limit=2)) == 2
+    assert len(t.search("salariati")) == 3
+
+
+def test_build_index_writes_file_and_skips_errors(monkeypatch, tmp_path,
+                                                  capsys):
+    cale = _cache_in(monkeypatch, tmp_path)
+    _index_and_meta(monkeypatch, TOATE_META)
+
+    # SOM101B da eroare la metadate: e sarit, nu opreste constructia
+    adevarat = t.matrix
+
+    def matrix_cu_eroare(cod, **kw):
+        if cod == "SOM101B":
+            raise ValueError("indisponibil")
+        return adevarat(cod, **kw)
+
+    monkeypatch.setattr(catalog, "matrix", matrix_cu_eroare)
+
+    idx = t.build_index(confirm=False, progress=True)
+    assert cale.exists()
+    assert set(idx) == {"FOM104D", "FOM101A"}
+    assert idx["FOM104D"]["levels"] == ["national", "judet", "localitate"]
+    iesire = capsys.readouterr().out
+    assert "construiesc indexul: 3/3" in iesire
+    assert "sarite" in iesire
+
+    pe_disc = json.loads(cale.read_text(encoding="utf-8"))
+    assert pe_disc == idx
+
+
+def test_build_index_respects_refresh(monkeypatch, tmp_path):
+    cale = _cache_in(monkeypatch, tmp_path)
+    cale.parent.mkdir(parents=True, exist_ok=True)
+    cale.write_text('{"VECHI": {"levels": ["judet"]}}', encoding="utf-8")
+    apeluri = _index_and_meta(monkeypatch, TOATE_META)
+
+    # fisierul exista, deci nu reconstruieste si nu atinge reteaua
+    idx = t.build_index(confirm=False, progress=False)
+    assert set(idx) == {"VECHI"}
+    assert apeluri == []
+
+    idx = t.build_index(confirm=False, progress=False, refresh=True)
+    assert set(idx) == set(TOATE_META)
+    assert apeluri
+
+
+def test_build_index_asks_before_building(monkeypatch, tmp_path, capsys):
+    cale = _cache_in(monkeypatch, tmp_path)
+    _index_and_meta(monkeypatch, TOATE_META)
+
+    monkeypatch.setattr("builtins.input", lambda _: "n")
+    assert t.build_index() is None
+    assert not cale.exists()
+    assert "nu construiesc" in capsys.readouterr().out
+
+    monkeypatch.setattr("builtins.input", lambda _: "da")
+    idx = t.build_index(progress=False)
+    assert set(idx) == set(TOATE_META)
+    assert cale.exists()
+
+
+def test_build_index_refusal_without_stdin(monkeypatch, tmp_path):
+    """Fara stdin, intrebarea nu poate primi raspuns: se considera nu."""
+    _cache_in(monkeypatch, tmp_path)
+    _index_and_meta(monkeypatch, TOATE_META)
+
+    def fara_stdin(_):
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", fara_stdin)
+    assert t.build_index() is None
+
+
+def test_find_with_level_uses_index_without_network(monkeypatch, tmp_path):
+    cale = _cache_in(monkeypatch, tmp_path)
+    cale.parent.mkdir(parents=True, exist_ok=True)
+    cale.write_text(json.dumps({
+        "FOM104D": {"levels": ["national", "judet", "localitate"]},
+        "SOM101B": {"levels": ["national", "judet"]},
+        "FOM101A": {"levels": ["national", "judet"]},
+    }), encoding="utf-8")
+    apeluri = _index_and_meta(monkeypatch, TOATE_META)
+
     rez = t.find("salariati", level="localitate")
-    # doar FOM104D coboara la localitate
     assert [m.code for m in rez] == ["FOM104D"]
-    assert set(apeluri) == {"FOM104D", "SOM101B", "FOM101A"}
-    # metadatele sunt deja acolo, deci nivelele se pot afisa fara cost in plus
-    assert rez[0].levels == ["national", "judet", "localitate"]
+    assert apeluri == []          # indexul raspunde, fara retea
 
-
-def test_find_with_level_judet(monkeypatch):
-    _index_and_meta(monkeypatch, {
-        "FOM104D": FOM104D, "SOM101B": SOM101B, "FOM101A": FOM101A})
     rez = t.find("salariati", level="judet")
     assert sorted(m.code for m in rez) == ["FOM101A", "FOM104D", "SOM101B"]
+    assert apeluri == []
 
 
-def test_find_with_level_stops_at_limit(monkeypatch):
-    """Nu aduce metadate pentru tot catalogul, se opreste la limit."""
-    apeluri = _index_and_meta(monkeypatch, {
-        "FOM104D": FOM104D, "SOM101B": SOM101B, "FOM101A": FOM101A})
-    rez = t.find("salariati", level="judet", limit=1)
-    assert len(rez) == 1
-    assert len(apeluri) == 1      # s-a oprit dupa prima potrivire
+def test_find_with_level_builds_index_after_confirmation(monkeypatch, tmp_path):
+    cale = _cache_in(monkeypatch, tmp_path)
+    _index_and_meta(monkeypatch, TOATE_META)
+    monkeypatch.setattr("builtins.input", lambda _: "d")
+
+    rez = t.find("salariati", level="localitate")
+    assert [m.code for m in rez] == ["FOM104D"]
+    assert cale.exists()
+
+
+def test_find_with_level_refused_returns_empty(monkeypatch, tmp_path, capsys):
+    _cache_in(monkeypatch, tmp_path)
+    _index_and_meta(monkeypatch, TOATE_META)
+    monkeypatch.setattr("builtins.input", lambda _: "n")
+
+    rez = t.find("salariati", level="localitate")
+    assert list(rez) == []
+    assert "Fara indexul de nivele nu pot filtra" in capsys.readouterr().out
 
 
 def test_find_unknown_level(monkeypatch):

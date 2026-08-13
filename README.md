@@ -29,7 +29,8 @@ be `pip install pytempo-ins`, still with `import pytempo`.
 
     t.find("salariati")           # search by keyword, in name or code
     t.find("salariati", level="localitate")   # only those reaching localities
-    t.search("someri", limit=5)   # the same thing, longer name
+    t.search("someri")            # the same thing, longer name
+    t.build_index()               # levels index, once, then filters are instant
     t.domains()                   # the 8 top level statistical domains
 
     m = t.matrix("FOM104D")       # fetch one indicator's metadata
@@ -50,12 +51,28 @@ be `pip install pytempo-ins`, still with `import pytempo`.
 Search matches all the words you give it, in the name or the code, case
 insensitively and ignoring Romanian diacritics, so `someri` finds `Șomerii`.
 
-`find(level=...)` keeps only the indicators that reach that territorial level.
-Be aware of the cost: levels are only known from an indicator's metadata, so
-this fetches metadata for each name match in turn, one request each, until it
-has `limit` results that pass. Without `level`, search answers instantly from
-the name index and fetches nothing. Because the survivors already carry their
-metadata, their levels are available without further requests.
+Both return every match. They are lists, so slice them, or pass `limit=N`.
+
+`find(level=...)` keeps only the indicators that reach that territorial level,
+filtering from a local index, so it is instant and touches no network.
+
+### The levels index
+
+Levels are only known from an indicator's metadata, so answering "which
+indicators reach locality level" needs metadata for the whole catalogue. That is
+built once and cached on disk:
+
+    t.build_index()
+
+It walks all 1916 indicators at roughly 0.4 seconds each, so about 13 minutes
+the first time, shows progress as it goes, and writes
+`data/levels_index.json`. Indicators whose metadata fails are skipped and
+reported rather than aborting the build. Pass `refresh=True` to rebuild,
+`confirm=False` to skip the prompt, `progress=False` to stay quiet.
+
+Because it is expensive, `build_index()` asks before it starts, once. If you
+call `find(level=...)` and no index exists, it asks you then. Decline and you
+get an empty result plus a note, never a silent multi minute stall.
 
 A quick check that the live endpoints answer:
 
@@ -67,7 +84,8 @@ Finding an indicator:
 
     t.find('salariati')          search by keyword, in name or code
     t.find('salariati', level='localitate')   only those reaching localities
-    t.search('someri', limit=5)  the same thing, longer name
+    t.search('someri')           the same thing, longer name
+    t.build_index()              the levels index, once, a few minutes
     t.domains()                  the 8 top level statistical domains
     t.overview()                 how big the catalogue is and where to start
 

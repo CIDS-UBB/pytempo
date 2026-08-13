@@ -4,13 +4,15 @@ Punctul de plecare e t.help(), care listează ce se poate face acum.
 Descoperire (find, domains, overview), înțelegere (matrix, info, show, where,
 related, levels, options) și tragerea datelor (get, cu filtru pe nivel).
 """
-from .catalog import domains, find, load_index, name_dict, overview, search
+from .catalog import (build_index, domains, find, load_index, name_dict,
+                      overview, search)
 from .matrix import Matrix, MatrixList, get, info, matrix
 from .explore import init, browse
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
+    "build_index",
     "matrix", "info", "get",
     "Matrix", "MatrixList",
     "init", "browse",
@@ -26,7 +28,8 @@ def help() -> None:
 GASESTI un indicator
   t.find('salariati')          cauta dupa cuvinte, in nume sau cod
   t.find('salariati', level='localitate')   doar cei care coboara acolo
-  t.search('someri', limit=5)  acelasi lucru, numele lung
+  t.search('someri')           acelasi lucru, numele lung
+  t.build_index()              indexul de nivele, o data, cateva minute
   t.domains()                  cele 8 domenii statistice de sus
   t.overview()                 cat e catalogul si de unde incepi
 
@@ -57,9 +60,12 @@ care nu au localitati dupa care sa fie sparte se opresc cu un mesaj clar.
 tidy=True doar adauga coloane, nu sterge si nu rearanjeaza nimic: denumirea
 originala ramane, cu prefixul SIRUTA cu tot.
 
-find(level=...) e mai lent decat find simplu: nivelele se stiu doar din
-metadate, deci aduce metadatele potrivirilor, un apel pe rand, pana aduna
-limit rezultate. Fara level raspunde instant, din indexul de nume.
+find si search intorc TOATE potrivirile; taie cu slicing sau cu limit=N.
+
+find(level=...) filtreaza din indexul local de nivele, deci e instant. Indexul
+se construieste o singura data, cu t.build_index(): cere metadatele fiecarui
+indicator, cateva minute, si se salveaza pe disc. Daca lipseste, find te
+intreaba intai daca sa il construiasca.
 
 Listele intoarse de find, domains si related se afiseaza ca tabel si au
 .recent(n), care ordoneaza dupa ultima actualizare doar elementele din set.""")

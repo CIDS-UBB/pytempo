@@ -1,15 +1,26 @@
 """Indexul de matrice (dicționarul de nume), căutarea și arborele de domenii.
 
-search / find: fără fuzzy și fără filtru pe nivel deocamdată.
+Două indexuri, cu costuri foarte diferite:
 
-Cost: load_index e un singur apel, cache-uit. domains e tot un singur apel.
-overview NU aduce metadatele indicatorilor: ar fi mii de apeluri.
+Indexul de nume, load_index, e un singur apel cache-uit. Din el răspund
+instant search, find și overview.
+
+Indexul de nivele, build_index, cere metadatele fiecărui indicator, adică un
+apel pe rând pentru tot catalogul. Se construiește o singură dată, se salvează
+pe disc, iar după aceea filtrul pe nivel din find e instant. Fiindcă e scump,
+construcția întreabă întâi userul.
 """
+import json
+import sys
+
 from . import client, endpoints, territory
 from .matrix import Matrix, MatrixList, _clean, matrix
 from .models import Node
 
 _INDEX = None
+
+# fisierul indexului de nivele, langa cache-ul de raspunsuri brute
+INDEX_FILE = "levels_index.json"
 
 
 def load_index(refresh: bool = False) -> list[dict]:
@@ -30,16 +41,16 @@ def name_dict(refresh: bool = False) -> dict[str, str]:
 
 
 def search(query: str, level: str | None = None, fuzzy: bool = False,
-           limit: int = 25) -> MatrixList:
+           limit: int | None = None) -> MatrixList:
     """Caută indicatori după cuvânt cheie, în nume sau cod.
 
     query : unul sau mai multe cuvinte; se potrivesc TOATE (în nume sau cod),
             fără diacritice, insensibil la majuscule.
-    limit : numărul maxim de rezultate.
-    level : păstrează doar indicatorii care au acel nivel teritorial.
-            ATENȚIE la cost: nivelele se știu doar din metadate, deci filtrul
-            aduce metadatele potrivirilor, un apel pe rând, până adună limit
-            rezultate. Fără level, răspunsul vine doar din indexul de nume.
+    limit : implicit None, adică toate potrivirile. Rezultatul e o listă, deci
+            poți tăia și singur cu slicing.
+    level : păstrează doar indicatorii care au acel nivel teritorial. Filtrează
+            din indexul local de nivele, instant. Dacă indexul nu există, te
+            întreabă întâi dacă să îl construiască.
     fuzzy : potrivire aproximativă. NEIMPLEMENTATĂ.
     """
     if fuzzy:
@@ -50,31 +61,99 @@ def search(query: str, level: str | None = None, fuzzy: bool = False,
             f"Disponibile: {list(territory._LEVEL_ORDER)}.")
 
     tokens = [_norm(t) for t in query.split()]
-    out = []
-    for row in load_index():
-        hay = _norm(row["name"] + " " + row["code"])
-        if not all(tok in hay for tok in tokens):
-            continue
+    potriviri = [row for row in load_index()
+                 if all(tok in _norm(row["name"] + " " + row["code"])
+                        for tok in tokens)]
 
-        if level is None:
-            out.append(Matrix(code=row["code"], name=row["name"]))
-        else:
-            # aici se plateste: un GET de metadate per potrivire
-            try:
-                m = matrix(row["code"])
-            except Exception:
-                continue
-            if level in m.levels:
-                out.append(m)
+    if level is not None:
+        nivele = load_levels_index()
+        if nivele is None:
+            nivele = build_index(confirm=True)
+        if nivele is None:
+            print("Fara indexul de nivele nu pot filtra. "
+                  "Ruleaza t.build_index() cand ai cateva minute.")
+            return MatrixList([])
+        potriviri = [row for row in potriviri
+                     if level in (nivele.get(row["code"], {}).get("levels") or [])]
 
-        if len(out) >= limit:
-            break
+    out = [Matrix(code=row["code"], name=row["name"]) for row in potriviri]
+    if limit is not None:
+        out = out[:limit]
     return MatrixList(out)
 
 
-def find(query: str, level: str | None = None, limit: int = 25) -> MatrixList:
+def find(query: str, level: str | None = None,
+         limit: int | None = None) -> MatrixList:
     """Numele prietenos al căutării: t.find('salariati')."""
     return search(query, level=level, limit=limit)
+
+
+def _index_path():
+    """Calea indexului de nivele, derivată din convenția de cache."""
+    return client.CACHE_DIR.parent / INDEX_FILE
+
+
+def load_levels_index() -> dict | None:
+    """Indexul de nivele de pe disc, sau None dacă nu a fost construit."""
+    path = _index_path()
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _ask_to_build(total: int) -> bool:
+    """Întreabă o singură dată, clar, înainte de o construcție scumpă."""
+    # 0.40s per apel, masurat pe INS; de aici estimarea
+    minute = max(1, round(total * 0.4 / 60))
+    print("Indexul de nivele nu exista inca.")
+    print(f"Constructia cere metadatele fiecarui indicator: {total} apeluri,")
+    print(f"in jur de {minute} minute prima data. Apoi filtrele pe nivel sunt")
+    print("instant, fiindca indexul se salveaza pe disc si se refoloseste.")
+    try:
+        raspuns = input("Construiesc indexul acum? [d/N] ")
+    except (EOFError, OSError):
+        return False
+    return raspuns.strip().lower() in ("d", "da", "y", "yes")
+
+
+def build_index(progress: bool = True, refresh: bool = False,
+                confirm: bool = True) -> dict | None:
+    """Construiește indexul local de metadate: {cod: {levels: [...]}}.
+
+    O singură dată, câteva minute, apoi filtrele pe metadate sunt instant.
+    Un indicator care dă eroare la metadate e sărit și notat, nu oprește
+    construcția. Întoarce None dacă userul refuză.
+    """
+    path = _index_path()
+    if path.exists() and not refresh:
+        return load_levels_index()
+
+    randuri = load_index()
+    total = len(randuri)
+    if confirm and not _ask_to_build(total):
+        print("Bine, nu construiesc. Filtrul pe nivel are nevoie de index; "
+              "poti rula t.build_index() oricand.")
+        return None
+
+    index = {}
+    sarite = []
+    for i, row in enumerate(randuri, 1):
+        cod = row["code"]
+        try:
+            index[cod] = {"levels": matrix(cod).levels}
+        except Exception:
+            sarite.append(cod)
+        if progress and (i % 10 == 0 or i == total):
+            print(f"\rconstruiesc indexul: {i}/{total}", end="", flush=True)
+    if progress:
+        print()
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(index, ensure_ascii=False), encoding="utf-8")
+    if progress:
+        print(f"index salvat in {path}, {len(index)} indicatori"
+              + (f", {len(sarite)} sarite: {sarite[:5]}" if sarite else ""))
+    return index
 
 
 def domains() -> MatrixList:
