@@ -352,37 +352,30 @@ Style rules:
 
 ## Credits and prior work
 
-pytempo builds on and learns from earlier work on the same API. The debts are
-concrete, and worth naming:
+pytempo learns from and credits earlier work on the same API.
 
-* [RProjectRomania/TEMPO](https://github.com/RProjectRomania/TEMPO) is where the
-  request mechanics come from. The chunking logic and the endpoint URLs are
-  ported to Python from that R package, including the insight that large
-  matrices have to be fetched county by county.
-* [mark-veres/tempo.py](https://github.com/mark-veres/tempo.py) served as a
-  reference for the shape of a Python client over TEMPO.
-* [gov2-ro/tempo-ins-dump](https://github.com/gov2-ro/tempo-ins-dump) was used
-  as a validation oracle and as a model for thinking about the catalogue as
-  something you can enumerate and check.
+The **R package TEMPO**, by Necula, Tiru and Oancea, is where the request
+mechanics come from. Its chunking logic and endpoint paths are reimplemented in
+Python here, including the insight that large matrices have to be fetched county
+by county. It is described in:
 
-What is original here: the deterministic role and level classification derived
-from the `details` block with label fallbacks, the schema registry with
-precomputed fetch plans, the tidy standardization that adds SIRUTA as a key
-without touching the original labels, and the validation harness that checks
-slices of real data against the registry.
+* Necula, M., Tiru, A.M., Oancea, B. (2019). Tempo, an R package to access the
+  TEMPO-Online database. *Romanian Statistical Review*, no. 3/2019.
+* Tiru, A.M., Toma, C., Necula, M. (2017). The earlier rTempo package.
+  *Romanian Statistical Review*, vol. 65, no. 4.
 
-## Citation
+Code at [RProjectRomania/TEMPO](https://github.com/RProjectRomania/TEMPO).
 
-If you use pytempo in research, please cite it. A DOI will be minted through
-Zenodo at the first release; until then, cite the repository.
+The shape of the Python API was informed by
+[tempo.py](https://github.com/mark-veres/tempo.py), and
+[gov2-ro/tempo-ins-dump](https://github.com/gov2-ro/tempo-ins-dump) served as a
+validation reference.
 
-    Alexe, V. (2026). pytempo: Python access to INS TEMPO Online statistics.
-    Center for Interdisciplinary Data Science, Babes-Bolyai University.
-    https://github.com/CIDS-UBB/pytempo
-
-The repository also carries `CITATION.cff`, which GitHub renders as a
-"Cite this repository" button. The `doi` field there is empty and should be
-filled in once Zenodo has issued one.
+What is original here: the role and level classification derived from the
+`details` block with label fallbacks, the schema registry with precomputed fetch
+plans, the standardization that adds SIRUTA as a key without touching the
+original labels, and the validation harness that checks slices of real data
+against the registry.
 
 ## License
 
