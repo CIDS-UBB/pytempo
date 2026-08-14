@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from . import chunking, client, endpoints, parse, territory
+from . import chunking, client, endpoints, parse, selection, territory
 from .chunking import MAX_CELLS
 from .models import Dimension, Node, Option
 
@@ -541,6 +541,7 @@ class Matrix:
   .options('teritoriu') what values one dimension takes
   .get()               the data, as a long format DataFrame
   .get(level='judet')  one territorial level only
+  .get(select={{'Sexe': ['Masculin']}})  keep only some options of a dimension
   .get(raw=True)       exactly what INS returns, no derived columns
   .get(progress=True)  report progress on large indicators""")
 
@@ -591,15 +592,15 @@ class Matrix:
             territory.is_locality_dimension(d, self.details)
             for d in self.dimensions if d.role == "teritoriu")
 
-        selection = []
+        per_dimension = []
         for d in self.dimensions:
             if d.role != "teritoriu":
-                selection.append([o.nom_item_id for o in d.options])
+                per_dimension.append([o.nom_item_id for o in d.options])
             else:
-                selection.append([o.nom_item_id for o in
-                                  self._territorial_options(d, wanted,
-                                                            locality_active)])
-        return selection
+                per_dimension.append([o.nom_item_id for o in
+                                      self._territorial_options(d, wanted,
+                                                                locality_active)])
+        return per_dimension
 
     def fetch_plan(self) -> dict:
         """The fetch plan: from the registry if it is there, else computed.
@@ -655,6 +656,7 @@ class Matrix:
 
     def get(self, level: territory.Level | str | None = "finest",
             levels: list[territory.Level] | None = None,
+            select: dict | None = None,
             tidy: bool = True, progress="auto", raw: bool = False,
             confirm: bool = True):
         """The indicator's data, as a long format DataFrame.
@@ -667,6 +669,19 @@ class Matrix:
         level=None asks for everything. A specific level is named as such,
         for example level='judet'.
 
+        select={'Grupe de varsta': ['25-34 ani']} keeps only some options of a
+        dimension, so you do not have to download every option of every one.
+        The key is a dimension label, matched exactly or as a unique substring;
+        the value is a list of nomItemIds, a list of option labels, or a
+        predicate on the option. Dimensions select does not name stay whole.
+        It applies before the query is built, so the cell count and the
+        chunking work on the smaller set.
+
+        select and level are independent and compose in that order: select
+        narrows the options of the dimension it names, then the level logic
+        runs on what is left. Selecting a few counties and asking for
+        level='judet' gives those counties, not all of them.
+
         tidy=True adds the derived columns; raw=True returns exactly what INS
         returned. progress='auto' only speaks when the plan has more than one
         request. confirm=False skips the question before expensive downloads,
@@ -674,14 +689,17 @@ class Matrix:
         """
         self._ensure_meta()
         plan = self.fetch_plan()
-        wanted = self._wanted_levels(level, levels, plan)
-        selection = self._build_selection(wanted)
-        requests = chunking.plan_requests(self, selection)
+        target = selection.restrict(self, select) if select else self
+        wanted = target._wanted_levels(level, levels, plan)
+        chosen = target._build_selection(wanted)
+        requests = chunking.plan_requests(target, chosen)
 
         speaks = (len(requests) > 1) if progress == "auto" else bool(progress)
         if progress is not False:
-            print(f"{self.code}: {_decision_line(self, wanted, plan, requests)}")
-            hint = _excluded_hint(self, wanted)
+            print(f"{self.code}: {_decision_line(target, wanted, plan, requests)}")
+            for line in selection.summary(self, target):
+                print(line)
+            hint = _excluded_hint(target, wanted)
             if hint:
                 print(hint)
         if confirm and len(requests) > POLITE_REQUESTS and not _ask_big(
@@ -693,14 +711,14 @@ class Matrix:
         frames = []
         for i, payload in enumerate(requests, 1):
             frames.append(parse.pivot_csv_to_dataframe(
-                client.post_pivot(payload), self))
+                client.post_pivot(payload), target))
             if speaks:
                 total = sum(len(c) for c in frames)
                 print(f"  {i}/{len(requests)}: +{len(frames[-1])} rows "
                       f"(total {total})")
 
         df = frames[0] if len(frames) == 1 else pd.concat(frames, ignore_index=True)
-        return df if raw or not tidy else parse.standardize(df, self)
+        return df if raw or not tidy else parse.standardize(df, target)
 
     def _repr_html_(self) -> str:
         """The card of a single indicator. Here the levels really are known.
@@ -806,11 +824,12 @@ def info(cod: str) -> dict:
 
 def get(cod: str, level: territory.Level | str | None = "finest",
         levels: list[territory.Level] | None = None,
+        select: dict | None = None,
         tidy: bool = True, progress="auto", raw: bool = False,
         confirm: bool = True):
     """Shortcut: one indicator's data, as a DataFrame.
 
     Exactly Matrix.get, starting from a code, defaults included.
     """
-    return matrix(cod).get(level=level, levels=levels, tidy=tidy,
+    return matrix(cod).get(level=level, levels=levels, select=select, tidy=tidy,
                            progress=progress, raw=raw, confirm=confirm)

@@ -14,7 +14,7 @@ from . import wrangle  # noqa: F401  registers the df.tempo accessor
 # explore.init and explore.browse are sketches that still raise
 # NotImplementedError, so they are deliberately not exported yet
 
-__version__ = "0.18.1"
+__version__ = "0.19.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
@@ -66,6 +66,7 @@ FETCH the data
   m.get(level='judet')         one territorial level only
   m.get(levels=['judet','regiune'])   several levels
   m.get(level=None)            every level at once, the old default
+  m.get(select={'Sexe': ['Masculin']})   keep only some options of a dimension
   m.get(raw=True)              exactly what INS returns, no derived columns
   t.get('FOM101A')             the same, starting from a code
 
@@ -83,6 +84,12 @@ get() executes the plan from the registry: it reads the strategy, runs it and
 applies tidy. By default it takes the finest level the indicator reaches and
 says in one line what it decided. Indicators with no usable level get
 everything.
+
+select= trims a dimension before the query is built, so nothing you did not ask
+for is downloaded. Its key is a dimension label, exactly or as a unique
+substring; its value is a list of nomItemIds, a list of option labels, or a
+predicate on the option, for instance select={'Ani': lambda o: '202' in o.label}.
+Dimensions it does not name stay whole, and level= then works on what is left.
 
 When county and locality are two separate dimensions, as in FOM104D, a level
 picks which one is active and puts the other on its total: level='judet' gives

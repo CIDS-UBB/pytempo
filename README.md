@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.18.1-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.19.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -124,6 +124,7 @@ Fetching the data:
     m.get(level='judet')         one territorial level only
     m.get(levels=['judet', 'regiune'])   several levels
     m.get(level=None)            every level at once
+    m.get(select={'Sexe': ['Masculin']})  only some options of a dimension
     m.get(raw=True)              exactly what INS returned, no derived columns
     m.get(progress=True)         report progress on large indicators
 
@@ -213,6 +214,44 @@ Column names come from `matrix.dimensions`, not from the CSV header. The API
 replaces commas inside a dimension label with spaces, so the header arrives with
 the comma gone. The parser checks the column count against the number of
 dimensions plus one and raises if they disagree.
+
+### Choosing options with select
+
+`get()` sends every option of every dimension it was not told to trim, which is
+right for a first look and wasteful once you know what you want: POP107D has 104
+age groups, and asking for two of them used to cost all 104. `select=` names a
+dimension and says which of its options to keep:
+
+    m = t.matrix('POP107D')
+    m.options()                       # which dimensions it has
+    m.options('Varste si grupe de varsta')     # and what they can take
+
+    df = m.get(level='judet',
+               select={'varsta': ['0- 4 ani', '5- 9 ani'], 'Sexe': 'Masculin'})
+
+    POP107D: level judet, single, 1 request
+      select: Varste si grupe de varsta limited to 2 of 104 options
+      select: Sexe limited to 1 of 3 options
+
+    df.shape                          # (2940, 10), two age groups, 42 counties
+
+The key is a dimension label, matched exactly first, ignoring case and
+surrounding space, then as a unique substring, so `varsta` finds
+`Varste si grupe de varsta`. An ambiguous key is an error that lists the
+candidates rather than a guess.
+
+The value takes three forms: a list of `nomItemId` numbers, a list of option
+labels, or a predicate on the option, for instance
+`select={'Ani': lambda o: '202' in o.label}`. A single value stands for a list
+of one. Whatever the form, a name that matches nothing is named in the error,
+with a suggestion when one is close.
+
+Dimensions `select` does not name stay whole, and everything downstream works on
+the smaller set: the cell count, the chunking strategy, the query and the tidy
+columns. `select` and `level` compose in that order, `select` first: choosing
+three counties and asking for `level='judet'` gives those three, not all of
+them. `how()` is unaffected, since it describes the whole indicator; `select` is
+an override for one call.
 
 ### Large indicators
 
