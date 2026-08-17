@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.21.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.22.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -113,6 +113,8 @@ Understanding an indicator:
     m.describe()                 the full record, every word INS wrote
     m.options()                  which dimensions it has, role and size
     m.options('teritoriu')       what values one dimension can take
+    m.locality_dimension         which dimension holds the localities, or None
+    m.territory_columns()        the columns of the fine territory, by content
     m.related()                  the other indicators under the same node
 
 `show()` is the summary you read while browsing. `describe()` is the full
@@ -139,8 +141,9 @@ dimension counts as territorial if the `details` block says so, through
 regions or macroregions. Both routes matter: indicators built on the county plus
 locality nomenclator are marked in `details`, but the common case is a single
 hierarchical dimension holding macroregions, regions and counties together, and
-there `details` is sometimes silent. CAEN works the same way, from either the
-flags or the label.
+there `details` is sometimes silent. A third route, described below, reads the
+options themselves when neither of the first two says anything. CAEN works the
+same way, from either the flags or the label.
 
 `m.levels` lists the territorial levels present, from coarse to fine, out of
 `national`, `macroregiune`, `regiune`, `judet`, `localitate` and `necunoscut`.
@@ -160,6 +163,57 @@ it does have, and suggests the closest one:
     t.matrix("FOM101A").get(level="judete")
     ValueError: unknown level 'judete' for FOM101A. Available: national,
     macroregiune, regiune, judet. Did you mean 'judet'?
+
+### Finding the fine territory
+
+`teritoriu` covers both a county dimension and a locality one, so a territorial
+dimension also carries `finest_level`, the finest real level it reaches. That
+is the sub sign that tells them apart, and it is what `m.options()` shows:
+
+    m.options()
+    [0] Judete (teritoriu/judet, 43 options)
+    [1] Municipii si orase (teritoriu/localitate, 321 options)
+    [2] Ani (timp, 32 options)
+    [3] UM: Ha (um, 1 options)
+
+That indicator is GOS102A, and it is the reason this exists: its locality
+dimension is called `Municipii si orase`, not `Localitati`. The download is
+correct either way, and the derived columns come out under that name, prefix
+and all, because the library never renames anything INS wrote. What breaks is
+downstream code that looks for the literal `Localitati_siruta`: it finds
+nothing, says nothing, and writes a file with no SIRUTA and no locality name.
+
+So ask, rather than guess:
+
+    m = t.matrix('GOS102A')
+
+    m.locality_dimension.label      # 'Municipii si orase', or None if there is
+                                    # no locality dimension at all
+    m.territory_columns()
+    {'label': 'Municipii si orase',
+     'siruta': 'Municipii si orase_siruta',
+     'nivel': 'Municipii si orase_nivel',
+     'tip': 'Municipii si orase_tip',
+     'nume': 'Municipii si orase_nume'}
+
+`label` is the original column, carrying the INS name; the rest are the derived
+ones, keyed by what they hold. Downstream maps from that, never from a spelling:
+
+    columns = m.territory_columns()
+    df = m.get(level='localitate').rename(columns={
+        columns['siruta']: 'siruta', columns['nume']: 'uat_name'})
+
+`territory_columns()` names the columns of the finest territorial dimension,
+which is the locality one when there is one and the county one otherwise, so
+an indicator that stops at counties gives `label` and `nivel` and no `siruta`
+key, rather than a name for a column that will not be there. An indicator with
+no territorial dimension gives an empty dict. Neither is an error.
+
+A dimension is territorial when `details` says so, when its label says so, or,
+as a last resort, when its options themselves name places: a settlement type
+such as `MUNICIPIUL` or a name from the county nomenclator. A numeric prefix
+alone is not evidence, since `0 ani` starts with a number exactly the way
+`1017 MUNICIPIUL ALBA IULIA` does.
 
 ## The shape of the data
 

@@ -27,3 +27,7 @@ class Dimension:
     dim_index: int            # position in dimensionsMap; it drives encQuery order
     options: list[Option] = field(default_factory=list)
     role: str = "alt"         # 'teritoriu' | 'timp' | 'caen' | 'um' | 'alt'
+    # for a territorial dimension, the finest real level it reaches:
+    # 'localitate', 'judet', ... or 'necunoscut'. Empty for the rest. It is
+    # what tells a locality dimension from a county one without reading labels
+    finest_level: str = ""

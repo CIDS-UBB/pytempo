@@ -120,13 +120,10 @@ def plan_for(entry: dict) -> dict:
     levels = entry.get("levels") or []
     cells_needed = entry.get("total_cells") or 0
 
-    # 'necunoscut' is not a level to ask for: names that do not fit the
-    # nomenclator do not form a useful slice. The finest REAL level is what
-    # counts, and if there is none, get() applies no territorial filter.
-    finest = [lv for lv in territory._LEVEL_ORDER
-           if lv in levels and lv != "necunoscut"]
+    # the finest REAL level is what counts, and if there is none, get() applies
+    # no territorial filter. The same rule names a dimension's finest_level
     plan = {
-        "default_level": finest[-1] if finest else None,
+        "default_level": territory.finest_level(levels),
         "tidy_ready": any(d.get("role") in ("teritoriu", "timp") for d in dims),
     }
 

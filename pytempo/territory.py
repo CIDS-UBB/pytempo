@@ -105,12 +105,63 @@ def _territory_dimcodes(details: dict) -> set:
     return {details[k] for k in _TERRITORY_KEYS if details.get(k)}
 
 
+def _sample(dimension) -> list:
+    """A few options to judge a dimension by. TOTAL says nothing, so it goes."""
+    return [o for o in dimension.options
+            if (o.label or "").strip().upper() != "TOTAL"][:_SIRUTA_SAMPLE]
+
+
+def _most(options, holds) -> bool:
+    """True when more than half the sampled options satisfy the predicate."""
+    if not options:
+        return False
+    return sum(1 for o in options if holds(o.label)) * 2 > len(options)
+
+
+def _is_settlement(label: str) -> bool:
+    """A name that says what kind of settlement it is: MUNICIPIUL, ORAS,
+    SECTORUL. Communes carry no prefix, so they do not count as evidence here;
+    this is a test for proof, not a census."""
+    return parse_territory(label)[2] in ("municipiu", "oras", "sector")
+
+
+def _is_administrative(label: str) -> bool:
+    """A name from the county and region nomenclator."""
+    return option_level(label) in ("judet", "macroregiune", "regiune")
+
+
+def names_places(dimension) -> bool:
+    """Do the options themselves name places?
+
+    The last resort when neither details nor the label give it away. GOS102A
+    calls its locality dimension 'Municipii si orase', which mentions neither
+    counties nor localities; if details were silent too, the options would be
+    the only evidence left, and they are good evidence. A settlement type or a
+    county name is not something a dimension of ages or of CAEN activities
+    carries by accident, which a numeric prefix on its own would be: '0 ani'
+    starts with a number the same way '1017 MUNICIPIUL ALBA IULIA' does.
+    """
+    options = _sample(dimension)
+    return _most(options, lambda lab: _is_settlement(lab) or _is_administrative(lab))
+
+
+def names_settlements(dimension) -> bool:
+    """Do most options name settlements, whatever the dimension is called?"""
+    return _most(_sample(dimension), _is_settlement)
+
+
 def is_territorial(dimension, details: dict) -> bool:
-    """True if the dimension is territorial, from details or from its label."""
+    """True if the dimension is territorial.
+
+    Three routes, in order of how much they can be trusted: details says so,
+    the label says so, or the options themselves name places.
+    """
     if dimension.dim_code in _territory_dimcodes(details):
         return True
     lab = _norm(dimension.label)
-    return any(k in lab for k in _LABEL_HINTS)
+    if any(k in lab for k in _LABEL_HINTS):
+        return True
+    return names_places(dimension)
 
 
 def is_caen(dimension, details: dict) -> bool:
@@ -127,9 +178,16 @@ def is_caen(dimension, details: dict) -> bool:
 
 
 def assign_roles(dimensions: list, details: dict) -> None:
-    """Assign d.role to every dimension, in place.
+    """Assign d.role, and for territorial ones d.finest_level, in place.
 
     Order matters: territory, time, caen, unit of measure, then other.
+
+    The role says what a dimension is; for a territorial one that is not
+    enough, because 'teritoriu' covers both a county dimension and a locality
+    one. d.finest_level is the sub sign: the finest real level the dimension
+    reaches, so asking which dimension holds the localities never has to go
+    through the label. It is 'necunoscut' for territorial names outside the
+    nomenclator, and empty for everything that is not territorial.
     """
     time_code = details.get("matTime")
     for d in dimensions:
@@ -143,6 +201,21 @@ def assign_roles(dimensions: list, details: dict) -> None:
             d.role = "um"
         else:
             d.role = "alt"
+        d.finest_level = (
+            finest_level(dimension_levels(d, details)) or "necunoscut"
+        ) if d.role == "teritoriu" else ""
+
+
+def finest_level(levels) -> str | None:
+    """The finest REAL level in a set of levels, coarse to fine.
+
+    'necunoscut' is not a level to ask for: names that do not fit the
+    nomenclator do not form a useful slice. None when there is no real one.
+    """
+    present = set(levels or ())
+    real = [lv for lv in _LEVEL_ORDER
+            if lv in present and lv != "necunoscut"]
+    return real[-1] if real else None
 
 
 def _looks_like_siruta(dimension) -> bool:
@@ -150,12 +223,8 @@ def _looks_like_siruta(dimension) -> bool:
 
     We only look at a sample: this is a confirmation, not a census.
     """
-    options = [o for o in dimension.options
-               if (o.label or "").strip().upper() != "TOTAL"][:_SIRUTA_SAMPLE]
-    if not options:
-        return False
-    with_code = sum(1 for o in options if siruta_from_label(o.label) is not None)
-    return with_code * 2 > len(options)
+    return _most(_sample(dimension),
+                 lambda lab: siruta_from_label(lab) is not None)
 
 
 def is_locality_dimension(dimension, details: dict) -> bool:
@@ -166,12 +235,18 @@ def is_locality_dimension(dimension, details: dict) -> bool:
     monitorizare de tip fond urban - Localitate' whose options are monitoring
     stations, not localities. So the label needs confirmation, either from
     matSiruta or from numeric prefixes on the options.
+
+    A label that never mentions localities at all is the GOS102A case,
+    'Municipii si orase'. There the options have to carry both a SIRUTA code
+    and a settlement type, which together no other kind of dimension does.
     """
     if dimension.dim_code == details.get("nomLoc"):
         return True
-    if "localit" not in _norm(dimension.label):
+    if not is_territorial(dimension, details):
         return False
-    return bool(details.get("matSiruta")) or _looks_like_siruta(dimension)
+    if "localit" in _norm(dimension.label):
+        return bool(details.get("matSiruta")) or _looks_like_siruta(dimension)
+    return _looks_like_siruta(dimension) and names_settlements(dimension)
 
 
 def dimension_levels(dimension, details: dict) -> set:
@@ -230,6 +305,32 @@ def parse_territory(label: str) -> tuple:
             return (siruta, "localitate", tip, rest[len(prefix):].strip())
     # communes carry no type prefix
     return (siruta, "localitate", "comuna", rest)
+
+
+def derived_keys(dimension) -> list[str]:
+    """Which derived columns this dimension's options justify, in order.
+
+    The same rule parse.standardize applies, read off the options instead of
+    the rows: a column is worth adding only when something in it is not empty,
+    so a county dimension gets 'nivel' alone while a locality one gets all
+    four. It is what territory_columns() names the columns from.
+
+    One honest difference: standardize decides on the rows that came back, so a
+    download filtered down to aggregates alone will not carry the SIRUTA column
+    even though the dimension could have.
+    """
+    parsed = [parse_territory(str(o.label)) for o in dimension.options]
+    originals = [str(o.label).strip() for o in dimension.options]
+
+    keys = []
+    if any(p[0] is not None for p in parsed):
+        keys.append("siruta")
+    keys.append("nivel")                      # always worth having
+    if any(p[2] is not None for p in parsed):
+        keys.append("tip")
+    if any(p[3] != o for p, o in zip(parsed, originals)):
+        keys.append("nume")
+    return keys
 
 
 def siruta_from_label(label: str) -> int | None:

@@ -15,7 +15,7 @@ from . import wrangle  # noqa: F401  registers the df.tempo accessor
 # explore.init and explore.browse are sketches that still raise
 # NotImplementedError, so they are deliberately not exported yet
 
-__version__ = "0.21.0"
+__version__ = "0.22.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
@@ -60,6 +60,8 @@ UNDERSTAND an indicator
   m.levels                     levels, e.g. ['national', 'judet', 'localitate']
   m.has_siruta                 True if localities carry a SIRUTA prefix
   m.options('teritoriu')       what values one dimension takes
+  m.locality_dimension         which dimension holds the localities, or None
+  m.territory_columns()        the columns of the fine territory, by content
   m.help()                     this guide, for one indicator
 
 FETCH the data
@@ -113,6 +115,14 @@ When county and locality are two separate dimensions, as in FOM104D, a level
 picks which one is active and puts the other on its total: level='judet' gives
 one row per county in a single request, level='localitate' gives the
 localities, county by county.
+
+Every dimension carries a role, teritoriu, timp, caen, um or alt, and a
+territorial one also carries finest_level, the finest level it reaches. That is
+how to tell a county dimension from a locality one without reading its name,
+which is not a reliable guide: FOM104D calls the localities 'Localitati' and
+GOS102A calls them 'Municipii si orase'. The columns keep those names, the
+library renames nothing; m.locality_dimension and m.territory_columns() are how
+you find them without hardcoding either spelling.
 
 The data is sparse: combinations with no data are absent as whole rows, not as
 blanks. Indicators that do not fit one POST are downloaded in several requests

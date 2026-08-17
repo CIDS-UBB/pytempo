@@ -386,7 +386,13 @@ def test_info_dict(monkeypatch):
     assert d["has_siruta"] is True
     assert d["dimensions"][1] == {
         "index": 1, "code": 2, "label": "Localitati", "role": "teritoriu",
-        "n_options": 3}
+        "finest_level": "localitate", "n_options": 3}
+    # the county dimension is territorial too, and says which level it reaches
+    assert d["dimensions"][0]["finest_level"] == "judet"
+    assert d["dimensions"][2]["finest_level"] == ""      # time is not a place
+    # and the fine territory names its columns, whatever the label happens
+    # to be
+    assert d["territory_columns"]["siruta"] == "Localitati_siruta"
 
 
 def test_where_breadcrumb(monkeypatch):
@@ -1539,8 +1545,10 @@ def test_options_without_argument_lists_dimensions(monkeypatch):
     _fake_api(monkeypatch)
     dims = t.matrix("FOM104D").options()
     assert len(dims) == 4
-    assert dims[0] == "[0] Judete (teritoriu, 2 options)"
-    assert dims[1].startswith("[1] Localitati (teritoriu,")
+    # a territorial dimension also says which level it reaches, so the fine
+    # territory is visible without reading the label
+    assert dims[0] == "[0] Judete (teritoriu/judet, 2 options)"
+    assert dims[1].startswith("[1] Localitati (teritoriu/localitate,")
     assert dims[2] == "[2] Ani (timp, 1 options)"
     assert dims[3].startswith("[3] UM: Numar persoane (um,")
     # with an argument, the previous behaviour

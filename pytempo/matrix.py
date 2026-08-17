@@ -45,6 +45,17 @@ def _clean(text: str) -> str:
     return " ".join(out.split()).strip(" ;,-")
 
 
+def _role_text(dimension) -> str:
+    """The role as it is shown: 'teritoriu/localitate' rather than 'teritoriu'.
+
+    'teritoriu' covers both a county dimension and a locality one, and which is
+    which is the whole question when you are looking for the fine territory.
+    """
+    if dimension.role == "teritoriu" and dimension.finest_level:
+        return f"{dimension.role}/{dimension.finest_level}"
+    return dimension.role
+
+
 def _is_total(option) -> bool:
     """The aggregate option of a dimension, found by name, not by position."""
     return (option.label or "").strip().upper().startswith("TOTAL")
@@ -268,11 +279,69 @@ class Matrix:
                     "code": d.dim_code,
                     "label": d.label.strip(),
                     "role": d.role,
+                    "finest_level": d.finest_level,
                     "n_options": len(d.options),
                 }
                 for d in self.dimensions
             ],
+            "territory_columns": self.territory_columns(),
         }
+
+    @property
+    def locality_dimension(self):
+        """The dimension holding localities, or None when there are none.
+
+        The way to ask, because the label is not one. FOM104D calls it
+        'Localitati', POP107D calls it 'Localitati ', GOS102A calls it
+        'Municipii si orase', and code that matches on the name loses the last
+        one without a word: the download is correct, the columns are there
+        under their own prefix, and whatever downstream was looking for
+        'Localitati_siruta' quietly finds nothing.
+        """
+        for d in self.dimensions:
+            if d.role == "teritoriu" and territory.is_locality_dimension(
+                    d, self.details):
+                return d
+        return None
+
+    @property
+    def territory_dimension(self):
+        """The finest territorial dimension, or None if there is none.
+
+        Localities when the indicator reaches them, otherwise the first
+        territorial dimension, which is the county or hierarchical one.
+        """
+        territorial = [d for d in self.dimensions if d.role == "teritoriu"]
+        return self.locality_dimension or (territorial[0] if territorial
+                                           else None)
+
+    def territory_columns(self) -> dict:
+        """The columns of the finest territory, keyed by what they hold.
+
+        The names stay exactly as they come out of get(): the library does not
+        rename anything, the dimension keeps the name INS gave it. What this
+        adds is a way to find those columns without knowing that name.
+
+            t.matrix('GOS102A').territory_columns()
+            {'label': 'Municipii si orase',
+             'siruta': 'Municipii si orase_siruta',
+             'nivel': 'Municipii si orase_nivel',
+             'tip': 'Municipii si orase_tip',
+             'nume': 'Municipii si orase_nume'}
+
+        'label' is the original column, the one carrying the INS name; the rest
+        are the derived ones, and only those this dimension's options justify
+        appear. An indicator with no territorial dimension gives an empty dict.
+        """
+        self._ensure_meta()
+        dimension = self.territory_dimension
+        if dimension is None:
+            return {}
+        column = dimension.label.strip()
+        columns = {"label": column}
+        for key in territory.derived_keys(dimension):
+            columns[key] = f"{column}_{key}"
+        return columns
 
     def _ensure_meta(self) -> "Matrix":
         """Fetch metadata if it is not already there (search returns only
@@ -431,11 +500,10 @@ class Matrix:
 
         want = _clean(str(dimension)).lower()
         terr = [d for d in self.dimensions if d.role == "teritoriu"]
-        # 'teritoriu' gives the finest territorial dimension present
+        # 'teritoriu' gives the finest territorial dimension present, the same
+        # one territory_columns() names
         if want == "teritoriu" and terr:
-            fine = [d for d in terr
-                    if "localitate" in territory.dimension_levels(d, self.details)]
-            return (fine or terr)[0]
+            return self.territory_dimension
         # a level ('judet', 'localitate', ...) gives the dimension covering it
         if want in territory._LEVEL_ORDER:
             hit = [d for d in terr
@@ -452,7 +520,8 @@ class Matrix:
         if hit:
             return hit[0]
 
-        available = ", ".join(f"{d.label.strip()} ({d.role})" for d in self.dimensions)
+        available = ", ".join(f"{d.label.strip()} ({_role_text(d)})"
+                            for d in self.dimensions)
         raise ValueError(
             f"unknown dimension: {dimension!r}. Available: {available}")
 
@@ -468,7 +537,7 @@ class Matrix:
         self._ensure_meta()
         if dimension is None:
             return TextList(
-                [f"[{d.dim_index}] {_clean(d.label)} ({d.role}, "
+                [f"[{d.dim_index}] {_clean(d.label)} ({_role_text(d)}, "
                  f"{len(d.options)} options)" for d in self.dimensions],
                 sep="\n", show=50)
 
@@ -493,7 +562,7 @@ class Matrix:
             print(f"  periodic  : {', '.join(self.periodicity)}")
         print("  dimensions:")
         for d in self.dimensions:
-            print(f"    [{d.dim_index}] {_clean(d.label)} ({d.role}, "
+            print(f"    [{d.dim_index}] {_clean(d.label)} ({_role_text(d)}, "
                   f"{len(d.options)} options)")
 
     def describe(self) -> None:
@@ -546,6 +615,8 @@ class Matrix:
   .related()           the other indicators under the same node
   .levels              levels, e.g. ['national', 'judet', 'localitate']
   .has_siruta          True if localities carry a SIRUTA prefix
+  .locality_dimension  the dimension holding localities, or None
+  .territory_columns() the columns of the fine territory, by what they hold
   .options()           which dimensions it has, with role and size
   .options('teritoriu') what values one dimension takes
   .get()               the data, as a long format DataFrame
@@ -563,7 +634,13 @@ so an interrupted run keeps what it had and rerunning asks only for the rest.
 Every download ends with a check on the joining: slices that never arrived,
 rows lost or doubled, a combination of dimensions that repeats, a select that
 came back the wrong size. Anything odd is printed, and the frame carries the
-same verdict in df.attrs['complete'] and df.attrs['aggregation_warnings'].""")
+same verdict in df.attrs['complete'] and df.attrs['aggregation_warnings'].
+
+The columns keep the names INS gave. To find the fine territory without
+knowing that name, ask: .locality_dimension is the dimension holding
+localities, called 'Localitati' in one indicator and 'Municipii si orase' in
+the next, and .territory_columns() gives its column names keyed by what they
+hold, ready for a rename downstream.""")
 
     def _territorial_options(self, d, wanted: list[str], locality_active: bool):
         """Which options of one territorial dimension to send.
@@ -819,7 +896,7 @@ same verdict in df.attrs['complete'] and df.attrs['aggregation_warnings'].""")
         )
         dims = "".join(
             f"<tr><td>{d.dim_index}</td><td>{html.escape(_clean(d.label))}</td>"
-            f"<td>{html.escape(d.role)}</td><td>{len(d.options)}</td></tr>"
+            f"<td>{html.escape(_role_text(d))}</td><td>{len(d.options)}</td></tr>"
             for d in self.dimensions
         )
         out = [f"<p><code>{html.escape(self.code)}</code> "
