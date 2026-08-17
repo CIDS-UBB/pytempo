@@ -17,8 +17,8 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from . import (chunking, client, endpoints, hierarchy, incremental, parse,
-               selection, territory)
+from . import (chunking, client, endpoints, hierarchy, incremental, manual,
+               parse, selection, territory)
 from .chunking import MAX_CELLS
 from .models import Dimension, Node, Option
 
@@ -108,21 +108,6 @@ def _excluded_hint(m, wanted) -> str | None:
     return f"  for every level, including {listed}, use get(level=None)"
 
 
-def _download_line(cod: str, wanted) -> str:
-    """The download() call for this indicator, ready to copy.
-
-    It carries the level actually being asked for, not a generic example: a
-    command that has to be edited before it runs is a command nobody runs.
-    """
-    if not wanted:
-        selection_part = ""
-    elif len(list(wanted)) == 1:
-        selection_part = f"level={list(wanted)[0]!r}, "
-    else:
-        selection_part = f"levels={list(wanted)!r}, "
-    return f"m.download({selection_part}folder='data/{cod.lower()}')"
-
-
 def _too_big(cod: str, request_count: int, wanted) -> ValueError:
     """What get() says when the plan is too large to hold in memory safely.
 
@@ -137,7 +122,7 @@ def _too_big(cod: str, request_count: int, wanted) -> ValueError:
         f"Do not pull this one with get(): it keeps every request in memory "
         f"until the last one, and loses all of it if a late request times "
         f"out. Use:\n"
-        f"  {_download_line(cod, wanted)}\n"
+        f"  {manual.download_line(cod, wanted)}\n"
         f"which writes each request to disk as it arrives, resumes where it "
         f"stopped, and retries on timeout. See m.how() for the whole manual.\n"
         f"Or get(confirm=False) if you really do want get().")
@@ -417,16 +402,10 @@ class Matrix:
             if d.role != "teritoriu":
                 continue
             print(f"territory: {_clean(d.label)} ({len(d.options)} options)")
-            if territory.is_locality_dimension(d, self.details):
-                print(f"    localitate      {len(d.options)}")
-            else:
-                per_level = {}
-                for o in d.options:
-                    level_name = territory.option_level(o.label)
-                    per_level[level_name] = per_level.get(level_name, 0) + 1
-                for level_name in territory._LEVEL_ORDER:
-                    if level_name in per_level:
-                        print(f"    {level_name:15} {per_level[level_name]}")
+            per_level = manual.dimension_units(d, self.details)
+            for level_name in territory._LEVEL_ORDER:
+                if level_name in per_level:
+                    print(f"    {level_name:15} {per_level[level_name]}")
         if not self.levels:
             print("territory: none, this indicator is not territorial")
         else:
@@ -441,18 +420,6 @@ class Matrix:
             print(f"time     : {_clean(d.label)}, {len(d.options)} periods, "
                   f"{span}")
 
-    def _big_dimensions(self) -> list:
-        """The dimensions large enough to be worth trimming with select=.
-
-        Territorial ones are left out: level= is the tool for those. What is
-        left is where select= pays, and POP107D is the case in point, with 104
-        ages where two are usually wanted.
-        """
-        big = [d for d in self.dimensions
-               if d.role not in ("teritoriu", "um")
-               and len(d.options) > BIG_DIMENSION]
-        return sorted(big, key=lambda d: len(d.options), reverse=True)
-
     def _how_large(self, request_count: int, default_level) -> None:
         """The first thing to say about a large indicator: do not use get().
 
@@ -464,7 +431,7 @@ class Matrix:
         print(f"  THIS ONE IS LARGE: {request_count} requests. get() stops "
               f"and sends you here.")
         print("  Download it safely, with a checkpoint and a resume:")
-        print(f"    {_download_line(self.code, wanted)}")
+        print(f"    {manual.download_line(self.code, wanted)}")
         print("  download() writes each slice to disk as it arrives, picks up "
               "where it")
         print("  stopped if it breaks, and retries when INS times out.")
@@ -473,24 +440,21 @@ class Matrix:
               "a small")
         print("  slice of it, download() for the whole thing.")
 
-    def _how_select(self) -> None:
-        """Point at select= when a dimension is big enough for it to matter."""
-        big = self._big_dimensions()
-        if not big:
-            return
-        listed = ", ".join(f"{_clean(d.label)} ({len(d.options)} options)"
-                           for d in big[:3])
-        print(f"  large dimensions: {listed}")
-        first = _clean(big[0].label)
-        if hierarchy.is_hierarchical(big[0]):
-            groups = len(hierarchy.pick(big[0], "groups"))
-            print(f"    {first} is hierarchical: take just the {groups} "
-                  f"aggregates with")
-            print(f"    select={{{first!r}: 'groups'}}, or see "
-                  f"m.options({first!r}, kind='groups')")
-        else:
-            print(f"    take only part of one with select=, see "
-                  f"m.options({first!r})")
+    def _requests_for(self, wanted, select: dict | None = None) -> int:
+        """How many requests one selection would take. Zero if it cannot plan.
+
+        The whole manual is built on this: what a level costs, what a filter
+        saves, and which of get() and download() to print for each. Planning is
+        arithmetic on lists, so asking it once per level costs milliseconds.
+        """
+        try:
+            target = selection.restrict(self, select) if select else self
+            return len(chunking.plan_requests(
+                target, target._build_selection(wanted)))
+        except ValueError:
+            # a filter that matches nothing, or a level this indicator does
+            # not have: say nothing rather than fail inside a help method
+            return 0
 
     def _request_count(self, plan) -> int:
         """How many requests get() would really send, on its default call.
@@ -500,16 +464,10 @@ class Matrix:
         POP107D splits every county again on its 104 ages, so its 43 counties
         are 380 requests. A manual that promises 43 and a get() that refuses
         380 cannot both be right, and the one that has to be right is the
-        manual. Planning is arithmetic on lists, so this costs milliseconds.
+        manual.
         """
-        try:
-            wanted = self._wanted_levels("finest", None, plan)
-            return len(chunking.plan_requests(self,
-                                              self._build_selection(wanted)))
-        except ValueError:
-            # a filter that matches nothing, or a level this indicator does
-            # not have: fall back rather than fail inside a help method
-            return plan.get("est_requests", 1)
+        wanted = self._wanted_levels("finest", None, plan)
+        return self._requests_for(wanted) or plan.get("est_requests", 1)
 
     def how(self) -> None:
         """This indicator's own download manual, ready to copy."""
@@ -527,38 +485,33 @@ class Matrix:
         print(f"  df = m.get()          "
               f"{'level ' + default_level if default_level else 'no territorial filter'}"
               f", tidied")
+        print("  m.get(raw=True)       exactly what INS returns, no extras")
+        if not large:
+            print(f"  {manual.download_line(self.code, [])}")
+            print("                        the same data, written straight to "
+                  "a CSV on disk")
+
         territorial = [d for d in self.dimensions if d.role == "teritoriu"]
-        if len(territorial) > 1:
-            # county and locality are separate dimensions here, so a level
-            # picks which one is active and puts the other on its total
-            for level_name in self.levels:
-                if level_name != default_level:
-                    print(f"  m.get(level={level_name!r})")
-            print("  m.get(level=None)     every level at once")
-            print()
-            print("  county and locality are separate dimensions here, so a "
-                  "level picks")
-            print("  which one is active and puts the other on TOTAL: "
-                  "level='judet' gives")
-            print("  one row per county in a single request, level="
-                  "'localitate' gives the")
-            print("  localities, county by county.")
-        elif not default_level:
+        if default_level:
+            manual.print_levels(self, default_level, POLITE_REQUESTS)
+            if len(territorial) > 1:
+                print()
+                print("  county and locality are separate dimensions here, so "
+                      "a level picks")
+                print("  which one is active and puts the other on TOTAL: "
+                      "level='judet' gives")
+                print("  one row per county in a single request, level="
+                      "'localitate' gives the")
+                print("  localities, county by county.")
+        else:
             reason = ("this indicator is not territorial" if not territorial
                      else "its territorial names are not administrative units")
             print(f"  (the level filter does not apply here: {reason},")
             print("   so get() takes everything)")
-        else:
-            for level_name in self.levels:
-                if level_name != default_level:
-                    print(f"  m.get(level={level_name!r})")
-            if self.levels:
-                print("  m.get(level=None)     every level at once")
-        print("  m.get(raw=True)       exactly what INS returns, no extras")
-        if not large:
-            print(f"  {_download_line(self.code, [])}")
-            print("                        the same data, written straight to "
-                  "a CSV on disk")
+
+        manual.print_filters(self, BIG_DIMENSION)
+        manual.print_example(self, default_level, POLITE_REQUESTS)
+
         print()
         print(f"  strategy: {strategy}, {request_count} "
               f"{'request' if request_count == 1 else 'requests'}")
@@ -567,7 +520,6 @@ class Matrix:
                   f"than get(), as above")
         elif request_count > 1:
             print("  downloaded in several requests and concatenated")
-        self._how_select()
 
     def schema(self, schema: str = "tempo", include_comments: bool = True) -> str:
         """PostgreSQL DDL for this indicator, as text. Nothing is executed."""
@@ -719,7 +671,8 @@ class Matrix:
 
   .what()              what it measures: definition, unit, how often
   .where()             where it sits and what it covers
-  .how()               its own download manual, ready to copy
+  .how()               its own menu: every level, every filter, with the
+                       calls to copy and what each of them costs
   .show()              short summary: domain, levels, dimensions
   .describe()          the full record: definition, methodology, sources
   .info()              the same metadata, as a dictionary

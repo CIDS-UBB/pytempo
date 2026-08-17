@@ -72,10 +72,7 @@ def test_how_points_at_select_when_a_dimension_is_big(monkeypatch, capsys):
     _pop107d(monkeypatch)
     out = _how(t.matrix("POP107D"), capsys)
 
-    assert "large dimensions: Varste si grupe de varsta (104 options)" in out
-    # it is hierarchical, so it points at the keyword rather than at a loop
-    assert "Varste si grupe de varsta is hierarchical" in out
-    assert "take just the 19 aggregates" in out
+    assert "Varste si grupe de varsta, hierarchical, 104 options" in out
     assert "select={'Varste si grupe de varsta': 'groups'}" in out
     assert "m.options('Varste si grupe de varsta', kind='groups')" in out
     # the territorial dimensions are not listed there: level= is their tool
@@ -106,10 +103,11 @@ def test_how_on_a_small_indicator_still_mentions_download(monkeypatch,
 
 
 def test_a_small_indicator_gets_no_select_hint(monkeypatch, tmp_path, capsys):
-    """SOM101B has nothing big enough to be worth trimming."""
+    """SOM101B is territory and time only: there is nothing to filter."""
     _registry(monkeypatch, tmp_path)
     out = _how(t.matrix("SOM101B"), capsys)
-    assert "large dimensions:" not in out
+    assert "FILTERS: none to add" in out
+    assert "select={" not in out
 
 
 # ------------------------------------------------------- the gate message
@@ -163,7 +161,7 @@ def test_the_package_guide_mentions_download(capsys):
     assert "t.download(" in out
     # and says which of the two to reach for
     assert "Which of the two" in out
-    assert "m.how() prints the answer" in out
+    assert "m.how() answers that and the rest" in out
 
 
 def test_the_indicator_guide_mentions_download(monkeypatch, capsys):

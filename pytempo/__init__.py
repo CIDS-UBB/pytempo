@@ -15,7 +15,7 @@ from . import wrangle  # noqa: F401  registers the df.tempo accessor
 # explore.init and explore.browse are sketches that still raise
 # NotImplementedError, so they are deliberately not exported yet
 
-__version__ = "0.25.0"
+__version__ = "0.26.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
@@ -51,7 +51,7 @@ UNDERSTAND an indicator
   m = t.matrix('FOM104D')      fetch the metadata
   m.what()                     what it measures: definition, unit, how often
   m.where()                    where it sits and what it covers
-  m.how()                      its own download manual, ready to copy
+  m.how()                      its own menu: levels, filters, calls to copy
   m.show()                     short summary: domain, levels, dimensions
   m.describe()                 the full record, every word INS wrote
   m.options()                  which dimensions it has, with role and size
@@ -85,7 +85,12 @@ FETCH a large one, through disk
 
 Which of the two: get() for anything that fits in memory, which is almost every
 indicator, and download() past 50 requests, where get() stops and says so.
-m.how() prints the answer for one indicator, with the command to copy.
+
+m.how() answers that and the rest, for one indicator, read off its own
+dimensions: which territorial levels it reaches and how many units and requests
+each one is, which dimensions select= can narrow and what the keywords keep on
+each, and one typical call that puts the finest level and the most useful
+filter together. Every call it prints runs as it stands.
 
 download() takes the same level, levels and select as get() and builds the same
 plan. What changes is that every request is written to its own slice file the

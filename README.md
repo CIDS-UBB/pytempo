@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.25.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.26.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -32,7 +32,7 @@ gives you `import pytempo` either way.
 
     m = t.matrix("FOM101A")
     m.what()                             # what it measures, in a few lines
-    m.how()                              # its own download manual
+    m.how()                              # its own menu, ready to copy
 
     df = m.get()                         # (4392, 7), counties, tidied
     df.columns                           # ..., plus _nivel and Ani_an
@@ -108,7 +108,7 @@ Understanding an indicator:
     m = t.matrix('FOM104D')      fetch the metadata
     m.what()                     what it measures: definition, unit, how often
     m.where()                    where it sits and what it covers
-    m.how()                      its own download manual, ready to copy
+    m.how()                      its own menu: levels, filters, calls to copy
     m.show()                     short summary: domain, levels, dimensions
     m.describe()                 the full record, every word INS wrote
     m.options()                  which dimensions it has, role and size
@@ -149,29 +149,8 @@ download, it is a gamble. That is where `download()` belongs: same arguments,
 same plan, but each slice is written as it comes back, a broken run resumes
 where it stopped, and a request that times out is retried rather than fatal.
 
-You do not have to guess which one an indicator needs. `m.how()` says so, in
-its own words, with the command to copy:
-
-    t.matrix("POP107D").how()
-
-    How to download POP107D:
-      m = t.matrix('POP107D')
-
-      THIS ONE IS LARGE: 380 requests. get() stops and sends you here.
-      Download it safely, with a checkpoint and a resume:
-        m.download(level='localitate', folder='data/pop107d')
-      download() writes each slice to disk as it arrives, picks up where it
-      stopped if it breaks, and retries when INS times out.
-      ...
-      large dimensions: Varste si grupe de varsta (104 options), Ani (35 options)
-        Varste si grupe de varsta is hierarchical: take just the 19 aggregates with
-        select={'Varste si grupe de varsta': 'groups'}, or see m.options(...)
-
-`how()` counts the requests by planning the download, not by reading the
-registry's estimate, so the number it prints is the number `get()` would really
-send. It also names the dimensions big enough to be worth trimming with
-`select=`, which is often the cheaper answer: 380 requests for all 104 ages
-become far fewer once you ask only for the 19 groups.
+You do not have to guess which one an indicator needs. `m.how()` says so, and
+the rest of the menu with it, in the section below.
 
 If `get()` does stop you, the error says the same thing, for that indicator:
 
@@ -186,6 +165,62 @@ If `get()` does stop you, the error says the same thing, for that indicator:
 
 The full description of `download()`, its arguments and its checks, is further
 down, under Large indicators.
+
+### how: the menu of one indicator
+
+`how()` is where to start on an indicator you do not know. It reads the
+dimensions it actually has and prints what you can choose, with the calls
+already written:
+
+    t.matrix("POP107D").how()
+
+    How to download POP107D:
+      m = t.matrix('POP107D')
+
+      THIS ONE IS LARGE: 380 requests. get() stops and sends you here.
+      Download it safely, with a checkpoint and a resume:
+        m.download(level='localitate', folder='data/pop107d')
+      download() writes each slice to disk as it arrives, picks up where it
+      stopped if it breaks, and retries when INS times out.
+      ...
+
+      TERRITORIAL LEVEL, what level= takes here:
+        national          1 unit,     1 request   m.get(level='national')
+        judet           42 units,     5 requests  m.get(level='judet')
+        localitate    3181 units,   379 requests  m.download(level='localitate', folder='data/pop107d')   the finest, and the default
+        every level at once                       m.get(level=None)
+
+      FILTERS, what select= takes here (2 dimensions):
+        Varste si grupe de varsta, hierarchical, 104 options
+          select={'Varste si grupe de varsta': 'total'}     1 option
+          select={'Varste si grupe de varsta': 'groups'}    19 options
+          select={'Varste si grupe de varsta': 'leaves'}    85 options
+          m.options('Varste si grupe de varsta', kind='groups') lists them
+        Sexe, flat, 3 options: Total, Masculin, Feminin
+          select={'Sexe': ['Masculin']}
+
+      A TYPICAL CALL for this indicator:
+        m.download(level='localitate', select={'Varste si grupe de varsta': 'groups'}, folder='data/pop107d')
+        87 requests: 19 of the 104 options of Varste si grupe de varsta, everything else whole
+
+      strategy: by_county, 380 requests
+
+Every number there is read off that indicator, not off a template. The units
+per level are counted from the options; the requests per level are counted by
+planning that exact download, which is also how `how()` knows to offer
+`get(level='judet')` and `download(level='localitate')` in the same table; the
+1, 19 and 85 come from the same hierarchy detection `select=` uses. The typical
+call is planned too, filter included, which is why it says 87 rather than the
+380 the indicator costs whole: the filter is the thing that makes it
+reasonable.
+
+A hierarchical dimension gets its keywords and their sizes, never its 104
+options: those live in `m.options()`, one line away. A flat dimension gets its
+first few values, and a flat dimension too big to read gets its size and a
+pointer. An indicator with nothing but territory and time says so:
+
+    FILTERS: none to add. This indicator is territory and time only, so
+    level= is the whole choice.
 
 ## Levels and roles
 
