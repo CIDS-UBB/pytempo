@@ -15,7 +15,7 @@ from . import wrangle  # noqa: F401  registers the df.tempo accessor
 # explore.init and explore.browse are sketches that still raise
 # NotImplementedError, so they are deliberately not exported yet
 
-__version__ = "0.20.0"
+__version__ = "0.21.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
@@ -81,6 +81,12 @@ plan. What changes is that every request is written to its own slice file the
 moment it comes back, so memory stays at one request and nothing is lost if the
 server drops out. Rerun the same call and resume=True asks only for the slices
 that are not on disk yet. At the end the slices become one CSV and are removed.
+
+The joining is then checked, automatically, and anything odd is printed rather
+than left in the file: slices that never arrived, rows lost or doubled on the
+join, a combination of dimensions that occurs twice, a select that came back
+with more or fewer distinct values than were asked for. The frame carries the
+verdict as df.attrs['complete'] and df.attrs['aggregation_warnings'].
 
 RESHAPE it, on any frame from get(tidy=True)
   df.tempo.coverage()          per unit: span of years, holes, extremes

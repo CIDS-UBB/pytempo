@@ -54,8 +54,14 @@ def pivot_csv_to_dataframe(csv_text: str, matrix) -> pd.DataFrame:
     if df.empty:
         # a response with no rows is legitimate: the combination has no data.
         # An empty column has no dtype to read, so we set it ourselves rather
-        # than confusing emptiness with a slipped column mapping.
+        # than confusing emptiness with a slipped column mapping. The dimension
+        # columns matter as much as the value: concatenating an empty response
+        # with a full one would otherwise drag the text columns back to object,
+        # so the same download would come back with different dtypes depending
+        # on where the chunking happened to cut.
         df[VALUE_COLUMN] = df[VALUE_COLUMN].astype("float64")
+        for col in df.columns[:-1]:
+            df[col] = df[col].astype(str)
     elif not pd.api.types.is_numeric_dtype(df[VALUE_COLUMN]):
         raise ValueError(
             f"Column {VALUE_COLUMN} is not numeric (dtype "

@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from . import client, parse
+from . import client, parse, selection
 
 # the conventions for the consolidated CSV: Excel in Romania reads ';' as the
 # separator, and the BOM is what makes it show diacritics without being asked
@@ -162,19 +162,23 @@ def _fetch(matrix, requests, folder: Path, fmt: str, resume: bool,
     return paths, missing
 
 
-def _consolidate_frame(paths, matrix, tidy: bool, raw: bool) -> pd.DataFrame:
-    """Every slice, read back and concatenated exactly the way get() does."""
+def _consolidate_frame(paths, matrix, tidy: bool, raw: bool):
+    """Every slice, read back and concatenated exactly the way get() does.
+
+    Returns the frame and the row count of each slice, which is what the
+    aggregation check compares the joined frame against.
+    """
     frames = [_read_slice(p, matrix) for p in paths if p.exists()]
     if not frames:
         raise ValueError(
             "nothing was downloaded: every request failed. The messages above "
             "say why; rerun to retry, the work already on disk is kept.")
     df = frames[0] if len(frames) == 1 else pd.concat(frames, ignore_index=True)
-    return _tidied(df, matrix, tidy, raw)
+    return _tidied(df, matrix, tidy, raw), [len(f) for f in frames]
 
 
 def _consolidate_stream(paths, matrix, destination: Path, tidy: bool,
-                        raw: bool) -> int:
+                        raw: bool):
     """Slices into one CSV without ever holding more than one of them.
 
     Two passes over the slices: the first learns which columns the tidied frame
@@ -193,14 +197,103 @@ def _consolidate_stream(paths, matrix, destination: Path, tidy: bool,
                             raw).columns)
     columns = _ordered_columns(matrix, seen)
 
-    rows = 0
+    counts = []
     for n, path in enumerate(present):
         df = _tidied(_read_slice(path, matrix), matrix, tidy, raw)
         df.reindex(columns=columns).to_csv(
             destination, sep=CSV_SEP, index=False, encoding=CSV_ENCODING,
             mode="w" if n == 0 else "a", header=(n == 0))
-        rows += len(df)
-    return rows
+        counts.append(len(df))
+    return sum(counts), counts
+
+
+def _verify_aggregation(df, matrix, planned: int, slice_rows: list[int],
+                        missing=None, select: dict | None = None) -> list[str]:
+    """What can go wrong between many slices and one frame, checked out loud.
+
+    A download of a hundred requests fails quietly in ways a single request
+    cannot: a slice that never arrived, a piece counted twice, a filter that
+    did not reach the query. None of that shows up as an exception, only as a
+    file that looks finished and is not. So the joining is checked and anything
+    odd is said, in the plainest terms available.
+
+    Returns one line per problem, empty when everything holds. df is None on
+    the streaming path, where the frame is never assembled: the two checks that
+    need it say so rather than passing by default.
+    """
+    problems = []
+    missing = list(missing or [])
+    written = len(slice_rows)
+
+    if written != planned:
+        absent = ", ".join(str(m["index"]) for m in missing) or "unknown"
+        problems.append(
+            f"INCOMPLETE: {written} of {planned} slices are on disk, so this "
+            f"is not the whole indicator. Requests missing: {absent}")
+
+    expected_rows = sum(slice_rows)
+    if df is None:
+        problems.append(
+            "not checked: duplicate keys and the select filter need the frame, "
+            "which return_df=False never assembles")
+    else:
+        if len(df) != expected_rows:
+            problems.append(
+                f"ROWS: the joined frame has {len(df)} rows, the slices held "
+                f"{expected_rows}. Something was lost or doubled on the join")
+
+        key = [d.label.strip() for d in matrix.dimensions
+               if d.label.strip() in df.columns]
+        duplicated = int(df.duplicated(key).sum()) if key else 0
+        if duplicated:
+            problems.append(
+                f"DUPLICATES: {duplicated} rows repeat a combination of "
+                f"{len(key)} dimension columns that can only occur once")
+
+        problems += _verify_select(df, matrix, select)
+    return problems
+
+
+def _verify_select(df, matrix, select: dict | None) -> list[str]:
+    """Did the filter reach the query, and did it cut exactly what was named.
+
+    Too many distinct values means select never made it into the request; too
+    few means it cut deeper than asked, or that INS simply has no data for the
+    rest, which is common enough to be said out loud rather than assumed.
+    """
+    if not select:
+        return []
+
+    problems = []
+    for key in select:
+        dimension = selection.find_dimension(matrix.dimensions, key)
+        column = dimension.label.strip()
+        if column not in df.columns:
+            continue
+        wanted = len(dimension.options)
+        found = int(df[column].nunique())
+        if found > wanted:
+            problems.append(
+                f"SELECT: {column} came back with {found} distinct values, "
+                f"{wanted} were selected. The filter did not reach the query")
+        elif found < wanted:
+            problems.append(
+                f"SELECT: {column} came back with {found} distinct values of "
+                f"the {wanted} selected. Either the filter cut too deep, or "
+                f"INS has no data for the rest")
+    return problems
+
+
+def _announce(problems: list[str], rows: int, progress: bool) -> None:
+    """The verdict of the checks. Problems are printed whatever progress says:
+    a frame that is quietly wrong is worse than a noisy one."""
+    if not problems:
+        if progress:
+            print(f"  aggregation check: {rows} rows, complete, no duplicates")
+        return
+    print("  aggregation check:")
+    for line in problems:
+        print(f"    {line}")
 
 
 def _clean_up(paths, folder: Path, temporary: bool, destination) -> None:
@@ -229,12 +322,14 @@ def _report(missing, folder: Path) -> None:
 
 def run(matrix, requests, folder=None, out=None, return_df: bool = True,
         resume: bool = True, tidy: bool = True, raw: bool = False,
-        progress: bool = True):
+        progress: bool = True, select: dict | None = None):
     """Execute a plan of payloads through disk, and consolidate what came back.
 
     Returns the tidied DataFrame, or the path of the CSV when return_df is
     False. Missing slices are reported, never raised: they are what the next
-    run picks up.
+    run picks up. select is not used to fetch anything, the payloads already
+    carry it; it is passed so the aggregation check can confirm the filter
+    survived the round trip.
     """
     folder, temporary = _target_folder(folder, matrix.code)
     destination = _final_csv(out, folder, temporary, matrix.code, return_df)
@@ -245,7 +340,7 @@ def run(matrix, requests, folder=None, out=None, return_df: bool = True,
     paths, missing = _fetch(matrix, requests, folder, fmt, resume, progress)
 
     if return_df:
-        df = _consolidate_frame(paths, matrix, tidy, raw)
+        df, slice_rows = _consolidate_frame(paths, matrix, tidy, raw)
         if destination is not None:
             destination.parent.mkdir(parents=True, exist_ok=True)
             df.to_csv(destination, sep=CSV_SEP, index=False,
@@ -253,7 +348,8 @@ def run(matrix, requests, folder=None, out=None, return_df: bool = True,
         rows = len(df)
     else:
         destination.parent.mkdir(parents=True, exist_ok=True)
-        rows = _consolidate_stream(paths, matrix, destination, tidy, raw)
+        rows, slice_rows = _consolidate_stream(paths, matrix, destination,
+                                               tidy, raw)
         df = None
 
     if progress:
@@ -265,9 +361,15 @@ def run(matrix, requests, folder=None, out=None, return_df: bool = True,
     else:
         _clean_up(paths, folder, temporary, destination)
 
+    problems = _verify_aggregation(df, matrix, len(requests), slice_rows,
+                                   missing, select)
+    _announce(problems, rows, progress)
+
     if df is None:
         return destination
-    # the frame carries what it is missing, so a script can check without
-    # reading the printout
+    # the frame carries the verdict too, so a script can check without reading
+    # the printout
     df.attrs["missing_requests"] = missing
+    df.attrs["complete"] = not missing
+    df.attrs["aggregation_warnings"] = problems
     return df

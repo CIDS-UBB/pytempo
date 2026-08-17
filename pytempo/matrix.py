@@ -558,7 +558,12 @@ class Matrix:
 
 get() holds everything in memory and is right below 50 requests. Above that it
 stops and points here: download() writes every request to disk as it arrives,
-so an interrupted run keeps what it had and rerunning asks only for the rest.""")
+so an interrupted run keeps what it had and rerunning asks only for the rest.
+
+Every download ends with a check on the joining: slices that never arrived,
+rows lost or doubled, a combination of dimensions that repeats, a select that
+came back the wrong size. Anything odd is printed, and the frame carries the
+same verdict in df.attrs['complete'] and df.attrs['aggregation_warnings'].""")
 
     def _territorial_options(self, d, wanted: list[str], locality_active: bool):
         """Which options of one territorial dimension to send.
@@ -720,6 +725,12 @@ so an interrupted run keeps what it had and rerunning asks only for the rest."""
         disk, so rerunning after a failure asks only for what is missing. A
         request that keeps failing is reported at the end rather than sinking
         the rest of the download.
+
+        Whatever it returns, the joining is checked and anything odd is said
+        out loud: slices that never arrived, rows lost or doubled, a repeated
+        combination of dimensions, a select that did not come back the size it
+        was asked for. The frame carries the same verdict in df.attrs, under
+        complete, missing_requests and aggregation_warnings.
         """
         target, wanted, plan, requests = self._plan_requests(level, levels,
                                                              select)
@@ -727,7 +738,7 @@ so an interrupted run keeps what it had and rerunning asks only for the rest."""
             self._announce(target, wanted, plan, requests)
         return incremental.run(target, requests, folder=folder, out=out,
                                return_df=return_df, resume=resume, tidy=tidy,
-                               raw=raw, progress=progress)
+                               raw=raw, progress=progress, select=select)
 
     def get(self, level: territory.Level | str | None = "finest",
             levels: list[territory.Level] | None = None,

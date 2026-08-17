@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.20.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.21.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -327,6 +327,39 @@ core stays on `requests` and `pandas` alone, so Parquet is an optional extra:
 
     pip install "pytempo-ins[fast]"
 
+### What download checks before it hands the data over
+
+A download of a hundred requests fails in ways a single request cannot, and
+none of them raise: a slice that never arrived, a piece counted twice, a filter
+that did not reach the query. The result still looks like a finished file. So
+every `download()` ends with a check on the joining, automatically, and says
+what it found:
+
+    aggregation check: 271914 rows, complete, no duplicates
+
+Four things are checked:
+
+* **Completeness.** How many slices are on disk against how many the plan asked
+  for. If any are absent the result is marked `INCOMPLETE` and the failed
+  requests are named, so nothing pretends to be the whole indicator.
+* **Row conservation.** The rows of the joined frame against the sum of the
+  rows of every slice. A difference means something was lost or doubled while
+  joining.
+* **Duplicate keys.** No combination of the dimension columns, everything that
+  is not `Valoare`, may occur twice.
+* **The filter.** When `select` was given, each filtered dimension must come
+  back with exactly as many distinct values as were selected. More means the
+  filter never reached the query; fewer means it cut too deep, or that INS has
+  no data for the rest, which is said as a possibility rather than assumed.
+
+Warnings are printed even with `progress=False`: silence about progress is a
+preference, silence about a frame that is wrong is not. The same verdict
+travels with the data, in `df.attrs['complete']`,
+`df.attrs['aggregation_warnings']` and `df.attrs['missing_requests']`, so a
+script can check without reading the printout. With `return_df=False` there is
+no frame to inspect, and the two checks that need one say so instead of passing
+by default.
+
 ### When the server does not answer
 
 The POST to pivot retries by itself. A read timeout, a dropped connection or a
@@ -445,6 +478,14 @@ In a notebook, reload edited modules without restarting the kernel:
 
     %load_ext autoreload
     %autoreload 2
+
+The tests run offline, on fixtures, with `client.post_pivot` mocked. One of
+them runs at scale: `tests/fixtures/POP107D_meta.json` is the real answer of
+`matrix/POP107D`, saved once, with its 104 ages, 43 counties and 3182
+localities. Loaded from the file it gives a plan of dozens of requests, split
+county by county, so the joining is exercised on the shape that actually
+breaks, and the same data asked for in one request and in fifty is compared
+frame to frame.
 
 ## Internals: the schema registry
 
