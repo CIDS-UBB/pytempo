@@ -10,6 +10,7 @@ every method says so rather than guessing.
 """
 import pandas as pd
 
+from . import spotcheck
 from .parse import VALUE_COLUMN
 
 NOT_TIDY = ("this DataFrame does not look like pytempo tidy output; "
@@ -98,6 +99,75 @@ class TempoAccessor:
         return [_base_of(c, "_nivel") for c in self._df.columns
                 if c.endswith("_nivel")]
 
+    def _unit_base(self) -> str | None:
+        """The territorial dimension holding the real units.
+
+        The one carrying SIRUTA when there is one, since that is where the
+        localities are, otherwise the first territorial dimension.
+        """
+        bases = self._territorial_bases()
+        with_siruta = next(
+            (b for b in bases if f"{b}_siruta" in self._df.columns), None)
+        return with_siruta or (bases[0] if bases else None)
+
+    def _inner_columns(self, unit_base: str | None) -> list[str]:
+        """The dimensions that are neither territory, nor time, nor the unit.
+
+        What is left is what a spot check has to pin: sex, age group, level of
+        education, form of ownership. A unit of measure column counts too when
+        it varies, since two units of measure are two series.
+        """
+        df = self._df
+        time_base = _base_of(self._year_col, "_an") if self._year_col else None
+        territorial = set(self._territorial_bases())
+        keep = []
+        for column in df.columns:
+            if column == VALUE_COLUMN or _derived(column):
+                continue
+            if column in territorial or column == time_base:
+                continue
+            if column.strip().upper().startswith("UM:") and \
+                    df[column].nunique(dropna=False) <= 1:
+                continue
+            keep.append(column)
+        return keep
+
+    def spot_check(self, n: int = 1, seed=None) -> None:
+        """Pick n units at random and print how to check them on the site.
+
+        The one kind of error no internal check can catch is a number that is
+        correct and means something else. This does not verify anything by
+        itself; it prepares the manual comparison, which is the only real
+        verification there is.
+
+        For each unit picked it prints the name, the county and the SIRUTA,
+        pins every other dimension on its total so the site shows a single
+        series, says what it pinned and on what, and prints the series year by
+        year, ready to read against the screen. A dimension with no total gets
+        its first option and is named as such.
+
+        seed makes the choice reproducible. Nothing here touches the network:
+        it reads the frame you already downloaded.
+
+            df.tempo.spot_check(2, seed=7)
+        """
+        self._check()
+        if self._year_col is None:
+            raise ValueError(
+                "no year column found, so there is no series to check; "
+                "a tidy frame from a time series has a <label>_an column")
+
+        unit_base = self._unit_base()
+        if unit_base is None:
+            raise ValueError(
+                "no territorial dimension in this frame, so there is no unit "
+                "to look up on the site")
+
+        context = [b for b in self._territorial_bases() if b != unit_base]
+        spotcheck.report(self._df, self._unit_key(unit_base), unit_base,
+                         self._year_col, self._inner_columns(unit_base),
+                         context, n=n, seed=seed)
+
     def _unit_key(self, base: str) -> pd.Series:
         """The grouping key for one territorial dimension.
 
@@ -137,9 +207,7 @@ class TempoAccessor:
         df = self._df
         bases = self._territorial_bases()
         # the dimension carrying SIRUTA is the one with real units in it
-        unit = next((b for b in bases if f"{b}_siruta" in df.columns), None)
-        if unit is None and bases:
-            unit = bases[0]
+        unit = self._unit_base()
 
         all_years = set(df[self._year_col].dropna().tolist())
 

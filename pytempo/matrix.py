@@ -58,7 +58,7 @@ def _role_text(dimension) -> str:
 
 def _is_total(option) -> bool:
     """The aggregate option of a dimension, found by name, not by position."""
-    return (option.label or "").strip().upper().startswith("TOTAL")
+    return territory.is_total_label(option.label)
 
 
 def _totals_or_all(dimension) -> list:
@@ -626,6 +626,7 @@ class Matrix:
   .get(progress=True)  report progress on large indicators
   .download(folder='data/x')   large indicators: each request written to disk
   .download(folder=..., return_df=False)   returns the CSV path, not the frame
+  df.tempo.spot_check(2)       on the result: two random units to check by hand
 
 get() holds everything in memory and is right below 50 requests. Above that it
 stops and points here: download() writes every request to disk as it arrives,
@@ -640,7 +641,12 @@ The columns keep the names INS gave. To find the fine territory without
 knowing that name, ask: .locality_dimension is the dimension holding
 localities, called 'Localitati' in one indicator and 'Municipii si orase' in
 the next, and .territory_columns() gives its column names keyed by what they
-hold, ready for a rename downstream.""")
+hold, ready for a rename downstream.
+
+Missing is not zero: INS writes ':' for a figure it does not have and '0' for a
+measured zero. A ':' comes back as no row at all, a '0' as a row with 0.0. The
+result is not a complete grid, so an absent year is unknown until you decide
+otherwise.""")
 
     def _territorial_options(self, d, wanted: list[str], locality_active: bool):
         """Which options of one territorial dimension to send.
@@ -808,6 +814,11 @@ hold, ready for a rename downstream.""")
         combination of dimensions, a select that did not come back the size it
         was asked for. The frame carries the same verdict in df.attrs, under
         complete, missing_requests and aggregation_warnings.
+
+        Missing is not zero here either: a ':' from INS is an absent row and a
+        '0' is a row with 0.0, exactly as in get(). A CSV of a large indicator
+        is therefore sparse by nature, and a row that is not in it is a figure
+        INS does not have, not a zero.
         """
         target, wanted, plan, requests = self._plan_requests(level, levels,
                                                              select)
@@ -852,6 +863,14 @@ hold, ready for a rename downstream.""")
         Over POLITE_REQUESTS requests it stops and points at download(), which
         checkpoints on disk and can resume. confirm=False goes ahead anyway,
         everything in memory, for anyone who knows what they are doing.
+
+        Missing is not zero. INS writes ':' for a figure it does not have and
+        '0' for a measured zero, and those are different statements. The
+        distinction survives: a ':' arrives as no row at all, so the
+        combination is simply absent from the result, and a '0' arrives as a
+        row whose Valoare is 0.0. The frame is therefore not a complete grid,
+        and joining or averaging over it is a decision: an absent year is
+        unknown, not zero, unless you decide otherwise.
         """
         target, wanted, plan, requests = self._plan_requests(level, levels,
                                                              select)

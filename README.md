@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.22.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.23.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -267,6 +267,35 @@ Municipiul Bucuresti do not appear before 1996. So do not validate a pull by
 counting rows against the cartesian product of the dimensions, and do not assume
 a complete grid when reshaping.
 
+### Missing is not zero
+
+INS makes a distinction that most exports lose. On the site, `:` means it has no
+figure for that combination, and `0` means it measured a zero. Those are
+different statements: a commune with no births registered in a year is not the
+same as a commune whose figure was never published.
+
+pytempo keeps them apart, in the only way that keeps them apart honestly:
+
+* a `:` arrives as **no row at all**, so the combination is simply not in the
+  frame;
+* a `0` arrives as a **row whose `Valoare` is `0.0`**.
+
+A small commune therefore looks like this, and both facts are visible:
+
+    df[df["Localitati_siruta"] == 2130][["Ani_an", "Valoare"]]
+       Ani_an  Valoare
+    12   2019      3.0
+    13   2021      0.0      # a measured zero: nothing happened that year
+    14   2022      1.0
+                            # 2020 is not here at all: INS published ':'
+
+The consequence is yours to handle, and it is a decision, not a detail. Before
+you join on year, compute a rate, or average a series, choose what an absent
+year means for your question: filling it with zero states that nothing happened,
+which is a claim INS did not make. `df.tempo.coverage()` reports, per unit,
+which years are there and how many are missing, so the holes are visible before
+they turn into numbers.
+
 Column names come from `matrix.dimensions`, not from the CSV header. The API
 replaces commas inside a dimension label with spaces, so the header arrives with
 the comma gone. The parser checks the column count against the number of
@@ -442,6 +471,8 @@ the frame you give it.
     #       Sexe  Macroregiuni...judete   1990   1991   1992
     # 0  Feminin                   Alba  116.5  113.0  114.5
 
+    df.tempo.spot_check(2, seed=7)      # two random units, to check by hand
+
 `coverage()` is the first look at a series: one row per territorial unit, the
 span of years it has, how many of the years seen anywhere in the frame are
 missing for it, and the smallest and largest value with the year each occurred.
@@ -466,6 +497,46 @@ only wants the numbers never pays for the geometry stack.
 
 Calling the accessor on a frame that is not tidy output says so plainly rather
 than guessing.
+
+### Checking a download by hand
+
+Every check inside the library is a check on itself. The one error none of them
+can catch is a number that is correct and means something else: the wrong
+option pinned, the wrong dimension read, a series that is not the one you
+thought you asked for. The only thing that catches that is opening TEMPO Online
+and reading the same number off the site.
+
+What makes that tedious is the setup, not the comparison: finding one locality
+among three thousand, and working out which option every other dimension has to
+be on for the site to show a single line. `spot_check()` does the setup:
+
+    df.tempo.spot_check(2, seed=7)
+
+    spot check: 2 of 3182 units, seed 7
+      1. 2130 ALBAC  [Judete: Alba]  siruta 2130
+         fixed Varste si grupe de varsta = Total
+         fixed Sexe = Total
+         3 years:
+           2020  1834.0
+           2021  1802.0
+           2022  1795.0
+      2. 1017 MUNICIPIUL ALBA IULIA  [Judete: Alba]  siruta 1017
+         ...
+      read the same numbers at http://statistici.insse.ro:8077/tempo-online/
+      open the same indicator, pick the same options, compare year by year
+      a year missing here is a ':' on the site, not a zero
+
+It picks `n` units at random from those that carry a value, names each one with
+its county and its SIRUTA, pins every other dimension on its total so the site
+shows a single series, and prints that series year by year. A dimension with no
+total gets its first option and is named as such, because a pinned dimension
+the reader does not know about is how a spot check ends up comparing two
+different things.
+
+`seed=` makes the choice reproducible, so a spot check can live in a script and
+be rerun after a change. Nothing here touches the network: it reads the frame
+you already downloaded and prints. Where to go with it is the only thing it
+knows about the site.
 
 ## Loading into PostgreSQL
 

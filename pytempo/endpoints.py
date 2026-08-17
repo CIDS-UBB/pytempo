@@ -18,6 +18,13 @@ CONFIG_URL = os.environ.get(
     "http://statistici.insse.ro:8077/tempo-online/assets/data/tempo-config.json",
 )
 
+# the interactive site, where a person checks a number by hand. Nothing in the
+# library fetches it; it is printed, for a human to open
+SITE_URL = os.environ.get(
+    "TEMPO_SITE_URL",
+    "http://statistici.insse.ro:8077/tempo-online/",
+)
+
 
 def context(code: str = "") -> str:
     """The tree of statistical domains. The root (code='') gives A through H."""
@@ -42,3 +49,8 @@ def pivot() -> str:
 def dataset() -> str:
     """Alternative data endpoint (JSON). pivot is the proven path."""
     return f"{BASE_URL}matrix/dataSet/"
+
+
+def site() -> str:
+    """TEMPO Online itself, for checking a downloaded number against the source."""
+    return SITE_URL

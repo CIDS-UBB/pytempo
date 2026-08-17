@@ -15,7 +15,7 @@ from . import wrangle  # noqa: F401  registers the df.tempo accessor
 # explore.init and explore.browse are sketches that still raise
 # NotImplementedError, so they are deliberately not exported yet
 
-__version__ = "0.22.0"
+__version__ = "0.23.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
@@ -93,7 +93,14 @@ verdict as df.attrs['complete'] and df.attrs['aggregation_warnings'].
 RESHAPE it, on any frame from get(tidy=True)
   df.tempo.coverage()          per unit: span of years, holes, extremes
   df.tempo.wide()              pivot time into columns, one per year
+  df.tempo.spot_check(2)       two random units, ready to check on the site
   df.tempo.geo()               join on SIRUTA, not implemented yet
+
+spot_check() prepares the one check nothing internal can do: reading the same
+number off TEMPO Online. It picks units at random, pins every other dimension
+on its total so the site shows a single series, says what it pinned, and prints
+the series year by year. seed= makes the choice reproducible. It touches no
+network, only the frame you already have.
 
 LOAD it into PostgreSQL, pytempo writes the SQL, you run it
   m.schema()                   CREATE TABLE for this indicator, as text
@@ -124,8 +131,15 @@ GOS102A calls them 'Municipii si orase'. The columns keep those names, the
 library renames nothing; m.locality_dimension and m.territory_columns() are how
 you find them without hardcoding either spelling.
 
-The data is sparse: combinations with no data are absent as whole rows, not as
-blanks. Indicators that do not fit one POST are downloaded in several requests
+The data is sparse, and deliberately so: INS writes ':' when it has no figure
+and '0' when it measured a zero, which are different statements. pytempo keeps
+them apart. A ':' arrives as no row at all, so the combination is absent from
+the result; a '0' arrives as a row whose Valoare is 0.0. Never read an absent
+year or an absent locality as a zero, and do not assume a complete grid when
+joining or averaging: what to do with what is missing is your decision to make,
+and df.tempo.coverage() shows where the holes are.
+
+Indicators that do not fit one POST are downloaded in several requests
 and concatenated: county by county for those with localities, otherwise split on
 the largest dimension. Above 50 requests get() stops and points at download(),
 which checkpoints on disk; get(confirm=False) goes ahead in memory anyway. tidy

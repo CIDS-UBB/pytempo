@@ -79,6 +79,15 @@ def _norm(s: str) -> str:
     return (s or "").lower().translate(repl)
 
 
+def is_total_label(label: str) -> bool:
+    """True for the aggregate option of a dimension, recognized by name.
+
+    INS writes it 'TOTAL', 'Total' and 'Total ', and sometimes qualifies it, as
+    in 'TOTAL, din care:'. Position is no guide: the total is not always first.
+    """
+    return (label or "").strip().upper().startswith("TOTAL")
+
+
 def option_level(label: str) -> str:
     """The level of a territorial option, from its name.
 
