@@ -17,8 +17,8 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from . import (chunking, client, endpoints, incremental, parse, selection,
-               territory)
+from . import (chunking, client, endpoints, hierarchy, incremental, parse,
+               selection, territory)
 from .chunking import MAX_CELLS
 from .models import Dimension, Node, Option
 
@@ -481,8 +481,16 @@ class Matrix:
         listed = ", ".join(f"{_clean(d.label)} ({len(d.options)} options)"
                            for d in big[:3])
         print(f"  large dimensions: {listed}")
-        print(f"    take only part of one with select=, see "
-              f"m.options({_clean(big[0].label)!r})")
+        first = _clean(big[0].label)
+        if hierarchy.is_hierarchical(big[0]):
+            groups = len(hierarchy.pick(big[0], "groups"))
+            print(f"    {first} is hierarchical: take just the {groups} "
+                  f"aggregates with")
+            print(f"    select={{{first!r}: 'groups'}}, or see "
+                  f"m.options({first!r}, kind='groups')")
+        else:
+            print(f"    take only part of one with select=, see "
+                  f"m.options({first!r})")
 
     def _request_count(self, plan) -> int:
         """How many requests get() would really send, on its default call.
@@ -616,7 +624,8 @@ class Matrix:
         raise ValueError(
             f"unknown dimension: {dimension!r}. Available: {available}")
 
-    def options(self, dimension=None, limit: int | None = None) -> TextList:
+    def options(self, dimension=None, limit: int | None = None,
+                kind: str | None = None) -> TextList:
         """The option names of a dimension, so you know what you can filter on.
 
         With no argument it lists the indicator's dimensions, with their role
@@ -624,6 +633,16 @@ class Matrix:
 
         dimension accepts an index, a role ('timp', 'judet', 'teritoriu') or a
         label ('Judete'). limit truncates the returned list.
+
+        kind narrows a hierarchical dimension to one level, with the same words
+        select= takes: 'groups' or 'parents' for the aggregates, 'leaves' for
+        the finest level, 'total' for the total alone. It is there so you can
+        see what a select= would keep before downloading anything:
+
+            m.options('varsta', kind='groups')   the 19 age groups
+            m.get(select={'varsta': 'groups'})   the same 19, downloaded
+
+        Without kind, every option, exactly as before.
         """
         self._ensure_meta()
         if dimension is None:
@@ -633,7 +652,8 @@ class Matrix:
                 sep="\n", show=50)
 
         dim = self._find_dimension(dimension)
-        labels = [o.label for o in dim.options]
+        chosen = hierarchy.pick(dim, kind) if kind else dim.options
+        labels = [o.label for o in chosen]
         if limit is not None:
             labels = labels[:limit]
         return TextList(labels)
@@ -710,9 +730,11 @@ class Matrix:
   .territory_columns() the columns of the fine territory, by what they hold
   .options()           which dimensions it has, with role and size
   .options('teritoriu') what values one dimension takes
+  .options('varsta', kind='groups')   just the aggregates of a hierarchy
   .get()               the data, as a long format DataFrame
   .get(level='judet')  one territorial level only
   .get(select={{'Sexe': ['Masculin']}})  keep only some options of a dimension
+  .get(select={{'varsta': 'groups'}})  or a kind: groups, leaves, total
   .get(raw=True)       exactly what INS returns, no derived columns
   .get(progress=True)  report progress on large indicators
   .download(folder='data/x')   for large ones: to disk, checkpointed,

@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.24.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.25.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -113,6 +113,7 @@ Understanding an indicator:
     m.describe()                 the full record, every word INS wrote
     m.options()                  which dimensions it has, role and size
     m.options('teritoriu')       what values one dimension can take
+    m.options('varsta', kind='groups')   just the aggregates of a hierarchy
     m.locality_dimension         which dimension holds the localities, or None
     m.territory_columns()        the columns of the fine territory, by content
     m.related()                  the other indicators under the same node
@@ -129,6 +130,7 @@ Fetching the data:
     m.get(levels=['judet', 'regiune'])   several levels
     m.get(level=None)            every level at once
     m.get(select={'Sexe': ['Masculin']})  only some options of a dimension
+    m.get(select={'varsta': 'groups'})   or a kind: groups, leaves, total
     m.get(raw=True)              exactly what INS returned, no derived columns
     m.get(progress=True)         report progress on large indicators
     m.download(folder='data/x')  large ones: through disk, resumable
@@ -162,13 +164,14 @@ its own words, with the command to copy:
       stopped if it breaks, and retries when INS times out.
       ...
       large dimensions: Varste si grupe de varsta (104 options), Ani (35 options)
-        take only part of one with select=, see m.options('Varste si grupe de varsta')
+        Varste si grupe de varsta is hierarchical: take just the 19 aggregates with
+        select={'Varste si grupe de varsta': 'groups'}, or see m.options(...)
 
 `how()` counts the requests by planning the download, not by reading the
 registry's estimate, so the number it prints is the number `get()` would really
 send. It also names the dimensions big enough to be worth trimming with
 `select=`, which is often the cheaper answer: 380 requests for all 104 ages
-become a handful once you ask for the two you need.
+become far fewer once you ask only for the 19 groups.
 
 If `get()` does stop you, the error says the same thing, for that indicator:
 
@@ -377,11 +380,71 @@ surrounding space, then as a unique substring, so `varsta` finds
 `Varste si grupe de varsta`. An ambiguous key is an error that lists the
 candidates rather than a guess.
 
-The value takes three forms: a list of `nomItemId` numbers, a list of option
-labels, or a predicate on the option, for instance
-`select={'Ani': lambda o: '202' in o.label}`. A single value stands for a list
-of one. Whatever the form, a name that matches nothing is named in the error,
-with a suggestion when one is close.
+The value takes four forms: a list of `nomItemId` numbers, a list of option
+labels, a predicate on the option, for instance
+`select={'Ani': lambda o: '202' in o.label}`, or one of the words below. A
+single value stands for a list of one. Whatever the form, a name that matches
+nothing is named in the error, with a suggestion when one is close.
+
+### Selecting a kind of option
+
+Many dimensions have levels inside them. POP107D's 104 ages are 19 groups,
+`Total` and eighteen five year bands, and the 85 single ages under them. Asking
+for the groups used to mean a loop over the labels, keeping the ones with a
+hyphen or the one that says `Total`, which is a guess about how INS writes
+names and breaks on the next dimension.
+
+`select` takes a word instead:
+
+    m.options('varsta', kind='groups')   # see the 19 first
+    Total,    0- 4 ani,    5- 9 ani,    10-14 ani, ...,    85 ani si peste
+
+    m.download(level='localitate', folder='data/pop107d',
+               select={'varsta': 'groups'})
+
+    groups   the aggregates: every level above the finest one, plus the total
+    parents  the same thing, if that word reads better where you are
+    leaves   the finest level, without the total
+    total    the total alone
+
+They are not about ages. On AGR101A, land use, `groups` gives `Total`,
+`Agricola`, `Terenuri neagricole total` and `Alte suprafete`, and `leaves`
+gives the ten kinds of land under them. Any dimension with levels answers.
+
+**Where the levels come from.** Measured across the catalogue before any of
+this was written: `parentId` is populated only on locality dimensions, where it
+points at the county, that is at an option of another dimension. It is null on
+POP107D and POP105A ages, on FOM104F's CAEN, on SCL101B's levels of education,
+on AGR101A's land use, and even on hierarchical territory. `offset` is a plain
+running order. What INS does carry is the indentation of the label, three
+spaces per level, which is what it renders its own tree from:
+
+    'Total'
+    '   0- 4 ani'
+    '      0 ani'
+
+So `parentId` is read first, because it is explicit wherever it exists, and the
+indentation second, because it is what the live catalogue actually has. The
+indentation is a layout signal rather than a naming pattern: it says nothing
+about what an option is called, only about where it sits, which is why it works
+on dimensions this library has never seen. It is still a fallback, and if INS
+stopped indenting, the words would report a flat dimension rather than guess.
+
+**A kind is a level, not a count of children.** `85 ani si peste` has no single
+ages under it, since INS does not list ages past 85 one by one, and
+`Alte suprafete` has nothing under it either. Calling an option a group only
+when something sits beneath it would drop the first from the age groups and the
+second from land use, leaving a set of aggregates that does not add up to its
+own total. Both are written at the level of the aggregates, and that is what
+they are.
+
+A dimension with no levels inside it, and plenty have none, says so:
+
+    m.get(select={'Niveluri de educatie': 'groups'})
+    ValueError: select 'groups' on 'Niveluri de educatie': this dimension is
+    not hierarchical, its 18 options are all at the same level, so there are no
+    groups to keep and no leaves to drop. Name the options you want, as labels
+    or as nomItemIds, or pass a predicate.
 
 Dimensions `select` does not name stay whole, and everything downstream works on
 the smaller set: the cell count, the chunking strategy, the query and the tidy

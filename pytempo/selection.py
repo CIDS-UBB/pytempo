@@ -13,6 +13,8 @@ used again with a different select, or with none.
 import difflib
 from dataclasses import replace
 
+from . import hierarchy
+
 
 def _labels(dimensions) -> str:
     return ", ".join(repr(d.label.strip()) for d in dimensions)
@@ -70,12 +72,21 @@ def _option_by_label(dimension, wanted: str):
 def choose_options(dimension, chooser) -> list:
     """Which options of one dimension to keep, from one select value.
 
-    Three forms, and a single value stands for a list of one:
-    whole numbers are nomItemIds, text is matched against option labels, and a
-    callable is a predicate on the option. The result keeps the dimension's own
-    order, the order INS gave, whatever order they were asked for in.
+    Four forms, and a single value stands for a list of one: whole numbers are
+    nomItemIds, a callable is a predicate on the option, text is matched
+    against option labels, and one of the words 'groups', 'parents', 'leaves'
+    and 'total' asks for a kind rather than for names.
+
+    The keywords are read before the labels, and 'total' is the only one that
+    could also be a label. It resolves to the same option either way, and to
+    the right one even when INS spells it 'TOTAL, din care:', which an exact
+    label match would have missed. Lists are never read as keywords, so
+    ['Total', 'Cluj'] still means two labels.
     """
     where = f"select on {dimension.label.strip()!r}"
+
+    if isinstance(chooser, str) and chooser.strip().lower() in hierarchy.KINDS:
+        return hierarchy.pick(dimension, chooser)
 
     if callable(chooser):
         kept = [o for o in dimension.options if chooser(o)]

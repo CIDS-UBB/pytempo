@@ -73,8 +73,11 @@ def test_how_points_at_select_when_a_dimension_is_big(monkeypatch, capsys):
     out = _how(t.matrix("POP107D"), capsys)
 
     assert "large dimensions: Varste si grupe de varsta (104 options)" in out
-    assert "take only part of one with select=" in out
-    assert "m.options('Varste si grupe de varsta')" in out
+    # it is hierarchical, so it points at the keyword rather than at a loop
+    assert "Varste si grupe de varsta is hierarchical" in out
+    assert "take just the 19 aggregates" in out
+    assert "select={'Varste si grupe de varsta': 'groups'}" in out
+    assert "m.options('Varste si grupe de varsta', kind='groups')" in out
     # the territorial dimensions are not listed there: level= is their tool
     assert "Localitati (3182 options)" not in out
 

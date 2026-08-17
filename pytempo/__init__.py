@@ -15,7 +15,7 @@ from . import wrangle  # noqa: F401  registers the df.tempo accessor
 # explore.init and explore.browse are sketches that still raise
 # NotImplementedError, so they are deliberately not exported yet
 
-__version__ = "0.24.0"
+__version__ = "0.25.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
@@ -60,6 +60,7 @@ UNDERSTAND an indicator
   m.levels                     levels, e.g. ['national', 'judet', 'localitate']
   m.has_siruta                 True if localities carry a SIRUTA prefix
   m.options('teritoriu')       what values one dimension takes
+  m.options('varsta', kind='groups')   just the aggregates of a hierarchy
   m.locality_dimension         which dimension holds the localities, or None
   m.territory_columns()        the columns of the fine territory, by content
   m.help()                     this guide, for one indicator
@@ -70,6 +71,7 @@ FETCH the data
   m.get(levels=['judet','regiune'])   several levels
   m.get(level=None)            every level at once, the old default
   m.get(select={'Sexe': ['Masculin']})   keep only some options of a dimension
+  m.get(select={'varsta': 'groups'})     or a kind: groups, leaves, total
   m.get(raw=True)              exactly what INS returns, no derived columns
   t.get('FOM101A')             the same, starting from a code
   m.download(folder='data/x')  for the large ones, see the next section
@@ -124,6 +126,14 @@ for is downloaded. Its key is a dimension label, exactly or as a unique
 substring; its value is a list of nomItemIds, a list of option labels, or a
 predicate on the option, for instance select={'Ani': lambda o: '202' in o.label}.
 Dimensions it does not name stay whole, and level= then works on what is left.
+
+A value can also be a kind, for a dimension that has levels inside it:
+'groups', or 'parents', keeps the aggregates, 'leaves' keeps the finest level,
+'total' keeps the total. select={'varsta': 'groups'} on POP107D is the 19 age
+groups instead of the 104 options, without a loop over the labels and without
+knowing how INS writes them. m.options('varsta', kind='groups') shows the same
+19 before you download anything. A dimension with no levels inside it, and
+plenty have none, says so rather than guessing.
 
 When county and locality are two separate dimensions, as in FOM104D, a level
 picks which one is active and puts the other on its total: level='judet' gives
