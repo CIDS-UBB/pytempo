@@ -319,7 +319,14 @@ def test_how_lists_only_its_own_levels(monkeypatch, tmp_path, capsys):
     assert "raw=True" in iesire
 
 
-def test_how_warns_when_expensive(monkeypatch, tmp_path, capsys):
+def test_how_counts_the_requests_itself(monkeypatch, tmp_path, capsys):
+    """how() plans the download rather than trusting the registry's estimate.
+
+    The estimate counts one request per county, which is right about the
+    strategy and wrong about the number as soon as a county has to be split
+    again. A manual that promises a number get() then refuses is worse than no
+    manual, so the number printed is the one get() would really send.
+    """
     _registry(monkeypatch, tmp_path)
     cale = schemas.build.REGISTRY_PATH
     date = schemas.load_registry(cale)
@@ -328,8 +335,10 @@ def test_how_warns_when_expensive(monkeypatch, tmp_path, capsys):
 
     t.matrix("SOM101B").how()
     iesire = capsys.readouterr().out
-    assert "530" in iesire and "WARNING" in iesire
-    assert "m.download(folder=" in iesire
+    assert "strategy: single, 1 request" in iesire
+    assert "530" not in iesire
+    # small, so it is not talked out of get()
+    assert "THIS ONE IS LARGE" not in iesire
 
 
 def test_how_explains_the_two_dimension_semantics(monkeypatch, tmp_path,

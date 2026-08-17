@@ -15,7 +15,7 @@ from . import wrangle  # noqa: F401  registers the df.tempo accessor
 # explore.init and explore.browse are sketches that still raise
 # NotImplementedError, so they are deliberately not exported yet
 
-__version__ = "0.23.0"
+__version__ = "0.24.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
@@ -72,11 +72,18 @@ FETCH the data
   m.get(select={'Sexe': ['Masculin']})   keep only some options of a dimension
   m.get(raw=True)              exactly what INS returns, no derived columns
   t.get('FOM101A')             the same, starting from a code
+  m.download(folder='data/x')  for the large ones, see the next section
+  t.download('POP107D', folder='data/pop107d')   the same, from a code
+  m.how()                      says which of the two this indicator needs
 
 FETCH a large one, through disk
   df = m.download(folder='data/san101b')   each request written as it arrives
   m.download(folder=..., return_df=False)  the CSV path, nothing held in memory
   t.download('SAN101B', folder=...)        the same, starting from a code
+
+Which of the two: get() for anything that fits in memory, which is almost every
+indicator, and download() past 50 requests, where get() stops and says so.
+m.how() prints the answer for one indicator, with the command to copy.
 
 download() takes the same level, levels and select as get() and builds the same
 plan. What changes is that every request is written to its own slice file the

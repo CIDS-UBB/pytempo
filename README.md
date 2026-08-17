@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.23.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.24.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -132,6 +132,57 @@ Fetching the data:
     m.get(raw=True)              exactly what INS returned, no derived columns
     m.get(progress=True)         report progress on large indicators
     m.download(folder='data/x')  large ones: through disk, resumable
+
+### get or download
+
+Two ways to pull an indicator, and the choice is not a preference:
+
+    m.get()                      holds the whole thing in memory
+    m.download(folder='data/x')  writes each request to disk as it arrives
+
+`get()` is right for almost every indicator: one request, or a handful, and a
+frame at the end. Past 50 requests it stops and refuses, because keeping a
+hundred requests in memory and losing all of them to one late timeout is not a
+download, it is a gamble. That is where `download()` belongs: same arguments,
+same plan, but each slice is written as it comes back, a broken run resumes
+where it stopped, and a request that times out is retried rather than fatal.
+
+You do not have to guess which one an indicator needs. `m.how()` says so, in
+its own words, with the command to copy:
+
+    t.matrix("POP107D").how()
+
+    How to download POP107D:
+      m = t.matrix('POP107D')
+
+      THIS ONE IS LARGE: 380 requests. get() stops and sends you here.
+      Download it safely, with a checkpoint and a resume:
+        m.download(level='localitate', folder='data/pop107d')
+      download() writes each slice to disk as it arrives, picks up where it
+      stopped if it breaks, and retries when INS times out.
+      ...
+      large dimensions: Varste si grupe de varsta (104 options), Ani (35 options)
+        take only part of one with select=, see m.options('Varste si grupe de varsta')
+
+`how()` counts the requests by planning the download, not by reading the
+registry's estimate, so the number it prints is the number `get()` would really
+send. It also names the dimensions big enough to be worth trimming with
+`select=`, which is often the cheaper answer: 380 requests for all 104 ages
+become a handful once you ask for the two you need.
+
+If `get()` does stop you, the error says the same thing, for that indicator:
+
+    ValueError: POP107D is large: 380 requests, over the 50 get() holds in
+    memory. Nothing has been downloaded yet.
+    Do not pull this one with get(): it keeps every request in memory until the
+    last one, and loses all of it if a late request times out. Use:
+      m.download(level='localitate', folder='data/pop107d')
+    which writes each request to disk as it arrives, resumes where it stopped,
+    and retries on timeout. See m.how() for the whole manual.
+    Or get(confirm=False) if you really do want get().
+
+The full description of `download()`, its arguments and its checks, is further
+down, under Large indicators.
 
 ## Levels and roles
 

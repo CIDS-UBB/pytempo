@@ -22,9 +22,13 @@ from . import (chunking, client, endpoints, incremental, parse, selection,
 from .chunking import MAX_CELLS
 from .models import Dimension, Node, Option
 
-# past this many requests we ask first, so nobody starts a download of tens
-# of minutes by accident
+# past this many requests get() stops and sends you to download(), so nobody
+# starts a download of tens of minutes in memory by accident
 POLITE_REQUESTS = 50
+
+# past this many options a dimension is worth trimming with select= before
+# downloading everything it has
+BIG_DIMENSION = 30
 
 _ANCHORS = re.compile(r"<a\b[^>]*>.*?</a>", re.IGNORECASE | re.DOTALL)
 _TAGS = re.compile(r"<[^>]+>")
@@ -104,20 +108,39 @@ def _excluded_hint(m, wanted) -> str | None:
     return f"  for every level, including {listed}, use get(level=None)"
 
 
-def _too_big(cod: str, request_count: int) -> ValueError:
+def _download_line(cod: str, wanted) -> str:
+    """The download() call for this indicator, ready to copy.
+
+    It carries the level actually being asked for, not a generic example: a
+    command that has to be edited before it runs is a command nobody runs.
+    """
+    if not wanted:
+        selection_part = ""
+    elif len(list(wanted)) == 1:
+        selection_part = f"level={list(wanted)[0]!r}, "
+    else:
+        selection_part = f"levels={list(wanted)!r}, "
+    return f"m.download({selection_part}folder='data/{cod.lower()}')"
+
+
+def _too_big(cod: str, request_count: int, wanted) -> ValueError:
     """What get() says when the plan is too large to hold in memory safely.
 
     It used to ask at the keyboard, which reads as a hang in a notebook and
-    answers itself with a no under pytest. An error that names the way out is
-    both honest and scriptable.
+    answers itself with a no under pytest. An error that names the way out,
+    for this indicator and this selection, is both honest and scriptable.
     """
     return ValueError(
-        f"{cod}: {request_count} requests, over the {POLITE_REQUESTS} that "
-        f"get() holds in memory. Nothing has been downloaded yet.\n"
-        f"  m.download(folder='data/{cod.lower()}')   each request written to "
-        f"disk as it arrives, and resumable\n"
-        f"  m.get(confirm=False)   all of it in memory, the old way, with no "
-        f"checkpoint")
+        f"{cod} is large: {request_count} requests, over the "
+        f"{POLITE_REQUESTS} get() holds in memory. Nothing has been "
+        f"downloaded yet.\n"
+        f"Do not pull this one with get(): it keeps every request in memory "
+        f"until the last one, and loses all of it if a late request times "
+        f"out. Use:\n"
+        f"  {_download_line(cod, wanted)}\n"
+        f"which writes each request to disk as it arrives, resumes where it "
+        f"stopped, and retries on timeout. See m.how() for the whole manual.\n"
+        f"Or get(confirm=False) if you really do want get().")
 
 
 class TextList(list):
@@ -418,16 +441,81 @@ class Matrix:
             print(f"time     : {_clean(d.label)}, {len(d.options)} periods, "
                   f"{span}")
 
+    def _big_dimensions(self) -> list:
+        """The dimensions large enough to be worth trimming with select=.
+
+        Territorial ones are left out: level= is the tool for those. What is
+        left is where select= pays, and POP107D is the case in point, with 104
+        ages where two are usually wanted.
+        """
+        big = [d for d in self.dimensions
+               if d.role not in ("teritoriu", "um")
+               and len(d.options) > BIG_DIMENSION]
+        return sorted(big, key=lambda d: len(d.options), reverse=True)
+
+    def _how_large(self, request_count: int, default_level) -> None:
+        """The first thing to say about a large indicator: do not use get().
+
+        At the bottom of the printout this was a footnote to be scrolled to,
+        after a list of get() calls that will not run. It belongs first.
+        """
+        wanted = [default_level] if default_level else []
+        print()
+        print(f"  THIS ONE IS LARGE: {request_count} requests. get() stops "
+              f"and sends you here.")
+        print("  Download it safely, with a checkpoint and a resume:")
+        print(f"    {_download_line(self.code, wanted)}")
+        print("  download() writes each slice to disk as it arrives, picks up "
+              "where it")
+        print("  stopped if it breaks, and retries when INS times out.")
+        print()
+        print("  the selection arguments below work on either one: get() for "
+              "a small")
+        print("  slice of it, download() for the whole thing.")
+
+    def _how_select(self) -> None:
+        """Point at select= when a dimension is big enough for it to matter."""
+        big = self._big_dimensions()
+        if not big:
+            return
+        listed = ", ".join(f"{_clean(d.label)} ({len(d.options)} options)"
+                           for d in big[:3])
+        print(f"  large dimensions: {listed}")
+        print(f"    take only part of one with select=, see "
+              f"m.options({_clean(big[0].label)!r})")
+
+    def _request_count(self, plan) -> int:
+        """How many requests get() would really send, on its default call.
+
+        Not the registry's estimate, which counts one request per county for a
+        by_county matrix: right about the strategy, wrong about the number.
+        POP107D splits every county again on its 104 ages, so its 43 counties
+        are 380 requests. A manual that promises 43 and a get() that refuses
+        380 cannot both be right, and the one that has to be right is the
+        manual. Planning is arithmetic on lists, so this costs milliseconds.
+        """
+        try:
+            wanted = self._wanted_levels("finest", None, plan)
+            return len(chunking.plan_requests(self,
+                                              self._build_selection(wanted)))
+        except ValueError:
+            # a filter that matches nothing, or a level this indicator does
+            # not have: fall back rather than fail inside a help method
+            return plan.get("est_requests", 1)
+
     def how(self) -> None:
         """This indicator's own download manual, ready to copy."""
         self._ensure_meta()
         plan = self.fetch_plan()
         strategy = plan.get("strategy", "single")
-        request_count = plan.get("est_requests", 1)
+        request_count = self._request_count(plan)
         default_level = plan.get("default_level")
+        large = request_count > POLITE_REQUESTS
 
         print(f"How to download {self.code}:")
         print(f"  m = t.matrix({self.code!r})")
+        if large:
+            self._how_large(request_count, default_level)
         print(f"  df = m.get()          "
               f"{'level ' + default_level if default_level else 'no territorial filter'}"
               f", tidied")
@@ -459,16 +547,19 @@ class Matrix:
             if self.levels:
                 print("  m.get(level=None)     every level at once")
         print("  m.get(raw=True)       exactly what INS returns, no extras")
+        if not large:
+            print(f"  {_download_line(self.code, [])}")
+            print("                        the same data, written straight to "
+                  "a CSV on disk")
         print()
-        print(f"  strategy: {strategy}, roughly {request_count} "
+        print(f"  strategy: {strategy}, {request_count} "
               f"{'request' if request_count == 1 else 'requests'}")
-        if request_count > POLITE_REQUESTS:
-            print(f"  WARNING: over {POLITE_REQUESTS} requests, this takes a "
-                  f"while. get() stops and sends you here:")
-            print(f"  m.download(folder='data/{self.code.lower()}')   each "
-                  f"request written to disk, resumable")
+        if large:
+            print(f"  over {POLITE_REQUESTS} requests, so download() rather "
+                  f"than get(), as above")
         elif request_count > 1:
             print("  downloaded in several requests and concatenated")
+        self._how_select()
 
     def schema(self, schema: str = "tempo", include_comments: bool = True) -> str:
         """PostgreSQL DDL for this indicator, as text. Nothing is executed."""
@@ -624,8 +715,10 @@ class Matrix:
   .get(select={{'Sexe': ['Masculin']}})  keep only some options of a dimension
   .get(raw=True)       exactly what INS returns, no derived columns
   .get(progress=True)  report progress on large indicators
-  .download(folder='data/x')   large indicators: each request written to disk
+  .download(folder='data/x')   for large ones: to disk, checkpointed,
+                       resumable, and it retries when INS times out
   .download(folder=..., return_df=False)   returns the CSV path, not the frame
+  .how()               says which of the two this indicator needs
   df.tempo.spot_check(2)       on the result: two random units to check by hand
 
 get() holds everything in memory and is right below 50 requests. Above that it
@@ -879,7 +972,7 @@ otherwise.""")
         if progress is not False:
             self._announce(target, wanted, plan, requests)
         if confirm and len(requests) > POLITE_REQUESTS:
-            raise _too_big(self.code, len(requests))
+            raise _too_big(self.code, len(requests), wanted)
 
         frames = []
         for i, payload in enumerate(requests, 1):
