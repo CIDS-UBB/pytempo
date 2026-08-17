@@ -16,7 +16,7 @@ from . import wrangle  # noqa: F401  registers the df.tempo accessor
 # explore.init and explore.browse are sketches that still raise
 # NotImplementedError, so they are deliberately not exported yet
 
-__version__ = "0.28.0"
+__version__ = "0.29.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
@@ -173,12 +173,15 @@ which checkpoints on disk; get(confirm=False) goes ahead in memory anyway. tidy
 never drops or reorders anything: the original name stays, SIRUTA prefix and
 all.
 
-The POST to pivot retries by itself: a read timeout, a dropped connection or a
-5xx is sent again up to three times, with growing waits. In download() a slice
-that still fails is reported and skipped, so one bad request does not undo the
-ones that worked. An answer of 200 with an empty body, which INS does give on a
-bad day, raises EmptyResponse rather than a parser error: it is the server, not
-a combination with no data, which arrives as a header with no rows.
+The POST to pivot retries by itself: a read timeout, a dropped connection, a
+5xx or a 200 with an empty body is sent again up to three times, with growing
+waits. That last one is what rate limiting looks like on a long download, and
+it is safe to retry because a combination with no data is spelled differently,
+as a header with no rows. download() also leaves half a second between
+requests, doubling it when slices fail anyway, so the limit is not provoked in
+the first place; set pytempo.incremental.REQUEST_SPACING = 0 to turn that off.
+A slice that still fails is reported and skipped, so one bad request does not
+undo the ones that worked, and resume=True finishes it on the next run.
 
 find and search are different tools. find is the fast keyword search, without
 filters. search is discovery with filters, and works with no keyword at all.

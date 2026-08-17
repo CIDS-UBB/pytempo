@@ -24,11 +24,23 @@ import hashlib
 import importlib.util
 import shutil
 import tempfile
+import time
 from pathlib import Path
 
 import pandas as pd
 
 from . import client, parse, selection
+
+# seconds to wait between one request and the next. Measured on POP108D, 83
+# slices: fired back to back, the first 42 answered with data and every one of
+# the remaining 41 came back empty, which is INS rate limiting. Half a second
+# between them costs under a minute on a download of a hundred and keeps the
+# server willing. Set pytempo.incremental.REQUEST_SPACING = 0 to turn it off
+REQUEST_SPACING = 0.5
+
+# when slices start failing anyway, the spacing doubles, up to this. INS has
+# had enough, and knocking harder is not an argument
+MAX_SPACING = 8.0
 
 # the conventions for the consolidated CSV: Excel in Romania reads ';' as the
 # separator, and the BOM is what makes it show diacritics without being asked
@@ -139,8 +151,14 @@ def _fetch(matrix, requests, folder: Path, fmt: str, resume: bool,
     and skipped: one bad request out of a hundred must not undo the ninety nine
     that worked, and the file it did not write is exactly what makes resume
     ask for it again.
+
+    Requests are spaced out, and the spacing grows every time a slice fails
+    anyway. A download of a hundred requests is a guest asking for a lot, and
+    the way INS says so is by answering with nothing.
     """
     paths, missing = [], []
+    spacing = REQUEST_SPACING
+    sent = False
     for i, payload in enumerate(requests, 1):
         path = slice_path(folder, i, payload, fmt)
         paths.append(path)
@@ -148,13 +166,19 @@ def _fetch(matrix, requests, folder: Path, fmt: str, resume: bool,
             if progress:
                 print(f"  {i}/{len(requests)}: {path.name}, already on disk")
             continue
+        if sent and spacing:
+            time.sleep(spacing)
+        sent = True
         try:
             df = parse.pivot_csv_to_dataframe(client.post_pivot(payload), matrix)
         except Exception as e:                      # noqa: BLE001
             missing.append({"index": i, "encQuery": payload["encQuery"],
                             "error": f"{type(e).__name__}: {e}"})
+            spacing = min(max(spacing * 2, 1.0), MAX_SPACING)
             if progress:
                 print(f"  {i}/{len(requests)}: FAILED, {type(e).__name__}: {e}")
+                print(f"       slowing down, {spacing}s between requests from "
+                      f"here")
             continue
         _write_slice(df, path)
         if progress:

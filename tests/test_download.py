@@ -404,6 +404,70 @@ def test_post_pivot_gives_up_with_a_clear_message(monkeypatch):
     assert "resume" in mesaj
 
 
+def test_post_pivot_retries_an_empty_body(monkeypatch):
+    """The POP108D case: 200 with zero bytes is rate limiting, not an answer.
+
+    Measured in the field: 83 slices, the first 42 with data, then every one of
+    the remaining 41 empty. Waiting clears it; writing them off does not.
+    """
+    asteptari = _no_waiting(monkeypatch)
+    raspunsuri = ["", "   ", "Judete, Valoare\nAlba, 1\n"]
+
+    def fake_post(url, **kw):
+        return _Response(text=raspunsuri[len(asteptari)])
+
+    monkeypatch.setattr(client.requests, "post", fake_post)
+    assert client.post_pivot({"encQuery": "1", "matCode": "POP108D"}) == \
+        raspunsuri[2]
+    # it waited the same growing waits as for a timeout, and then got data
+    assert asteptari == [5, 15]
+
+
+def test_an_empty_body_is_not_a_slice_without_data(monkeypatch):
+    """A slice with no data comes back as a header with no rows, and is kept.
+
+    That distinction is the whole reason an empty body can be retried safely:
+    the two are not spelled the same way, so waiting for one never throws away
+    the other.
+    """
+    _no_waiting(monkeypatch)
+    doar_antet = "Judete, Localitati, Ani, UM: Numar persoane, Valoare\n"
+    incercari = []
+
+    def fake_post(url, **kw):
+        incercari.append(1)
+        return _Response(text=doar_antet)
+
+    monkeypatch.setattr(client.requests, "post", fake_post)
+    assert client.post_pivot({"encQuery": "1"}) == doar_antet
+    assert len(incercari) == 1              # taken at face value, not retried
+
+
+def test_an_empty_body_that_never_clears_is_reported(monkeypatch):
+    """After the retries it is a failed slice, not an empty one.
+
+    Accepting zero bytes as no data would punch a silent hole in the result,
+    and pytempo does not read a missing figure as a zero anywhere else either.
+    """
+    _no_waiting(monkeypatch)
+    incercari = []
+
+    def fake_post(url, **kw):
+        incercari.append(1)
+        return _Response(text="")
+
+    monkeypatch.setattr(client.requests, "post", fake_post)
+    with pytest.raises(client.ServerUnavailable) as info:
+        client.post_pivot({"encQuery": "1", "matCode": "POP108D"})
+
+    assert len(incercari) == client.PIVOT_ATTEMPTS      # bounded, not a loop
+    mesaj = str(info.value)
+    assert "did not answer with data" in mesaj
+    assert "EmptyResponse" in mesaj
+    assert "POP108D" in mesaj
+    assert "resume=True" in mesaj
+
+
 def test_post_pivot_does_not_retry_a_bad_request(monkeypatch):
     """A 4xx is our own query and will not fix itself; failing fast is kinder."""
     _no_waiting(monkeypatch)
@@ -417,6 +481,97 @@ def test_post_pivot_does_not_retry_a_bad_request(monkeypatch):
     with pytest.raises(requests.HTTPError):
         client.post_pivot({"encQuery": "1"})
     assert len(incercari) == 1
+
+
+# --------------------------------------------------- pacing the requests
+
+def _watch_sleeping(monkeypatch):
+    """Record what download() waits, without waiting for it."""
+    asteptari = []
+    monkeypatch.setattr(incremental.time, "sleep", asteptari.append)
+    return asteptari
+
+
+def test_download_spaces_its_requests(monkeypatch, tmp_path):
+    """Eighty three requests fired back to back is how the wall gets hit."""
+    _setup(monkeypatch)
+    monkeypatch.setattr(incremental, "REQUEST_SPACING", 0.5)
+    asteptari = _watch_sleeping(monkeypatch)
+
+    t.matrix("FOM104D").download(folder=tmp_path / "d", progress=False)
+
+    # three requests, so two gaps: nothing before the first, nothing after
+    assert asteptari == [0.5, 0.5]
+
+
+def test_the_spacing_can_be_turned_off(monkeypatch, tmp_path):
+    """Zero for a small download, where politeness costs more than it buys."""
+    _setup(monkeypatch)
+    monkeypatch.setattr(incremental, "REQUEST_SPACING", 0)
+    asteptari = _watch_sleeping(monkeypatch)
+
+    t.matrix("FOM104D").download(folder=tmp_path / "d", progress=False)
+    assert asteptari == []
+
+
+def test_a_skipped_slice_costs_no_wait(monkeypatch, tmp_path):
+    """Resume reads from disk, and disk does not need to be asked politely."""
+    folder = tmp_path / "d"
+    _setup(monkeypatch)
+    _keep_slices(monkeypatch)
+    t.matrix("FOM104D").download(folder=folder, progress=False)
+
+    monkeypatch.setattr(incremental, "REQUEST_SPACING", 0.5)
+    asteptari = _watch_sleeping(monkeypatch)
+    t.matrix("FOM104D").download(folder=folder, progress=False)
+    assert asteptari == []
+
+
+def test_the_spacing_grows_when_slices_keep_failing(monkeypatch, tmp_path,
+                                                    capsys):
+    """INS has had enough. Knocking harder is not an argument."""
+    _api(monkeypatch, META)
+    monkeypatch.setattr(chunking, "MAX_CELLS", 10)
+    monkeypatch.setattr(incremental, "REQUEST_SPACING", 0.5)
+    asteptari = _watch_sleeping(monkeypatch)
+    _flaky_post(monkeypatch, failing={1, 2})
+
+    t.matrix("FOM104D").download(folder=tmp_path / "d", progress=False)
+
+    # after the first failure 1s, after the second 2s
+    assert asteptari == [1.0, 2.0]
+
+
+def test_the_spacing_has_a_ceiling():
+    """It slows down, it does not stop."""
+    spacing = incremental.REQUEST_SPACING
+    for _ in range(20):
+        spacing = min(max(spacing * 2, 1.0), incremental.MAX_SPACING)
+    assert spacing == incremental.MAX_SPACING == 8.0
+
+
+def test_resume_finishes_what_rate_limiting_interrupted(monkeypatch, tmp_path):
+    """The POP108D shape, in miniature: half the slices refused, then not.
+
+    The first run keeps what it got and reports the rest; the second asks only
+    for those and completes the file, with no intervention beyond running it
+    again.
+    """
+    folder = tmp_path / "d"
+    _api(monkeypatch, META)
+    monkeypatch.setattr(chunking, "MAX_CELLS", 10)
+
+    _flaky_post(monkeypatch, failing={2, 3})
+    partial = t.matrix("FOM104D").download(folder=folder, progress=False)
+    assert partial.attrs["complete"] is False
+    assert len(partial) == 2
+    assert len(_slices(folder)) == 1
+
+    cereri = _flaky_post(monkeypatch, failing=set())
+    whole = t.matrix("FOM104D").download(folder=folder, progress=False)
+    assert len(cereri) == 2                  # only the two that were refused
+    assert whole.attrs["complete"] is True
+    assert len(whole) == 6
 
 
 # ------------------------------------------------------- the slice format

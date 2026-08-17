@@ -883,6 +883,11 @@ otherwise.""")
         request that keeps failing is reported at the end rather than sinking
         the rest of the download.
 
+        Requests are spaced out, half a second apart by default, and the gap
+        doubles whenever a slice fails: a long download is what makes INS start
+        answering with nothing, and slowing down is what stops it. Set
+        pytempo.incremental.REQUEST_SPACING = 0 to fire them back to back.
+
         Whatever it returns, the joining is checked and anything odd is said
         out loud: slices that never arrived, rows lost or doubled, a repeated
         combination of dimensions, a select that did not come back the size it

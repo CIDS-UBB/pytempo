@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.28.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.29.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -629,15 +629,35 @@ be slower. When every attempt fails the error says it is the server and to try
 again later, and in `download()` that failure costs one slice, not the whole
 run.
 
-There is a third way for the server to be unwell, and it does happen: `pivot`
-answers `200` with an **empty body**, zero bytes, to requests that returned
-data the day before. That is not the same as a combination with no data, which
-comes back as a CSV with a header and no rows and is perfectly legitimate. An
-empty body raises `EmptyResponse`, a `ValueError` that says it is the server
-rather than the query, because left to pandas it surfaced as
-`EmptyDataError: No columns to parse from file`, which names neither the cause
-nor the cure. Inside `download()` it is a failed slice like any other:
-reported at the end, asked for again on the next run.
+### Rate limiting, and what it looks like
+
+There is a third way for the server to be unwell, and on a long download it is
+the usual one: `pivot` answers `200` with an **empty body**, zero bytes.
+Measured on POP108D, 83 slices: the first 42 came back with data in seconds,
+and then every single one of the remaining 41 was empty. Nothing was wrong with
+those requests. INS had simply had enough.
+
+That is not the same as a combination with no data, which comes back as a CSV
+with a header and no rows and is perfectly legitimate. The two are spelled
+differently, which is what makes the empty one safe to retry: waiting for a
+zero byte answer never throws away a real empty result.
+
+So an empty body is retried like a timeout, on the same growing waits, and it
+usually clears. If it does not clear, it is reported as a failed slice rather
+than accepted as no data: writing a hole into the file would be reading a
+missing figure as a zero, which pytempo does not do anywhere else either.
+`resume=True` then finishes the job on the next run, asking only for the slices
+that are still missing.
+
+The other half of the answer is not to provoke it. `download()` leaves a gap
+between one request and the next, half a second by default, which costs under a
+minute on a download of a hundred and keeps the server willing. When slices
+start failing anyway the gap doubles, up to eight seconds: INS has had enough,
+and knocking harder is not an argument. For a small download where politeness
+costs more than it buys:
+
+    import pytempo
+    pytempo.incremental.REQUEST_SPACING = 0
 
 ## Data wrangling
 

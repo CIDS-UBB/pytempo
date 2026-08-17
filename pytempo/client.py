@@ -5,8 +5,9 @@ a call touched the network.
 
 The POST to pivot retries. Measured on the real server: heavy requests come back
 with 'Read timed out' often enough that a single miss used to sink a whole
-download of a hundred requests. Metadata GETs are small and quick, so they stay
-as they were.
+download of a hundred requests, and a long download eventually earns a stretch
+of 200s with empty bodies, which is rate limiting rather than an answer.
+Metadata GETs are small and quick, so they stay as they were.
 """
 import hashlib
 import json
@@ -16,7 +17,7 @@ import time
 
 import requests
 
-from . import endpoints
+from . import endpoints, parse
 
 CACHE_DIR = pathlib.Path(os.environ.get("TEMPO_CACHE_DIR", "data/raw"))
 DEFAULT_TIMEOUT = 30
@@ -85,9 +86,18 @@ def post_pivot(payload: dict, timeout: int | None = None,
                attempts: int = PIVOT_ATTEMPTS) -> str:
     """POST to endpoints.pivot() and return the raw CSV text. No parsing here.
 
-    A timeout, a dropped connection or a 5xx is the server having a bad moment,
-    so the request is sent again after a growing wait. A 4xx is our own bad
-    request and surfaces at once: retrying it would only be slower.
+    A timeout, a dropped connection, a 5xx or an empty body is the server
+    having a bad moment, so the request is sent again after a growing wait. A
+    4xx is our own bad request and surfaces at once: retrying it would only be
+    slower.
+
+    The empty body is the one worth explaining. Measured on POP108D, 83 slices:
+    the first 42 came back with data in seconds, then every single one of the
+    remaining 41 answered 200 with zero bytes. That is not a combination
+    without data, which arrives as a CSV with a header and no rows; it is INS
+    rate limiting or overloaded, and it clears on its own. Before this, all 41
+    were written off as failed and the download finished incomplete, correctly
+    warned about and still incomplete, when waiting would have finished it.
     """
     if timeout is None:
         timeout = PIVOT_TIMEOUT
@@ -108,12 +118,18 @@ def post_pivot(payload: dict, timeout: int | None = None,
             continue
         if resp.status_code < 500:
             resp.raise_for_status()
-            return resp.text
+            if (resp.text or "").strip():
+                return resp.text
+            last = parse.EmptyResponse(
+                f"{payload.get('matCode', 'pivot')}: 200 with an empty body, "
+                f"which is the server under pressure, not a slice without "
+                f"data")
+            continue
         last = requests.HTTPError(
             f"HTTP {resp.status_code} from pivot", response=resp)
 
     raise ServerUnavailable(
-        f"The INS server did not answer after {attempts} attempts "
+        f"The INS server did not answer with data after {attempts} attempts "
         f"({type(last).__name__}: {last}). It is the server, not the query. "
         f"Try again later; with download(resume=True) the work already on disk "
         f"is kept and only the missing pieces are asked for again."
