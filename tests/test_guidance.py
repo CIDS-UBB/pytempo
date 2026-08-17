@@ -211,11 +211,13 @@ def test_get_neteritorial_has_no_territorial_filter(monkeypatch, tmp_path):
     assert cereri[0]["encQuery"].split(":")[1] == "61,62,63"
 
 
-def test_get_over_the_limit_sends_you_to_download(monkeypatch, tmp_path):
+def test_get_over_the_limit_sends_you_to_download(monkeypatch, tmp_path,
+                                                  capsys):
     """A big plan stops before the first request and names the way out.
 
     It used to ask at the keyboard, which hangs in a notebook and answers
-    itself with a no under pytest.
+    itself with a no under pytest. The guidance is printed; the exception
+    that stops the call is one line.
     """
     _registry(monkeypatch, tmp_path, dict(TOATE, FOM104D=FOM104D_MIC))
     monkeypatch.setattr(chunking, "MAX_CELLS", 2)
@@ -226,10 +228,12 @@ def test_get_over_the_limit_sends_you_to_download(monkeypatch, tmp_path):
     try:
         t.matrix("FOM104D").get(progress=False)
     except ValueError as e:
-        mesaj = str(e)
-        assert "m.download(" in mesaj
-        assert "get(confirm=False)" in mesaj
-        assert "Nothing has been downloaded yet" in mesaj
+        printed = capsys.readouterr().out
+        assert "m.download(" in printed
+        assert "m.get(confirm=False)" in printed
+        assert "IS TOO LARGE FOR get(). Nothing has been downloaded" in printed
+        assert str(e) == ("FOM104D: 5 requests, use download(). "
+                          "See the guidance above, or m.how().")
     else:
         raise AssertionError("trebuia sa se opreasca inainte de descarcare")
     assert cereri == []          # niciun request trimis

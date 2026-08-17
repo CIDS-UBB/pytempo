@@ -108,24 +108,29 @@ def _excluded_hint(m, wanted) -> str | None:
     return f"  for every level, including {listed}, use get(level=None)"
 
 
-def _too_big(cod: str, request_count: int, wanted) -> ValueError:
-    """What get() says when the plan is too large to hold in memory safely.
+class MatrixTooLargeError(ValueError):
+    """get() stopped because the indicator needs download(). Not a failure.
 
-    It used to ask at the keyboard, which reads as a hang in a notebook and
-    answers itself with a no under pytest. An error that names the way out,
-    for this indicator and this selection, is both honest and scriptable.
+    A ValueError, so anything that already catches one keeps working, and it is
+    a bad argument in spirit: get() is the wrong call for this indicator.
+
+    Its message is one line on purpose. The guidance is printed before it is
+    raised, formatted and readable, because a paragraph inside an exception
+    comes out under a traceback and reads as a crash rather than as advice.
     """
-    return ValueError(
-        f"{cod} is large: {request_count} requests, over the "
-        f"{POLITE_REQUESTS} get() holds in memory. Nothing has been "
-        f"downloaded yet.\n"
-        f"Do not pull this one with get(): it keeps every request in memory "
-        f"until the last one, and loses all of it if a late request times "
-        f"out. Use:\n"
-        f"  {manual.download_line(cod, wanted)}\n"
-        f"which writes each request to disk as it arrives, resumes where it "
-        f"stopped, and retries on timeout. See m.how() for the whole manual.\n"
-        f"Or get(confirm=False) if you really do want get().")
+
+
+def _stop_too_large(m, request_count: int, wanted) -> MatrixTooLargeError:
+    """Print the guidance, then hand back the one line that stops the call.
+
+    Stopping is the right behaviour: returning nothing quietly would let a
+    script carry on with data it never got and fail further away, where the
+    reason is no longer visible.
+    """
+    manual.print_too_large(m, request_count, wanted, POLITE_REQUESTS)
+    return MatrixTooLargeError(
+        f"{m.code}: {request_count} requests, use download(). "
+        f"See the guidance above, or m.how().")
 
 
 class TextList(list):
@@ -697,8 +702,9 @@ class Matrix:
   df.tempo.spot_check(2)       on the result: two random units to check by hand
 
 get() holds everything in memory and is right below 50 requests. Above that it
-stops and points here: download() writes every request to disk as it arrives,
-so an interrupted run keeps what it had and rerunning asks only for the rest.
+prints the guidance and stops with MatrixTooLargeError, a one line ValueError:
+download() writes every request to disk as it arrives, so an interrupted run
+keeps what it had and rerunning asks only for the rest.
 
 Every download ends with a check on the joining: slices that never arrived,
 rows lost or doubled, a combination of dimensions that repeats, a select that
@@ -928,9 +934,11 @@ otherwise.""")
         returned. progress='auto' only speaks when the plan has more than one
         request.
 
-        Over POLITE_REQUESTS requests it stops and points at download(), which
-        checkpoints on disk and can resume. confirm=False goes ahead anyway,
-        everything in memory, for anyone who knows what they are doing.
+        Over POLITE_REQUESTS requests it stops before sending anything: it
+        prints the guidance, which names download() and the command for this
+        indicator, and then raises MatrixTooLargeError, a ValueError whose own
+        message is one line. confirm=False goes ahead anyway, everything in
+        memory, for anyone who knows what they are doing.
 
         Missing is not zero. INS writes ':' for a figure it does not have and
         '0' for a measured zero, and those are different statements. The
@@ -947,7 +955,7 @@ otherwise.""")
         if progress is not False:
             self._announce(target, wanted, plan, requests)
         if confirm and len(requests) > POLITE_REQUESTS:
-            raise _too_big(self.code, len(requests), wanted)
+            raise _stop_too_large(self, len(requests), wanted)
 
         frames = []
         for i, payload in enumerate(requests, 1):

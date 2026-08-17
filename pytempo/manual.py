@@ -186,6 +186,39 @@ def print_filters(matrix, big_dimension: int) -> None:
             _print_flat(dimension, big_dimension)
 
 
+def print_too_large(matrix, request_count: int, wanted, polite: int) -> None:
+    """The guidance get() prints when it stops on an indicator this large.
+
+    It is a section of the manual, not an error message. The stopping is right,
+    the wall of text inside an exception was not: in a notebook it came out
+    under 'Traceback (most recent call last)', with a file and a line number,
+    so being told what to do next looked like something crashing. Printed first
+    and formatted, it reads as what it is, and the exception that follows it is
+    one line.
+    """
+    print()
+    print(f"{matrix.code} IS TOO LARGE FOR get(). Nothing has been "
+          f"downloaded.")
+    print(f"  {request_count} requests, over the {polite} get() will hold in "
+          f"memory. get() keeps")
+    print("  every one of them until the last comes back, so a single late "
+          "timeout,")
+    print("  and INS does time out, loses all of it with nothing to resume "
+          "from.")
+    print()
+    print("  Use download() instead, which is the same call through disk:")
+    print(f"    {download_line(matrix.code, wanted)}")
+    print("  It writes each request as it arrives, resumes where it stopped, "
+          "and")
+    print("  retries on timeout.")
+    print()
+    print(f"  m.how()                the whole menu for {matrix.code}: every "
+          f"level, every filter")
+    print("  m.get(confirm=False)   go ahead with get() anyway, in memory, "
+          "no checkpoint")
+    print()
+
+
 def print_example(matrix, default_level, polite: int) -> None:
     """One call that puts it together: the finest level, the useful filter.
 

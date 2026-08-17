@@ -7,7 +7,8 @@ download for the large ones, which go through disk with a checkpoint).
 """
 from .catalog import (build_index, domains, filters, find, load_index,
                       name_dict, overview, search)
-from .matrix import Matrix, MatrixList, download, get, info, matrix
+from .matrix import (Matrix, MatrixList, MatrixTooLargeError, download, get,
+                     info, matrix)
 from .schema import catalog_ddl as schema_catalog
 from .schema import column_mapping
 from . import wrangle  # noqa: F401  registers the df.tempo accessor
@@ -15,12 +16,12 @@ from . import wrangle  # noqa: F401  registers the df.tempo accessor
 # explore.init and explore.browse are sketches that still raise
 # NotImplementedError, so they are deliberately not exported yet
 
-__version__ = "0.26.0"
+__version__ = "0.27.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
     "matrix", "info", "get", "download",
-    "Matrix", "MatrixList",
+    "Matrix", "MatrixList", "MatrixTooLargeError",
     "schema_catalog", "column_mapping",
     "help",
     "__version__",
@@ -84,7 +85,11 @@ FETCH a large one, through disk
   t.download('SAN101B', folder=...)        the same, starting from a code
 
 Which of the two: get() for anything that fits in memory, which is almost every
-indicator, and download() past 50 requests, where get() stops and says so.
+indicator, and download() past 50 requests, where get() stops and says so. It
+prints the guidance, with the command for that indicator, and then raises
+MatrixTooLargeError, a ValueError whose own message is one line: being stopped
+is advice, not a crash, and it should not read like one. It does stop, though,
+rather than return nothing quietly and let a script carry on without the data.
 
 m.how() answers that and the rest, for one indicator, read off its own
 dimensions: which territorial levels it reaches and how many units and requests

@@ -10,7 +10,7 @@ import sys
 import pytest
 
 import pytempo as t
-from pytempo import chunking
+from pytempo import chunking, client
 
 from .test_guidance import _api, _post, _registry
 from .test_scale import _matrix as _pop107d
@@ -112,30 +112,79 @@ def test_a_small_indicator_gets_no_select_hint(monkeypatch, tmp_path, capsys):
 
 # ------------------------------------------------------- the gate message
 
-def test_the_gate_names_the_indicator_and_the_command(monkeypatch):
+def test_the_gate_names_the_indicator_and_the_command(monkeypatch, capsys):
+    """The guidance is printed, in full, before anything is raised."""
     _pop107d(monkeypatch)
-    with pytest.raises(ValueError) as info:
+    with pytest.raises(ValueError):
         t.matrix("POP107D").get(progress=False)
-    message = str(info.value)
+    printed = capsys.readouterr().out
 
-    assert message.startswith("POP107D is large: 380 requests")
-    assert "over the 50" in message
-    assert "Nothing has been downloaded yet" in message
+    assert "POP107D IS TOO LARGE FOR get(). Nothing has been downloaded." \
+        in printed
+    assert "380 requests, over the 50" in printed
     # why not get(), what to run instead, and where the manual is
-    assert "keeps every request in memory" in message
-    assert "m.download(folder='data/pop107d')" in message
-    assert "See m.how() for the whole manual" in message
-    assert "get(confirm=False)" in message
+    assert "every one of them until the last comes back" in printed
+    assert "m.download(folder='data/pop107d')" in printed
+    assert "m.how()" in printed
+    assert "m.get(confirm=False)" in printed
 
 
-def test_the_command_follows_the_level_that_was_asked_for(monkeypatch):
+def test_the_command_follows_the_level_that_was_asked_for(monkeypatch, capsys):
     """Suggesting a level the caller did not ask for would be a different
     download from the one they wanted."""
     _pop107d(monkeypatch)
     monkeypatch.setattr(chunking, "MAX_CELLS", 100)
-    with pytest.raises(ValueError) as info:
+    with pytest.raises(ValueError):
         t.matrix("POP107D").get(level="judet", progress=False)
-    assert "m.download(level='judet', folder='data/pop107d')" in str(info.value)
+    assert "m.download(level='judet', folder='data/pop107d')" in \
+        capsys.readouterr().out
+
+
+def test_the_guidance_comes_before_the_exception(monkeypatch, capsys):
+    """Being stopped is not a crash, and should not read as one.
+
+    Inside an exception the paragraph came out under 'Traceback (most recent
+    call last)', with a file and a line number, so advice looked like a bug.
+    Printed first, the traceback that follows carries one line.
+    """
+    _pop107d(monkeypatch)
+    with pytest.raises(t.MatrixTooLargeError) as info:
+        t.matrix("POP107D").get(progress=False)
+
+    message = str(info.value)
+    assert message == ("POP107D: 380 requests, use download(). "
+                       "See the guidance above, or m.how().")
+    assert "\n" not in message                 # one line, whole
+    assert len(message) < 100
+
+    # everything that was in it is on stdout instead, laid out
+    printed = capsys.readouterr().out
+    assert len(printed.splitlines()) > 8
+    # the default call asked for every level, so the command does too
+    assert "m.download(folder='data/pop107d')" in printed
+
+
+def test_it_is_still_a_value_error(monkeypatch):
+    """Code that already catches ValueError keeps working."""
+    _pop107d(monkeypatch)
+    assert issubclass(t.MatrixTooLargeError, ValueError)
+    try:
+        t.matrix("POP107D").get(progress=False)
+    except ValueError as e:
+        assert isinstance(e, t.MatrixTooLargeError)
+    else:
+        raise AssertionError("trebuia sa se opreasca")
+
+
+def test_stopping_is_stopping_not_a_quiet_none(monkeypatch):
+    """Returning nothing would let a script carry on with data it never got."""
+    _pop107d(monkeypatch)
+    cereri = []
+    monkeypatch.setattr(client, "post_pivot",
+                        lambda payload, **kw: cereri.append(payload))
+    with pytest.raises(t.MatrixTooLargeError):
+        t.matrix("POP107D").get(progress=False)
+    assert cereri == []                        # and nothing was downloaded
 
 
 def test_the_gate_still_lets_confirm_false_through(monkeypatch, tmp_path):

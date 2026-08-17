@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.26.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.27.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -152,16 +152,41 @@ where it stopped, and a request that times out is retried rather than fatal.
 You do not have to guess which one an indicator needs. `m.how()` says so, and
 the rest of the menu with it, in the section below.
 
-If `get()` does stop you, the error says the same thing, for that indicator:
+If `get()` does stop you, it says the same thing, for that indicator, and it
+says it as guidance rather than as a crash:
 
-    ValueError: POP107D is large: 380 requests, over the 50 get() holds in
-    memory. Nothing has been downloaded yet.
-    Do not pull this one with get(): it keeps every request in memory until the
-    last one, and loses all of it if a late request times out. Use:
-      m.download(level='localitate', folder='data/pop107d')
-    which writes each request to disk as it arrives, resumes where it stopped,
-    and retries on timeout. See m.how() for the whole manual.
-    Or get(confirm=False) if you really do want get().
+    POP107D IS TOO LARGE FOR get(). Nothing has been downloaded.
+      380 requests, over the 50 get() will hold in memory. get() keeps
+      every one of them until the last comes back, so a single late timeout,
+      and INS does time out, loses all of it with nothing to resume from.
+
+      Use download() instead, which is the same call through disk:
+        m.download(folder='data/pop107d')
+      It writes each request as it arrives, resumes where it stopped, and
+      retries on timeout.
+
+      m.how()                the whole menu for POP107D: every level, every filter
+      m.get(confirm=False)   go ahead with get() anyway, in memory, no checkpoint
+
+    MatrixTooLargeError: POP107D: 380 requests, use download(). See the
+    guidance above, or m.how().
+
+That layout is deliberate. The guidance is printed, and the exception that
+follows carries a single line, because in a notebook a paragraph inside an
+exception comes out under `Traceback (most recent call last)`, with a file and
+a line number, and being told what to do next should not look like something
+breaking.
+
+It does still stop, and that is not cosmetic: returning nothing quietly would
+let a script carry on with data it never got and fail somewhere further away,
+where the reason is no longer in sight. `MatrixTooLargeError` is a subclass of
+`ValueError`, so anything already catching one keeps working, and you can catch
+it by name when you want to handle the case yourself:
+
+    try:
+        df = m.get()
+    except t.MatrixTooLargeError:
+        df = m.download(folder='data/pop107d')
 
 The full description of `download()`, its arguments and its checks, is further
 down, under Large indicators.
