@@ -441,9 +441,10 @@ class Matrix:
               "where it")
         print("  stopped if it breaks, and retries when INS times out.")
         print()
-        print("  the selection arguments below work on either one: get() for "
-              "a small")
-        print("  slice of it, download() for the whole thing.")
+        print("  Or narrow it down, which is what the call below does: the "
+              "same arguments")
+        print("  work on both, and a filter can bring it back within reach of "
+              "get().")
 
     def _requests_for(self, wanted, select: dict | None = None) -> int:
         """How many requests one selection would take. Zero if it cannot plan.
@@ -474,8 +475,18 @@ class Matrix:
         wanted = self._wanted_levels("finest", None, plan)
         return self._requests_for(wanted) or plan.get("est_requests", 1)
 
-    def how(self) -> None:
-        """This indicator's own download manual, ready to copy."""
+    def how(self, full: bool = False) -> None:
+        """This indicator's own menu: what you can choose, and the calls.
+
+        Read once, it should be enough to know what to write. So the call to
+        copy comes first, with the reason it has that shape in words; then the
+        territorial levels, which are a pick one; then the filters, each named
+        once in full and then by a short name you can type.
+
+        full=True adds what the short form leaves out: the strategy, the
+        request count for the default call, the raw form, and the note on
+        indicators that keep county and locality apart.
+        """
         self._ensure_meta()
         plan = self.fetch_plan()
         strategy = plan.get("strategy", "single")
@@ -483,23 +494,15 @@ class Matrix:
         default_level = plan.get("default_level")
         large = request_count > POLITE_REQUESTS
 
-        print(f"How to download {self.code}:")
-        print(f"  m = t.matrix({self.code!r})")
+        manual.print_headline(self)
         if large:
             self._how_large(request_count, default_level)
-        print(f"  df = m.get()          "
-              f"{'level ' + default_level if default_level else 'no territorial filter'}"
-              f", tidied")
-        print("  m.get(raw=True)       exactly what INS returns, no extras")
-        if not large:
-            print(f"  {manual.download_line(self.code, [])}")
-            print("                        the same data, written straight to "
-                  "a CSV on disk")
+        manual.print_call(self, default_level, POLITE_REQUESTS, request_count)
 
         territorial = [d for d in self.dimensions if d.role == "teritoriu"]
         if default_level:
             manual.print_levels(self, default_level, POLITE_REQUESTS)
-            if len(territorial) > 1:
+            if full and len(territorial) > 1:
                 print()
                 print("  county and locality are separate dimensions here, so "
                       "a level picks")
@@ -511,15 +514,27 @@ class Matrix:
         else:
             reason = ("this indicator is not territorial" if not territorial
                      else "its territorial names are not administrative units")
-            print(f"  (the level filter does not apply here: {reason},")
-            print("   so get() takes everything)")
+            print()
+            print(f"  NO TERRITORIAL LEVEL: {reason},")
+            print("  so level= does not apply and get() takes every option.")
 
         manual.print_filters(self, BIG_DIMENSION)
-        manual.print_example(self, default_level, POLITE_REQUESTS)
+        manual.print_more(self, full)
 
+        if not full:
+            return
         print()
+        print(f"  m = t.matrix({self.code!r})")
+        print(f"  df = m.get()             "
+              f"{'level ' + default_level if default_level else 'no territorial filter'}"
+              f", tidied")
+        if not large:
+            print(f"  {manual.download_line(self.code, [])}")
+            print("                           the same data, written straight "
+                  "to a CSV on disk")
         print(f"  strategy: {strategy}, {request_count} "
-              f"{'request' if request_count == 1 else 'requests'}")
+              f"{'request' if request_count == 1 else 'requests'} for that "
+              f"default call")
         if large:
             print(f"  over {POLITE_REQUESTS} requests, so download() rather "
                   f"than get(), as above")
@@ -676,8 +691,9 @@ class Matrix:
 
   .what()              what it measures: definition, unit, how often
   .where()             where it sits and what it covers
-  .how()               its own menu: every level, every filter, with the
-                       calls to copy and what each of them costs
+  .how()               its own menu: the call to copy, the levels, the
+                       filters, each with what it costs
+  .how(full=True)      plus the plan, the strategy and the rest
   .show()              short summary: domain, levels, dimensions
   .describe()          the full record: definition, methodology, sources
   .info()              the same metadata, as a dictionary

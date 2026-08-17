@@ -16,7 +16,7 @@ from . import wrangle  # noqa: F401  registers the df.tempo accessor
 # explore.init and explore.browse are sketches that still raise
 # NotImplementedError, so they are deliberately not exported yet
 
-__version__ = "0.29.0"
+__version__ = "0.30.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
@@ -52,7 +52,8 @@ UNDERSTAND an indicator
   m = t.matrix('FOM104D')      fetch the metadata
   m.what()                     what it measures: definition, unit, how often
   m.where()                    where it sits and what it covers
-  m.how()                      its own menu: levels, filters, calls to copy
+  m.how()                      its own menu: the call, the levels, the filters
+  m.how(full=True)             plus the plan, the strategy, the rest
   m.show()                     short summary: domain, levels, dimensions
   m.describe()                 the full record, every word INS wrote
   m.options()                  which dimensions it has, with role and size
@@ -92,10 +93,12 @@ is advice, not a crash, and it should not read like one. It does stop, though,
 rather than return nothing quietly and let a script carry on without the data.
 
 m.how() answers that and the rest, for one indicator, read off its own
-dimensions: which territorial levels it reaches and how many units and requests
-each one is, which dimensions select= can narrow and what the keywords keep on
-each, and one typical call that puts the finest level and the most useful
-filter together. Every call it prints runs as it stands.
+dimensions: the call worth copying first, with the reason for its shape in
+words, then the territorial levels with how many units and requests each one
+is, then every dimension select= can narrow, each named once in full and then
+by a short name you can type, with two or three of its real values next to the
+counts. Every call it prints runs as it stands. m.how(full=True) adds the
+strategy, the plan and the rest of the mechanics.
 
 download() takes the same level, levels and select as get() and builds the same
 plan. What changes is that every request is written to its own slice file the

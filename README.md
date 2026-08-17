@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.29.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.30.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -109,7 +109,7 @@ Understanding an indicator:
     m = t.matrix('FOM104D')      fetch the metadata
     m.what()                     what it measures: definition, unit, how often
     m.where()                    where it sits and what it covers
-    m.how()                      its own menu: levels, filters, calls to copy
+    m.how()                      its own menu: the call, the levels, the filters
     m.show()                     short summary: domain, levels, dimensions
     m.describe()                 the full record, every word INS wrote
     m.options()                  which dimensions it has, role and size
@@ -195,58 +195,102 @@ down, under Large indicators.
 ### how: the menu of one indicator
 
 `how()` is where to start on an indicator you do not know. It reads the
-dimensions it actually has and prints what you can choose, with the calls
-already written:
+dimensions it actually has and prints what you can choose, with the call
+already written. TUR101B, tourist accommodation, has no territory and three
+things to filter:
 
-    t.matrix("POP107D").how()
+    t.matrix("TUR101B").how()
 
-    How to download POP107D:
-      m = t.matrix('POP107D')
+    How to download TUR101B
+      Structuri de primire turistica cu functiuni de cazare turistica pe
+      tipuri de structuri, categorii de confort si destinatii turistice
 
-      THIS ONE IS LARGE: 380 requests. get() stops and sends you here.
-      Download it safely, with a checkpoint and a resume:
-        m.download(level='localitate', folder='data/pop107d')
-      download() writes each slice to disk as it arrives, picks up where it
-      stopped if it breaks, and retries when INS times out.
-      ...
+      THE CALL, ready to copy:
+        m.get(select={'tipuri': 'groups', 'categorii': 'total', 'destinatii': 'total'})
+        1 request
 
-      TERRITORIAL LEVEL, what level= takes here:
+        Why this shape: 'groups' on tipuri keeps the 17 aggregates and leaves
+        out the finer breakdown under them, and 'total' on categorii and
+        destinatii, since a breakdown you did not ask for multiplies the rows
+        without adding an answer. Change any of it below.
+
+      NO TERRITORIAL LEVEL: this indicator is not territorial,
+      so level= does not apply and get() takes every option.
+
+      FILTERS, all optional. The short name on the left is what you write:
+
+        tipuri      Tipuri de structuri de primire turistica
+                    19 options on 2 levels
+                    'groups'   17: Total, Hoteluri, Hoteluri pentru tineret, ...
+                    'leaves'    2: Pensiuni turistice, Pensiuni agroturistice
+                    'total'     1: Total
+
+        categorii   Categorii de confort
+                    19 options, one level
+                    values: Total, 5 stele, 4 stele, ...
+                    a few:  select={'categorii': ['5 stele']}
+                    or one: select={'categorii': 'total'}
+
+        destinatii  Destinatii turistice
+                    7 options, one level
+                    values: Total, Statiuni balneare, Statiuni din zona litorala..., ...
+                    a few:  select={'destinatii': ['Statiuni balneare']}
+                    or one: select={'destinatii': 'total'}
+
+      m.options('tipuri')   every option of one of them, in full
+      m.get(raw=True)       exactly what INS returns, no extras
+      m.how(full=True)      the plan, the strategy, the rest
+
+Four things about that page are deliberate.
+
+**The call comes first**, with the reason for its shape written out. The
+default is every option of every dimension, and on an indicator with three of
+them that is a cross tabulation nobody asked for. So the suggestion varies one
+dimension, the largest hierarchy, and puts the rest on their total.
+
+**Each name is written once.** `Tipuri de structuri de primire turistica` used
+to appear four times, once per select line. It appears once, and everything
+after it uses `tipuri`, which is a name you can type. `select=` has always
+accepted any part of a label that names one dimension and no other, so the
+short name was already there; it was simply never shown. Each one printed is
+checked through the same resolver `select=` uses, so it always lands on the
+dimension it was printed for, and a label with nothing unambiguously short
+about it keeps its full name.
+
+**Counts come with values.** `17 options` says nothing about what they are;
+`17: Total, Hoteluri, Hoteluri pentru tineret, ...` does. It also makes an odd
+classification visible: the two `leaves` above are `Pensiuni turistice` and
+`Pensiuni agroturistice`, which is INS indenting two of nineteen types for
+reasons of its own, and now you can see that before you download rather than
+after.
+
+**The mechanics are one line away**, not in your way. `m.how(full=True)` adds
+the strategy, the request count of the default call, the raw form and the note
+on indicators that keep county and locality apart.
+
+On a territorial indicator the levels are a menu of their own, one to pick,
+with what each one costs:
+
+      TERRITORIAL LEVEL, pick one:
         national          1 unit,     1 request   m.get(level='national')
         judet           42 units,     5 requests  m.get(level='judet')
-        localitate    3181 units,   379 requests  m.download(level='localitate', folder='data/pop107d')   the finest, and the default
+        localitate    3181 units,   379 requests  m.download(level='localitate', folder='data/pop107d')   default, the finest
         every level at once                       m.get(level=None)
 
-      FILTERS, what select= takes here (2 dimensions):
-        Varste si grupe de varsta, hierarchical, 104 options
-          select={'Varste si grupe de varsta': 'total'}     1 option
-          select={'Varste si grupe de varsta': 'groups'}    19 options
-          select={'Varste si grupe de varsta': 'leaves'}    85 options
-          m.options('Varste si grupe de varsta', kind='groups') lists them
-        Sexe, flat, 3 options: Total, Masculin, Feminin
-          select={'Sexe': ['Masculin']}
-
-      A TYPICAL CALL for this indicator:
-        m.download(level='localitate', select={'Varste si grupe de varsta': 'groups'}, folder='data/pop107d')
-        87 requests: 19 of the 104 options of Varste si grupe de varsta, everything else whole
-
-      strategy: by_county, 380 requests
-
-Every number there is read off that indicator, not off a template. The units
-per level are counted from the options; the requests per level are counted by
-planning that exact download, which is also how `how()` knows to offer
+Every number is read off that indicator, not off a template. The units per
+level are counted from the options; the requests per level are counted by
+planning that exact download, which is how `how()` knows to offer
 `get(level='judet')` and `download(level='localitate')` in the same table; the
-1, 19 and 85 come from the same hierarchy detection `select=` uses. The typical
-call is planned too, filter included, which is why it says 87 rather than the
-380 the indicator costs whole: the filter is the thing that makes it
-reasonable.
+option counts of each keyword come from the same hierarchy detection `select=`
+uses. The suggested call is planned too, filter included, which is why on
+POP107D it says 42 requests rather than the 380 the indicator costs whole: the
+filter is what makes it reachable.
 
-A hierarchical dimension gets its keywords and their sizes, never its 104
-options: those live in `m.options()`, one line away. A flat dimension gets its
-first few values, and a flat dimension too big to read gets its size and a
-pointer. An indicator with nothing but territory and time says so:
+An indicator with nothing but territory and time says so, rather than showing
+an empty section:
 
-    FILTERS: none to add. This indicator is territory and time only, so
-    level= is the whole choice.
+    FILTERS: none to add. This indicator is territory and time only,
+    so the level above is the whole choice.
 
 ## Levels and roles
 
@@ -438,8 +482,10 @@ dimension and says which of its options to keep:
 
 The key is a dimension label, matched exactly first, ignoring case and
 surrounding space, then as a unique substring, so `varsta` finds
-`Varste si grupe de varsta`. An ambiguous key is an error that lists the
-candidates rather than a guess.
+`Varste si grupe de varsta` and `tipuri` finds
+`Tipuri de structuri de primire turistica`. An ambiguous key is an error that
+lists the candidates rather than a guess. `how()` prints the short name of each
+dimension, so you do not have to invent one.
 
 The value takes four forms: a list of `nomItemId` numbers, a list of option
 labels, a predicate on the option, for instance

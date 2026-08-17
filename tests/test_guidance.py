@@ -193,7 +193,7 @@ def test_unknown_level_on_two_dimensions_still_raises(monkeypatch, tmp_path):
 def test_how_offers_levels_on_two_territorial_dimensions(monkeypatch, tmp_path,
                                                          capsys):
     _registry(monkeypatch, tmp_path)
-    t.matrix("FOM104D").how()
+    t.matrix("FOM104D").how(full=True)
     iesire = capsys.readouterr().out
     assert "m.get(level='judet')" in iesire
     assert "m.get(level='national')" in iesire
@@ -313,7 +313,7 @@ def test_where_says_when_not_territorial(monkeypatch, tmp_path, capsys):
 
 def test_how_lists_only_its_own_levels(monkeypatch, tmp_path, capsys):
     _registry(monkeypatch, tmp_path)
-    t.matrix("SOM101B").how()
+    t.matrix("SOM101B").how(full=True)
     iesire = capsys.readouterr().out
     assert "m.get()" in iesire
     for nivel in ("national", "macroregiune", "regiune", "judet"):
@@ -337,7 +337,7 @@ def test_how_counts_the_requests_itself(monkeypatch, tmp_path, capsys):
     date["entries"]["SOM101B"]["fetch_plan"]["est_requests"] = 530
     sys.modules["pytempo.schemas.validate"]._save(date, cale)
 
-    t.matrix("SOM101B").how()
+    t.matrix("SOM101B").how(full=True)
     iesire = capsys.readouterr().out
     assert "strategy: single, 1 request" in iesire
     assert "530" not in iesire
@@ -350,7 +350,7 @@ def test_how_explains_the_two_dimension_semantics(monkeypatch, tmp_path,
     """FOM104D keeps county and locality separate, and how() says what that
     means for a level."""
     _registry(monkeypatch, tmp_path)
-    t.matrix("FOM104D").how()
+    t.matrix("FOM104D").how(full=True)
     iesire = capsys.readouterr().out
     assert "separate dimensions" in iesire
     assert "which one is active" in iesire
@@ -387,7 +387,8 @@ def test_how_explains_when_level_filter_does_not_apply(monkeypatch, tmp_path,
     # 'necunoscut' only: the names do not fit the nomenclator
     t.matrix("TMP1173").how()
     iesire = capsys.readouterr().out
-    assert "does not apply here" in iesire and "get() takes everything" in iesire
+    assert "NO TERRITORIAL LEVEL" in iesire
+    assert "get() takes every option" in iesire
     assert "m.get(level=" not in iesire
 
 
@@ -407,7 +408,8 @@ def test_non_territorial_get_and_how(monkeypatch, tmp_path, capsys):
 
     t.matrix("AMG130A").how()
     iesire = capsys.readouterr().out
-    assert "not territorial" in iesire and "get() takes everything" in iesire
+    assert "not territorial" in iesire
+    assert "get() takes every option" in iesire
     assert "m.get(level=" not in iesire
 
 

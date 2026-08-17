@@ -47,7 +47,8 @@ def test_the_warning_comes_before_the_get_lines(monkeypatch, capsys):
     _pop107d(monkeypatch)
     out = _how(t.matrix("POP107D"), capsys)
 
-    assert out.index("THIS ONE IS LARGE") < out.index("df = m.get()")
+    assert out.index("THIS ONE IS LARGE") < out.index("THE CALL")
+    assert out.index("THIS ONE IS LARGE") < out.index("FILTERS")
     # in the first third of the printout, not at the end
     assert out.index("THIS ONE IS LARGE") < len(out) / 3
 
@@ -62,8 +63,9 @@ def test_how_counts_what_get_would_really_send(monkeypatch, capsys):
     m = t.matrix("POP107D")
     assert m.fetch_plan().get("est_requests") in (None, 43)
 
-    out = _how(m, capsys)
-    assert "strategy: by_county, 380 requests" in out
+    m.how(full=True)
+    out = capsys.readouterr().out
+    assert "strategy: by_county, 380 requests for that default call" in out
     assert m._request_count(m.fetch_plan()) == 380
 
 
@@ -72,11 +74,13 @@ def test_how_points_at_select_when_a_dimension_is_big(monkeypatch, capsys):
     _pop107d(monkeypatch)
     out = _how(t.matrix("POP107D"), capsys)
 
-    assert "Varste si grupe de varsta, hierarchical, 104 options" in out
-    assert "select={'Varste si grupe de varsta': 'groups'}" in out
-    assert "m.options('Varste si grupe de varsta', kind='groups')" in out
+    # named once in full, then by the short name you would type
+    assert "varste  Varste si grupe de varsta" in out
+    assert "104 options on 3 levels" in out
+    assert "'groups'   19: Total, 0- 4 ani, 5- 9 ani, ..." in out
+    assert "select={'varste': 'groups'" in out
     # the territorial dimensions are not listed there: level= is their tool
-    assert "Localitati (3182 options)" not in out
+    assert "Localitati" not in out.split("FILTERS")[1]
 
 
 # --------------------------------------------------- how() on a small one
@@ -88,15 +92,17 @@ def test_how_on_a_small_indicator_does_not_scare(monkeypatch, tmp_path,
 
     assert "THIS ONE IS LARGE" not in out
     assert "stops and sends you here" not in out
-    # get() stays the answer, and comes first
-    assert "df = m.get()" in out
+    # get() stays the answer, and it is the first thing printed
+    assert "THE CALL, ready to copy:" in out
+    assert "    m.get(" in out
 
 
 def test_how_on_a_small_indicator_still_mentions_download(monkeypatch,
                                                           tmp_path, capsys):
     """Available, not required: someone may want the CSV rather than a frame."""
     _registry(monkeypatch, tmp_path)
-    out = _how(t.matrix("SOM101B"), capsys)
+    t.matrix("SOM101B").how(full=True)
+    out = capsys.readouterr().out
 
     assert "m.download(folder='data/som101b')" in out
     assert "written straight to a CSV on disk" in out
