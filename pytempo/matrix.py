@@ -17,7 +17,8 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from . import chunking, client, endpoints, parse, selection, territory
+from . import (chunking, client, endpoints, incremental, parse, selection,
+               territory)
 from .chunking import MAX_CELLS
 from .models import Dimension, Node, Option
 
@@ -92,13 +93,20 @@ def _excluded_hint(m, wanted) -> str | None:
     return f"  for every level, including {listed}, use get(level=None)"
 
 
-def _ask_big(cod: str, request_count: int) -> bool:
-    print(f"{cod}: {request_count} requests, several minutes of work.")
-    try:
-        return input("Continue? [y/N] ").strip().lower() in ("y", "yes", "d",
-                                                            "da")
-    except (EOFError, OSError):
-        return False
+def _too_big(cod: str, request_count: int) -> ValueError:
+    """What get() says when the plan is too large to hold in memory safely.
+
+    It used to ask at the keyboard, which reads as a hang in a notebook and
+    answers itself with a no under pytest. An error that names the way out is
+    both honest and scriptable.
+    """
+    return ValueError(
+        f"{cod}: {request_count} requests, over the {POLITE_REQUESTS} that "
+        f"get() holds in memory. Nothing has been downloaded yet.\n"
+        f"  m.download(folder='data/{cod.lower()}')   each request written to "
+        f"disk as it arrives, and resumable\n"
+        f"  m.get(confirm=False)   all of it in memory, the old way, with no "
+        f"checkpoint")
 
 
 class TextList(list):
@@ -387,8 +395,9 @@ class Matrix:
               f"{'request' if request_count == 1 else 'requests'}")
         if request_count > POLITE_REQUESTS:
             print(f"  WARNING: over {POLITE_REQUESTS} requests, this takes a "
-                  f"while. get() asks first;")
-            print("  pass confirm=False when running from a script.")
+                  f"while. get() stops and sends you here:")
+            print(f"  m.download(folder='data/{self.code.lower()}')   each "
+                  f"request written to disk, resumable")
         elif request_count > 1:
             print("  downloaded in several requests and concatenated")
 
@@ -543,7 +552,13 @@ class Matrix:
   .get(level='judet')  one territorial level only
   .get(select={{'Sexe': ['Masculin']}})  keep only some options of a dimension
   .get(raw=True)       exactly what INS returns, no derived columns
-  .get(progress=True)  report progress on large indicators""")
+  .get(progress=True)  report progress on large indicators
+  .download(folder='data/x')   large indicators: each request written to disk
+  .download(folder=..., return_df=False)   returns the CSV path, not the frame
+
+get() holds everything in memory and is right below 50 requests. Above that it
+stops and points here: download() writes every request to disk as it arrives,
+so an interrupted run keeps what it had and rerunning asks only for the rest.""")
 
     def _territorial_options(self, d, wanted: list[str], locality_active: bool):
         """Which options of one territorial dimension to send.
@@ -654,6 +669,66 @@ class Matrix:
             return []
         return [default_level]
 
+    def _plan_requests(self, level, levels, select):
+        """The payloads to send, and the matrix they were built from.
+
+        get() and download() differ in what they do with the answers, not in
+        what they ask for, so the whole decision, select, level, selection and
+        chunking, is taken here, once.
+        """
+        self._ensure_meta()
+        plan = self.fetch_plan()
+        target = selection.restrict(self, select) if select else self
+        wanted = target._wanted_levels(level, levels, plan)
+        chosen = target._build_selection(wanted)
+        return target, wanted, plan, chunking.plan_requests(target, chosen)
+
+    def _announce(self, target, wanted, plan, requests) -> None:
+        """The decision, in the shape both get() and download() print it."""
+        print(f"{self.code}: {_decision_line(target, wanted, plan, requests)}")
+        for line in selection.summary(self, target):
+            print(line)
+        hint = _excluded_hint(target, wanted)
+        if hint:
+            print(hint)
+
+    def download(self, level: territory.Level | str | None = "finest",
+                 levels: list[territory.Level] | None = None,
+                 select: dict | None = None,
+                 folder=None, out=None, return_df: bool = True,
+                 resume: bool = True, tidy: bool = True, raw: bool = False,
+                 progress: bool = True):
+        """The data, fetched through disk, for indicators too large for get().
+
+        Same selection as get(): level, levels and select mean exactly what they
+        mean there, and the plan is built by the same code. What changes is
+        where the answers go. Each request is written to its own slice file the
+        moment it arrives, so memory stays at one request and an interrupted
+        download keeps what it had. At the end the slices are read back,
+        concatenated, tidied, written as one CSV, and removed.
+
+        folder is where the slices and the CSV go. With no folder it works in a
+        temporary directory and cleans it up, which is fine when you want the
+        frame and nothing else.
+
+        out is the path of the final CSV; by default it is <code>.csv inside
+        folder. return_df=False returns that path instead of the frame and
+        never holds the whole thing in memory, which is the point for the
+        largest indicators.
+
+        resume=True, the default, skips the requests whose slice is already on
+        disk, so rerunning after a failure asks only for what is missing. A
+        request that keeps failing is reported at the end rather than sinking
+        the rest of the download.
+        """
+        target, wanted, plan, requests = self._plan_requests(level, levels,
+                                                             select)
+        if progress:
+            self._announce(target, wanted, plan, requests)
+        return incremental.run(target, requests, folder=folder, out=out,
+                               return_df=return_df, resume=resume, tidy=tidy,
+                               raw=raw, progress=progress)
+
     def get(self, level: territory.Level | str | None = "finest",
             levels: list[territory.Level] | None = None,
             select: dict | None = None,
@@ -684,29 +759,20 @@ class Matrix:
 
         tidy=True adds the derived columns; raw=True returns exactly what INS
         returned. progress='auto' only speaks when the plan has more than one
-        request. confirm=False skips the question before expensive downloads,
-        for scripts.
+        request.
+
+        Over POLITE_REQUESTS requests it stops and points at download(), which
+        checkpoints on disk and can resume. confirm=False goes ahead anyway,
+        everything in memory, for anyone who knows what they are doing.
         """
-        self._ensure_meta()
-        plan = self.fetch_plan()
-        target = selection.restrict(self, select) if select else self
-        wanted = target._wanted_levels(level, levels, plan)
-        chosen = target._build_selection(wanted)
-        requests = chunking.plan_requests(target, chosen)
+        target, wanted, plan, requests = self._plan_requests(level, levels,
+                                                             select)
 
         speaks = (len(requests) > 1) if progress == "auto" else bool(progress)
         if progress is not False:
-            print(f"{self.code}: {_decision_line(target, wanted, plan, requests)}")
-            for line in selection.summary(self, target):
-                print(line)
-            hint = _excluded_hint(target, wanted)
-            if hint:
-                print(hint)
-        if confirm and len(requests) > POLITE_REQUESTS and not _ask_big(
-                self.code, len(requests)):
-            raise ValueError(
-                f"{self.code}: download cancelled. Try a level filter, or "
-                f"get(confirm=False) if you are sure.")
+            self._announce(target, wanted, plan, requests)
+        if confirm and len(requests) > POLITE_REQUESTS:
+            raise _too_big(self.code, len(requests))
 
         frames = []
         for i, payload in enumerate(requests, 1):
@@ -833,3 +899,19 @@ def get(cod: str, level: territory.Level | str | None = "finest",
     """
     return matrix(cod).get(level=level, levels=levels, select=select, tidy=tidy,
                            progress=progress, raw=raw, confirm=confirm)
+
+
+def download(cod: str, level: territory.Level | str | None = "finest",
+             levels: list[territory.Level] | None = None,
+             select: dict | None = None,
+             folder=None, out=None, return_df: bool = True,
+             resume: bool = True, tidy: bool = True, raw: bool = False,
+             progress: bool = True):
+    """Shortcut: one indicator's data, fetched through disk, with a checkpoint.
+
+    Exactly Matrix.download, starting from a code, defaults included.
+    """
+    return matrix(cod).download(level=level, levels=levels, select=select,
+                                folder=folder, out=out, return_df=return_df,
+                                resume=resume, tidy=tidy, raw=raw,
+                                progress=progress)

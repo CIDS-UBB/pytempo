@@ -211,23 +211,30 @@ def test_get_neteritorial_has_no_territorial_filter(monkeypatch, tmp_path):
     assert cereri[0]["encQuery"].split(":")[1] == "61,62,63"
 
 
-def test_get_asks_before_expensive_download(monkeypatch, tmp_path):
+def test_get_over_the_limit_sends_you_to_download(monkeypatch, tmp_path):
+    """A big plan stops before the first request and names the way out.
+
+    It used to ask at the keyboard, which hangs in a notebook and answers
+    itself with a no under pytest.
+    """
     _registry(monkeypatch, tmp_path, dict(TOATE, FOM104D=FOM104D_MIC))
     monkeypatch.setattr(chunking, "MAX_CELLS", 2)
     # pytempo.matrix is the function; the module comes from sys.modules
     monkeypatch.setattr(sys.modules["pytempo.matrix"], "POLITE_REQUESTS", 2)
     cereri = _post(monkeypatch, CSV)
 
-    monkeypatch.setattr("builtins.input", lambda _: "n")
     try:
         t.matrix("FOM104D").get(progress=False)
     except ValueError as e:
-        assert "cancelled" in str(e)
+        mesaj = str(e)
+        assert "m.download(" in mesaj
+        assert "get(confirm=False)" in mesaj
+        assert "Nothing has been downloaded yet" in mesaj
     else:
-        raise AssertionError("trebuia sa ceara confirmare si sa se opreasca")
-    assert cereri == []
+        raise AssertionError("trebuia sa se opreasca inainte de descarcare")
+    assert cereri == []          # niciun request trimis
 
-    # confirm=False skips the question, for scripts
+    # confirm=False is still the way out for anyone who knows what they do
     t.matrix("FOM104D").get(progress=False, confirm=False)
     assert len(cereri) > 2
 
@@ -322,7 +329,7 @@ def test_how_warns_when_expensive(monkeypatch, tmp_path, capsys):
     t.matrix("SOM101B").how()
     iesire = capsys.readouterr().out
     assert "530" in iesire and "WARNING" in iesire
-    assert "confirm=False" in iesire
+    assert "m.download(folder=" in iesire
 
 
 def test_how_explains_the_two_dimension_semantics(monkeypatch, tmp_path,

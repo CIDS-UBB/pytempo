@@ -2,11 +2,12 @@
 
 Start with t.help(), which lists what the package can do. Discovery (find,
 search, domains, overview), understanding (matrix, what, where, how, info,
-show, describe, options) and fetching the data (get).
+show, describe, options) and fetching the data (get for the usual case,
+download for the large ones, which go through disk with a checkpoint).
 """
 from .catalog import (build_index, domains, filters, find, load_index,
                       name_dict, overview, search)
-from .matrix import Matrix, MatrixList, get, info, matrix
+from .matrix import Matrix, MatrixList, download, get, info, matrix
 from .schema import catalog_ddl as schema_catalog
 from .schema import column_mapping
 from . import wrangle  # noqa: F401  registers the df.tempo accessor
@@ -14,11 +15,11 @@ from . import wrangle  # noqa: F401  registers the df.tempo accessor
 # explore.init and explore.browse are sketches that still raise
 # NotImplementedError, so they are deliberately not exported yet
 
-__version__ = "0.19.0"
+__version__ = "0.20.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
-    "matrix", "info", "get",
+    "matrix", "info", "get", "download",
     "Matrix", "MatrixList",
     "schema_catalog", "column_mapping",
     "help",
@@ -70,6 +71,17 @@ FETCH the data
   m.get(raw=True)              exactly what INS returns, no derived columns
   t.get('FOM101A')             the same, starting from a code
 
+FETCH a large one, through disk
+  df = m.download(folder='data/san101b')   each request written as it arrives
+  m.download(folder=..., return_df=False)  the CSV path, nothing held in memory
+  t.download('SAN101B', folder=...)        the same, starting from a code
+
+download() takes the same level, levels and select as get() and builds the same
+plan. What changes is that every request is written to its own slice file the
+moment it comes back, so memory stays at one request and nothing is lost if the
+server drops out. Rerun the same call and resume=True asks only for the slices
+that are not on disk yet. At the end the slices become one CSV and are removed.
+
 RESHAPE it, on any frame from get(tidy=True)
   df.tempo.coverage()          per unit: span of years, holes, extremes
   df.tempo.wide()              pivot time into columns, one per year
@@ -99,9 +111,15 @@ localities, county by county.
 The data is sparse: combinations with no data are absent as whole rows, not as
 blanks. Indicators that do not fit one POST are downloaded in several requests
 and concatenated: county by county for those with localities, otherwise split on
-the largest dimension. Above 50 requests get() asks first; pass confirm=False in
-scripts. tidy never drops or reorders anything: the original name stays, SIRUTA
-prefix and all.
+the largest dimension. Above 50 requests get() stops and points at download(),
+which checkpoints on disk; get(confirm=False) goes ahead in memory anyway. tidy
+never drops or reorders anything: the original name stays, SIRUTA prefix and
+all.
+
+The POST to pivot retries by itself: a read timeout, a dropped connection or a
+5xx is sent again up to three times, with growing waits. In download() a slice
+that still fails is reported and skipped, so one bad request does not undo the
+ones that worked.
 
 find and search are different tools. find is the fast keyword search, without
 filters. search is discovery with filters, and works with no keyword at all.

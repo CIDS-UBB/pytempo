@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.19.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.20.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -66,6 +66,8 @@ endpoints answer.
   exactly as INS wrote them, plus the dimensions with their roles and sizes.
 * **Fetches the data at any level.** From national totals down to localities,
   splitting large requests automatically so every indicator is downloadable.
+  The big ones go through disk with `download()`, which checkpoints each
+  request and resumes where it stopped.
 * **Standardizes without destroying.** SIRUTA codes, territorial levels,
   locality types and years arrive as extra columns; the original labels stay
   untouched.
@@ -127,6 +129,7 @@ Fetching the data:
     m.get(select={'Sexe': ['Masculin']})  only some options of a dimension
     m.get(raw=True)              exactly what INS returned, no derived columns
     m.get(progress=True)         report progress on large indicators
+    m.download(folder='data/x')  large ones: through disk, resumable
 
 ## Levels and roles
 
@@ -266,8 +269,74 @@ leave, recursing when even a single option does not fit. The frames are
 concatenated with `ignore_index=True`.
 
 `progress="auto"`, the default, reports each request only when there is more
-than one. Above 50 requests `get()` asks before starting; pass `confirm=False`
-in scripts.
+than one. Above 50 requests `get()` stops and sends you to `download()`, which
+is the subject of the next section; `get(confirm=False)` goes ahead in memory
+anyway.
+
+### download: through disk, with a checkpoint
+
+`get()` holds every frame in memory until the last request comes back. That is
+right for almost every indicator and wrong for the few big ones. SAN101B, 36
+categories by 3 properties by 3177 localities by 31 years, is a plan of 130
+requests: through `get()` it ran for five hours and was abandoned, while
+writing each county to disk as it arrived took under three minutes. The cost is
+not the concatenation, which happens once at the end. It is that nothing is
+saved until everything is done, so a single late failure loses all of it and
+there is nothing to resume from.
+
+`download()` takes the same `level`, `levels` and `select` as `get()` and
+builds the same plan through the same code. What changes is where the answers
+go: each request is written to its own slice file the moment it arrives.
+
+    m = t.matrix('SAN101B')
+    df = m.download(folder='data/san101b')
+
+    SAN101B: level localitate, by_county, 130 requests
+      slices as parquet in data/san101b
+      1/130: +2418 rows -> _chunk_0001_9f3c1ad2.parquet
+      2/130: +1932 rows -> _chunk_0002_44be07e1.parquet
+      ...
+      271914 rows from 130 of 130 requests -> data/san101b/SAN101B.csv
+
+Memory stays at one request, and an interrupted run keeps what it had. Run the
+same call again and `resume=True`, the default, skips every request whose slice
+is already on disk, so only what is missing goes over the wire. A slice is
+named after the index of the request and a hash of its `encQuery`, so a resume
+can never hand back a slice that answers a different question.
+
+A request that still fails after the client has finished retrying is written
+down and skipped, never raised: one bad request out of a hundred must not undo
+the ninety nine that worked. What is missing is reported at the end, the slices
+are kept so the next run continues from them, and the frame carries the list in
+`df.attrs['missing_requests']`.
+
+    folder=None        work in a temporary folder and clean it up afterwards
+    out='x.csv'        the path of the consolidated CSV, default <code>.csv
+    return_df=False    return that path instead of the frame, holding nothing
+    resume=False       ask for everything again, ignoring what is on disk
+    tidy, raw          exactly as in get()
+
+When the slices are consolidated they become one CSV, `;` separated and
+`utf-8-sig` encoded, and are then removed. With `return_df=False` the CSV is
+written slice by slice, so an indicator too large to fit in memory still ends
+up as one file.
+
+Slices are Parquet when `pyarrow` is installed, which is faster and keeps the
+dtypes, and CSV otherwise, which is the same mechanism in another format. The
+core stays on `requests` and `pandas` alone, so Parquet is an optional extra:
+
+    pip install "pytempo-ins[fast]"
+
+### When the server does not answer
+
+The POST to pivot retries by itself. A read timeout, a dropped connection or a
+5xx is the INS server having a bad moment, so the request goes out again after
+a growing wait: up to three attempts, 5 then 15 seconds apart. The per request
+timeout is 60 seconds, not 30, because a heavy request on a slow day needs it.
+A 4xx is our own bad query and surfaces at once, since retrying it would only
+be slower. When every attempt fails the error says it is the server and to try
+again later, and in `download()` that failure costs one slice, not the whole
+run.
 
 ## Data wrangling
 

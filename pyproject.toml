@@ -3,7 +3,7 @@
 # fiindcă "pytempo" e deja luat pe PyPI (o extensie Web3, fără legătură). Pentru uz
 # propriu instalezi din GitHub și "import pytempo" merge oricum.
 name = "pytempo-ins"
-version = "0.19.0"
+version = "0.20.0"
 description = "Bibliotecă Python pentru accesul la datele INS TEMPO Online"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -26,6 +26,10 @@ dependencies = [
 
 [project.optional-dependencies]
 ai = []
+# felii Parquet in download(): mai rapide si pastreaza tipurile. Fara pyarrow,
+# download() scrie feliile ca CSV, acelasi mecanism. Nucleul ramane requests +
+# pandas, deci pyarrow e extra, nu dependinta de baza.
+fast = ["pyarrow>=14"]
 dev = ["pytest>=7", "build>=1"]
 
 [project.urls]
