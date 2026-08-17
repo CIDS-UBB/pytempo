@@ -608,6 +608,47 @@ def test_parse_empty_csv_is_not_an_error(monkeypatch):
     assert str(df["Valoare"].dtype) == "float64"
 
 
+def test_parse_nothing_at_all_is_the_server_not_the_data(monkeypatch):
+    """An empty body is not a CSV with no rows, and does not mean no data.
+
+    Seen on the live server: pivot answering 200 with zero bytes to requests
+    that had returned data the day before. Left to pandas it comes out as
+    EmptyDataError, no columns to parse from file, which names neither the
+    cause nor the cure.
+    """
+    _fake_api(monkeypatch)
+    m = t.matrix("FOM101A")
+    for nimic in ("", "   ", "\n"):
+        try:
+            parse.pivot_csv_to_dataframe(nimic, m)
+        except parse.EmptyResponse as e:
+            assert "FOM101A" in str(e)
+            assert "empty body" in str(e)
+            assert "Try again later" in str(e)
+        else:
+            raise AssertionError("un corp gol trebuie sa fie eroare clara")
+    # and it stays a ValueError, so code that catches one keeps working
+    assert issubclass(parse.EmptyResponse, ValueError)
+
+
+def test_an_empty_body_costs_one_slice_not_the_download(monkeypatch, tmp_path):
+    """In download() it is a failed slice like any other, so resume retries it."""
+    _fake_api(monkeypatch, extra={endpoints.matrix("FOM104D"): FOM104D_MIC})
+    monkeypatch.setattr(chunking, "MAX_CELLS", 10)
+    numar = [0]
+
+    def fake_post(payload, **kw):
+        numar[0] += 1
+        return "" if numar[0] == 2 else CSV_FOM104D
+
+    monkeypatch.setattr(client, "post_pivot", fake_post)
+    df = t.matrix("FOM104D").download(folder=tmp_path / "d", progress=False)
+
+    assert len(df) == 4                       # two slices of two rows
+    assert df.attrs["complete"] is False
+    assert "EmptyResponse" in df.attrs["missing_requests"][0]["error"]
+
+
 def test_parse_wrong_column_count(monkeypatch):
     _fake_api(monkeypatch)
     stricat = "A, B, Valoare\nx, y, 1.0\n"

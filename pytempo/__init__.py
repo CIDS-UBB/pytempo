@@ -16,7 +16,7 @@ from . import wrangle  # noqa: F401  registers the df.tempo accessor
 # explore.init and explore.browse are sketches that still raise
 # NotImplementedError, so they are deliberately not exported yet
 
-__version__ = "0.27.0"
+__version__ = "0.28.0"
 __all__ = [
     "load_index", "name_dict", "search", "find", "domains", "overview",
     "build_index", "filters",
@@ -176,7 +176,9 @@ all.
 The POST to pivot retries by itself: a read timeout, a dropped connection or a
 5xx is sent again up to three times, with growing waits. In download() a slice
 that still fails is reported and skipped, so one bad request does not undo the
-ones that worked.
+ones that worked. An answer of 200 with an empty body, which INS does give on a
+bad day, raises EmptyResponse rather than a parser error: it is the server, not
+a combination with no data, which arrives as a header with no rows.
 
 find and search are different tools. find is the fast keyword search, without
 filters. search is discovery with filters, and works with no keyword at all.

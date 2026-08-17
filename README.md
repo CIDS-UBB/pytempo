@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.27.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.28.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -54,7 +54,8 @@ running anything:
     examples/tutorial_en.ipynb
     examples/tutorial_ro.ipynb
 
-There is also `examples/check_links.py`, a quick script that confirms the live
+There are two scripts next to them: `examples/quickstart.py`, the same ground in
+one runnable file, and `examples/check_links.py`, which confirms the live
 endpoints answer.
 
 ## What it does
@@ -627,6 +628,16 @@ A 4xx is our own bad query and surfaces at once, since retrying it would only
 be slower. When every attempt fails the error says it is the server and to try
 again later, and in `download()` that failure costs one slice, not the whole
 run.
+
+There is a third way for the server to be unwell, and it does happen: `pivot`
+answers `200` with an **empty body**, zero bytes, to requests that returned
+data the day before. That is not the same as a combination with no data, which
+comes back as a CSV with a header and no rows and is perfectly legitimate. An
+empty body raises `EmptyResponse`, a `ValueError` that says it is the server
+rather than the query, because left to pandas it surfaced as
+`EmptyDataError: No columns to parse from file`, which names neither the cause
+nor the cure. Inside `download()` it is a failed slice like any other:
+reported at the end, asked for again on the next run.
 
 ## Data wrangling
 

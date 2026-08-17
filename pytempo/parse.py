@@ -28,12 +28,34 @@ VALUE_COLUMN = "Valoare"
 _YEAR = re.compile(r"\b(\d{4})\b")
 
 
+class EmptyResponse(ValueError):
+    """pivot answered with nothing at all, which is the server, not the data.
+
+    A ValueError, so anything catching one keeps working, and download() treats
+    it like any other failed slice: reported at the end, asked for again on the
+    next run.
+    """
+
+
 def pivot_csv_to_dataframe(csv_text: str, matrix) -> pd.DataFrame:
     """Raw CSV from pivot into a long format DataFrame.
 
     The column count is the safety net: the comma delimiter only works because
     INS strips commas out of labels, and that is not guaranteed.
     """
+    if not (csv_text or "").strip():
+        # not a CSV with no rows, which is legitimate and handled below, but
+        # nothing at all: pivot answered 200 with an empty body. Observed on
+        # the live server, for well formed requests that returned data the day
+        # before. Left to pandas it surfaces as EmptyDataError, no columns to
+        # parse from file, which names neither the cause nor the cure
+        raise EmptyResponse(
+            f"{matrix.code}: INS answered with an empty body, not with data. "
+            f"The request was well formed, so this is the server having a bad "
+            f"moment rather than a combination with no data, which comes back "
+            f"as a CSV with a header and no rows. Try again later; inside "
+            f"download() this costs one slice, which resume asks for again.")
+
     df = pd.read_csv(
         io.StringIO(csv_text),
         sep=",",
