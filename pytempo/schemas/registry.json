@@ -33977,6 +33977,129 @@
    "status": "ok",
    "total_cells": 30600
   },
+  "FOM104I": {
+   "dims": [
+    {
+     "dim_code": 1,
+     "label": "CAEN Rev.3 - (activitati ale economiei nationale)",
+     "n_options": 102,
+     "role": "caen"
+    },
+    {
+     "dim_code": 2,
+     "label": "Sexe",
+     "n_options": 3,
+     "role": "alt"
+    },
+    {
+     "dim_code": 3,
+     "label": "Macroregiuni, regiuni de dezvoltare si judete",
+     "n_options": 55,
+     "role": "teritoriu"
+    },
+    {
+     "dim_code": 4,
+     "label": "Ani",
+     "n_options": 2,
+     "role": "timp"
+    },
+    {
+     "dim_code": 5,
+     "label": "UM: Numar persoane",
+     "n_options": 1,
+     "role": "um"
+    }
+   ],
+   "domain": "A. STATISTICA SOCIALA",
+   "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/FOM104I",
+   "family": "teritorial_caen",
+   "fetch_plan": {
+    "default_level": "judet",
+    "est_requests": 1,
+    "strategy": "single",
+    "tidy_ready": true
+   },
+   "fetched_at": "2026-10-06T14:01:40+00:00",
+   "has_caen": true,
+   "has_localities": false,
+   "has_sex": true,
+   "has_siruta": false,
+   "last_updated": "17-09-2026",
+   "levels": [
+    "national",
+    "macroregiune",
+    "regiune",
+    "judet"
+   ],
+   "name": "Numarul mediu al salariatilor pe activitati ale economiei nationale (sectiuni si diviziuni) CAEN Rev.3, sexe, macroregiuni, regiuni de dezvoltare si judete",
+   "periodicity": [
+    "Anuala"
+   ],
+   "status": "ok",
+   "total_cells": 33660
+  },
+  "FOM104J": {
+   "dims": [
+    {
+     "dim_code": 1,
+     "label": "Categorii de salariati",
+     "n_options": 1,
+     "role": "alt"
+    },
+    {
+     "dim_code": 2,
+     "label": "Forme de proprietate",
+     "n_options": 3,
+     "role": "alt"
+    },
+    {
+     "dim_code": 3,
+     "label": "Sexe",
+     "n_options": 3,
+     "role": "alt"
+    },
+    {
+     "dim_code": 4,
+     "label": "CAEN Rev.3 - (activitati ale economiei nationale)",
+     "n_options": 102,
+     "role": "caen"
+    },
+    {
+     "dim_code": 5,
+     "label": "Ani",
+     "n_options": 2,
+     "role": "timp"
+    },
+    {
+     "dim_code": 6,
+     "label": "UM: Numar persoane",
+     "n_options": 1,
+     "role": "um"
+    }
+   ],
+   "domain": "A. STATISTICA SOCIALA",
+   "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/FOM104J",
+   "family": "neteritorial",
+   "fetch_plan": {
+    "default_level": null,
+    "est_requests": 1,
+    "strategy": "single",
+    "tidy_ready": true
+   },
+   "fetched_at": "2026-10-06T14:01:40+00:00",
+   "has_caen": true,
+   "has_localities": false,
+   "has_sex": true,
+   "has_siruta": false,
+   "last_updated": "17-09-2026",
+   "levels": [],
+   "name": "Numarul mediu al salariatilor pe categorii de salariati, forme de proprietate, activitati (sectiuni si diviziuni) ale economiei nationale CAEN Rev.3 si pe sexe",
+   "periodicity": [
+    "Anuala"
+   ],
+   "status": "ok",
+   "total_cells": 1836
+  },
   "FOM105A": {
    "dims": [
     {
@@ -34366,6 +34489,129 @@
    "status": "ok",
    "total_cells": 1734
   },
+  "FOM105J": {
+   "dims": [
+    {
+     "dim_code": 1,
+     "label": "CAEN Rev.3 - (activitati ale economiei nationale)",
+     "n_options": 102,
+     "role": "caen"
+    },
+    {
+     "dim_code": 2,
+     "label": "Sexe",
+     "n_options": 3,
+     "role": "alt"
+    },
+    {
+     "dim_code": 3,
+     "label": "Macroregiuni, regiuni de dezvoltare si judete",
+     "n_options": 55,
+     "role": "teritoriu"
+    },
+    {
+     "dim_code": 4,
+     "label": "Ani",
+     "n_options": 2,
+     "role": "timp"
+    },
+    {
+     "dim_code": 5,
+     "label": "UM: Numar persoane",
+     "n_options": 1,
+     "role": "um"
+    }
+   ],
+   "domain": "A. STATISTICA SOCIALA",
+   "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/FOM105J",
+   "family": "teritorial_caen",
+   "fetch_plan": {
+    "default_level": "judet",
+    "est_requests": 1,
+    "strategy": "single",
+    "tidy_ready": true
+   },
+   "fetched_at": "2026-10-06T14:01:40+00:00",
+   "has_caen": true,
+   "has_localities": false,
+   "has_sex": true,
+   "has_siruta": false,
+   "last_updated": "17-09-2026",
+   "levels": [
+    "national",
+    "macroregiune",
+    "regiune",
+    "judet"
+   ],
+   "name": "Efectivul salariatilor la sfarsitul anului, pe activitati ale economiei nationale (sectiuni si diviziuni) CAEN Rev.3, sexe, macroregiuni, regiuni de dezvoltare si judete",
+   "periodicity": [
+    "Anuala"
+   ],
+   "status": "ok",
+   "total_cells": 33660
+  },
+  "FOM105K": {
+   "dims": [
+    {
+     "dim_code": 1,
+     "label": "Categorii de salariati",
+     "n_options": 1,
+     "role": "alt"
+    },
+    {
+     "dim_code": 2,
+     "label": "Forme de proprietate",
+     "n_options": 3,
+     "role": "alt"
+    },
+    {
+     "dim_code": 3,
+     "label": "Sexe",
+     "n_options": 3,
+     "role": "alt"
+    },
+    {
+     "dim_code": 4,
+     "label": "CAEN Rev.3 - (activitati ale economiei nationale)",
+     "n_options": 102,
+     "role": "caen"
+    },
+    {
+     "dim_code": 5,
+     "label": "Ani",
+     "n_options": 2,
+     "role": "timp"
+    },
+    {
+     "dim_code": 6,
+     "label": "UM: Numar persoane",
+     "n_options": 1,
+     "role": "um"
+    }
+   ],
+   "domain": "A. STATISTICA SOCIALA",
+   "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/FOM105K",
+   "family": "neteritorial",
+   "fetch_plan": {
+    "default_level": null,
+    "est_requests": 1,
+    "strategy": "single",
+    "tidy_ready": true
+   },
+   "fetched_at": "2026-10-06T14:01:40+00:00",
+   "has_caen": true,
+   "has_localities": false,
+   "has_sex": true,
+   "has_siruta": false,
+   "last_updated": "18-09-2026",
+   "levels": [],
+   "name": "Efectivul salariatilor la sfarsitul anului, pe categorii de salariati, forme de proprietate, activitati (sectiuni si diviziuni) ale economiei nationale CAEN Rev.3 si pe sexe",
+   "periodicity": [
+    "Anuala"
+   ],
+   "status": "ok",
+   "total_cells": 1836
+  },
   "FOM106A": {
    "dims": [
     {
@@ -34742,6 +34988,129 @@
    "status": "ok",
    "total_cells": 1734
   },
+  "FOM106H": {
+   "dims": [
+    {
+     "dim_code": 1,
+     "label": "CAEN Rev.3 - (activitati ale economiei nationale)",
+     "n_options": 102,
+     "role": "caen"
+    },
+    {
+     "dim_code": 2,
+     "label": "Sexe",
+     "n_options": 3,
+     "role": "alt"
+    },
+    {
+     "dim_code": 3,
+     "label": "Macroregiuni, regiuni de dezvoltare si judete",
+     "n_options": 55,
+     "role": "teritoriu"
+    },
+    {
+     "dim_code": 4,
+     "label": "Ani",
+     "n_options": 2,
+     "role": "timp"
+    },
+    {
+     "dim_code": 5,
+     "label": "UM: Lei, lei RON (incepand cu 2005)",
+     "n_options": 1,
+     "role": "um"
+    }
+   ],
+   "domain": "A. STATISTICA SOCIALA",
+   "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/FOM106H",
+   "family": "teritorial_caen",
+   "fetch_plan": {
+    "default_level": "judet",
+    "est_requests": 1,
+    "strategy": "single",
+    "tidy_ready": true
+   },
+   "fetched_at": "2026-10-06T14:01:40+00:00",
+   "has_caen": true,
+   "has_localities": false,
+   "has_sex": true,
+   "has_siruta": false,
+   "last_updated": "18-09-2026",
+   "levels": [
+    "national",
+    "macroregiune",
+    "regiune",
+    "judet"
+   ],
+   "name": "Castigul salarial nominal mediu net lunar pe activitati ale economiei nationale (sectiuni si diviziuni) CAEN Rev.3, sexe, macroregiuni, regiuni de dezvoltare si judete",
+   "periodicity": [
+    "Anuala"
+   ],
+   "status": "ok",
+   "total_cells": 33660
+  },
+  "FOM106I": {
+   "dims": [
+    {
+     "dim_code": 1,
+     "label": "Categorii de salariati",
+     "n_options": 1,
+     "role": "alt"
+    },
+    {
+     "dim_code": 2,
+     "label": "Forme de proprietate",
+     "n_options": 3,
+     "role": "alt"
+    },
+    {
+     "dim_code": 3,
+     "label": "Sexe",
+     "n_options": 3,
+     "role": "alt"
+    },
+    {
+     "dim_code": 4,
+     "label": "CAEN Rev.3 - (activitati ale economiei nationale)",
+     "n_options": 102,
+     "role": "caen"
+    },
+    {
+     "dim_code": 5,
+     "label": "Ani",
+     "n_options": 2,
+     "role": "timp"
+    },
+    {
+     "dim_code": 6,
+     "label": "UM: Lei RON",
+     "n_options": 1,
+     "role": "um"
+    }
+   ],
+   "domain": "A. STATISTICA SOCIALA",
+   "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/FOM106I",
+   "family": "neteritorial",
+   "fetch_plan": {
+    "default_level": null,
+    "est_requests": 1,
+    "strategy": "single",
+    "tidy_ready": true
+   },
+   "fetched_at": "2026-10-06T14:01:40+00:00",
+   "has_caen": true,
+   "has_localities": false,
+   "has_sex": true,
+   "has_siruta": false,
+   "last_updated": "18-09-2026",
+   "levels": [],
+   "name": "Castigul salarial nominal mediu net lunar, pe categorii de salariati, forme de proprietate, activitati (sectiuni si diviziuni) ale economiei nationale CAEN Rev.3 si pe sexe",
+   "periodicity": [
+    "Anuala"
+   ],
+   "status": "ok",
+   "total_cells": 1836
+  },
   "FOM107A": {
    "dims": [
     {
@@ -35117,6 +35486,129 @@
    ],
    "status": "ok",
    "total_cells": 1734
+  },
+  "FOM107H": {
+   "dims": [
+    {
+     "dim_code": 1,
+     "label": "CAEN Rev.3 - (activitati ale economiei nationale)",
+     "n_options": 102,
+     "role": "caen"
+    },
+    {
+     "dim_code": 2,
+     "label": "Sexe",
+     "n_options": 3,
+     "role": "alt"
+    },
+    {
+     "dim_code": 3,
+     "label": "Macroregiuni, regiuni de dezvoltare si judete",
+     "n_options": 55,
+     "role": "teritoriu"
+    },
+    {
+     "dim_code": 4,
+     "label": "Ani",
+     "n_options": 2,
+     "role": "timp"
+    },
+    {
+     "dim_code": 5,
+     "label": "UM: Lei, lei RON (incepand cu 2005)",
+     "n_options": 1,
+     "role": "um"
+    }
+   ],
+   "domain": "A. STATISTICA SOCIALA",
+   "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/FOM107H",
+   "family": "teritorial_caen",
+   "fetch_plan": {
+    "default_level": "judet",
+    "est_requests": 1,
+    "strategy": "single",
+    "tidy_ready": true
+   },
+   "fetched_at": "2026-10-06T14:01:40+00:00",
+   "has_caen": true,
+   "has_localities": false,
+   "has_sex": true,
+   "has_siruta": false,
+   "last_updated": "21-09-2026",
+   "levels": [
+    "national",
+    "macroregiune",
+    "regiune",
+    "judet"
+   ],
+   "name": "Castigul salarial nominal mediu brut lunar pe activitati ale economiei nationale (sectiuni si diviziuni) CAEN Rev.3, sexe, macroregiuni, regiuni de dezvoltare si judete",
+   "periodicity": [
+    "Anuala"
+   ],
+   "status": "ok",
+   "total_cells": 33660
+  },
+  "FOM107I": {
+   "dims": [
+    {
+     "dim_code": 1,
+     "label": "Categorii de salariati",
+     "n_options": 1,
+     "role": "alt"
+    },
+    {
+     "dim_code": 2,
+     "label": "Forme de proprietate",
+     "n_options": 3,
+     "role": "alt"
+    },
+    {
+     "dim_code": 3,
+     "label": "Sexe",
+     "n_options": 3,
+     "role": "alt"
+    },
+    {
+     "dim_code": 4,
+     "label": "CAEN Rev.3 - (activitati ale economiei nationale)",
+     "n_options": 102,
+     "role": "caen"
+    },
+    {
+     "dim_code": 5,
+     "label": "Ani",
+     "n_options": 2,
+     "role": "timp"
+    },
+    {
+     "dim_code": 6,
+     "label": "UM: Lei RON",
+     "n_options": 1,
+     "role": "um"
+    }
+   ],
+   "domain": "A. STATISTICA SOCIALA",
+   "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/FOM107I",
+   "family": "neteritorial",
+   "fetch_plan": {
+    "default_level": null,
+    "est_requests": 1,
+    "strategy": "single",
+    "tidy_ready": true
+   },
+   "fetched_at": "2026-10-06T14:01:40+00:00",
+   "has_caen": true,
+   "has_localities": false,
+   "has_sex": true,
+   "has_siruta": false,
+   "last_updated": "21-09-2026",
+   "levels": [],
+   "name": "Castigul salarial nominal mediu brut lunar, pe categorii de salariati, forme de proprietate, activitati (sectiuni si diviziuni) ale economiei nationale CAEN Rev.3 si pe sexe",
+   "periodicity": [
+    "Anuala"
+   ],
+   "status": "ok",
+   "total_cells": 1836
   },
   "FOM108A": {
    "dims": [
@@ -62904,6 +63396,156 @@
    ],
    "status": "ok",
    "total_cells": 432
+  },
+  "SAN111A": {
+   "dims": [
+    {
+     "dim_code": 1,
+     "label": "Servicii de sanatate",
+     "n_options": 18,
+     "role": "alt"
+    },
+    {
+     "dim_code": 2,
+     "label": "Scheme (surse) de finantare",
+     "n_options": 9,
+     "role": "alt"
+    },
+    {
+     "dim_code": 3,
+     "label": "Ani",
+     "n_options": 14,
+     "role": "timp"
+    },
+    {
+     "dim_code": 4,
+     "label": "UM: Miliarde lei, lei RON, mii lei RON,milioane lei RON (incepand cu 2005)",
+     "n_options": 1,
+     "role": "um"
+    }
+   ],
+   "domain": "A. STATISTICA SOCIALA",
+   "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/SAN111A",
+   "family": "neteritorial",
+   "fetch_plan": {
+    "default_level": null,
+    "est_requests": 1,
+    "strategy": "single",
+    "tidy_ready": true
+   },
+   "fetched_at": "2026-10-06T14:01:41+00:00",
+   "has_caen": false,
+   "has_localities": false,
+   "has_sex": false,
+   "has_siruta": false,
+   "last_updated": "29-09-2026",
+   "levels": [],
+   "name": "Cheltuielile curente de sanatate pentru servicii de sanatate, pe scheme (surse) de finantare",
+   "periodicity": [
+    "Anuala"
+   ],
+   "status": "ok",
+   "total_cells": 2268
+  },
+  "SAN111B": {
+   "dims": [
+    {
+     "dim_code": 1,
+     "label": "Furnizori de servicii de sanatate si bunuri medicale",
+     "n_options": 11,
+     "role": "alt"
+    },
+    {
+     "dim_code": 2,
+     "label": "Scheme (surse) de finantare",
+     "n_options": 9,
+     "role": "alt"
+    },
+    {
+     "dim_code": 3,
+     "label": "Ani",
+     "n_options": 14,
+     "role": "timp"
+    },
+    {
+     "dim_code": 4,
+     "label": "UM: Miliarde lei, lei RON, mii lei RON,milioane lei RON (incepand cu 2005)",
+     "n_options": 1,
+     "role": "um"
+    }
+   ],
+   "domain": "A. STATISTICA SOCIALA",
+   "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/SAN111B",
+   "family": "neteritorial",
+   "fetch_plan": {
+    "default_level": null,
+    "est_requests": 1,
+    "strategy": "single",
+    "tidy_ready": true
+   },
+   "fetched_at": "2026-10-06T14:01:41+00:00",
+   "has_caen": false,
+   "has_localities": false,
+   "has_sex": false,
+   "has_siruta": false,
+   "last_updated": "29-09-2026",
+   "levels": [],
+   "name": "Cheltuielile curente de sanatate pentru furnizori de servicii de sanatate si bunuri medicale, pe scheme (surse) de finantare",
+   "periodicity": [
+    "Anuala"
+   ],
+   "status": "ok",
+   "total_cells": 1386
+  },
+  "SAN111C": {
+   "dims": [
+    {
+     "dim_code": 1,
+     "label": "Servicii de sanatate",
+     "n_options": 18,
+     "role": "alt"
+    },
+    {
+     "dim_code": 2,
+     "label": "Furnizori de servicii de sanatate si bunuri medicale",
+     "n_options": 11,
+     "role": "alt"
+    },
+    {
+     "dim_code": 3,
+     "label": "Ani",
+     "n_options": 14,
+     "role": "timp"
+    },
+    {
+     "dim_code": 4,
+     "label": "UM: Miliarde lei, lei RON, mii lei RON,milioane lei RON (incepand cu 2005)",
+     "n_options": 1,
+     "role": "um"
+    }
+   ],
+   "domain": "A. STATISTICA SOCIALA",
+   "endpoint": "http://statistici.insse.ro:8077/tempo-ins/matrix/SAN111C",
+   "family": "neteritorial",
+   "fetch_plan": {
+    "default_level": null,
+    "est_requests": 1,
+    "strategy": "single",
+    "tidy_ready": true
+   },
+   "fetched_at": "2026-10-06T14:01:41+00:00",
+   "has_caen": false,
+   "has_localities": false,
+   "has_sex": false,
+   "has_siruta": false,
+   "last_updated": "29-09-2026",
+   "levels": [],
+   "name": "Cheltuielile curente de sanatate pentru servicii de sanatate, pe tipuri de furnizori de servicii de sanatate si bunuri medicale",
+   "periodicity": [
+    "Anuala"
+   ],
+   "status": "ok",
+   "total_cells": 2772
   },
   "SAR101A": {
    "dims": [

@@ -48,11 +48,12 @@ def sql_ident(label: str, taken: set | None = None) -> str:
     The normalization is a public contract: the column names of every database
     built from pytempo come out of it, so changing it is a breaking change,
     and an existing table would meet differently named columns.
-    tests/test_catalog_sql.py pins it on the hard cases. Across the whole catalogue, 1916
-    indicators, no two dimensions of one indicator fold to the same name, nor
-    to the value columns, so the suffix is never needed on real data. Were it
-    needed, order would decide: column_mapping() goes through the dimensions
-    in dimensionsMap order, so the later of two colliding labels gets '_2'.
+    tests/test_catalog_sql.py pins it on the hard cases. Across the whole
+    catalogue, 1927 indicators, no two dimensions of one indicator fold to the
+    same name, nor to the value columns, so the suffix is never needed on real
+    data. Were it needed, order would decide: column_mapping() goes through
+    the dimensions in dimensionsMap order, so the later of two colliding
+    labels gets '_2'.
     """
     folded = unicodedata.normalize("NFKD", str(label or ""))
     folded = "".join(c for c in folded if not unicodedata.combining(c))

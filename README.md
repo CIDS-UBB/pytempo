@@ -1,7 +1,7 @@
 # pytempo
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.30.0-informational.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.40.0-informational.svg)](pyproject.toml)
 
 A Python library for reading Romanian official statistics from the INS TEMPO
 Online API.
@@ -64,7 +64,7 @@ endpoints answer.
 
 ## What it does
 
-* **Finds indicators.** 1916 of them, searchable by keyword, or filtered by
+* **Finds indicators.** 1927 of them, searchable by keyword, or filtered by
   territorial level, domain, periodicity and whether they carry a CAEN
   classification.
 * **Reads the metadata.** Definitions, methodology, sources and observations
@@ -589,7 +589,7 @@ on locality dimensions, where it points at the county, and on the CAEN
 dimensions of INT109A, INT109B, INT109C and INT109E, where one hierarchy is
 split across four or five dimensions. It is null on POP107D and POP105A ages, on
 FOM104F's CAEN, on SCL101B's levels of education, on AGR101A's land use, and on
-hierarchical territory. Measured in October 2026 on the metadata of all 1916
+hierarchical territory. Measured in October 2026 on the metadata of all 1927
 indicators, those are the only places it appears, and it never points at an
 option of its own dimension. `offset` is a plain running order. What INS does
 carry is the indentation of the label, three spaces per level, which is what it
@@ -937,7 +937,7 @@ identifiers, so renaming is one line. Identifiers are folded to snake_case
 without diacritics, truncated to fit Postgres, and made unique with a numeric
 suffix on collision. That folding is a public contract: every database built
 from pytempo takes its column names from it, so changing it is a breaking
-change, and an existing table would meet other names. Across all 1916
+change, and an existing table would meet other names. Across all 1927
 indicators no two dimensions of one indicator fold to the same name, nor to
 `valoare` or `valoare_confidential`, so the suffix never comes into play.
 
@@ -982,6 +982,16 @@ Both functions take `schema="..."` if you do not want the `tempo` schema, and
 `m.schema(include_comments=False)` drops the `COMMENT ON` statements. The
 comments carry the full INS name, the first sentence of the definition, and the
 unit of measure, so the meaning travels with the table.
+
+**Upgrading a database built before 0.40.0.** `CREATE TABLE IF NOT EXISTS`
+does not touch an existing table, so:
+
+* `tempo.indicators` no longer has `family`; `catalog_rows()` does not fill it.
+  The catalogue tables also gained columns (the prose, `latest_period`,
+  `sql_name`, `level`), which an old table lacks.
+* Each indicator table now has `valoare_confidential`. A frame from 0.40.0 does
+  not insert into a table made by an earlier `m.schema()` until it is added:
+  `ALTER TABLE tempo.<code> ADD COLUMN valoare_confidential boolean`.
 
 Four things SQL will not warn you about:
 

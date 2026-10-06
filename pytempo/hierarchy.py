@@ -20,7 +20,7 @@ WHAT THE DATA ACTUALLY CARRIES, measured before writing any of this:
                       education (0 of 18), AGR101A land use (0 of 14), and the
                       hierarchical territory of SCL101B, macroregion plus
                       region plus county (0 of 55). Measured in October 2026 on
-                      the metadata of all 1916 indicators of the catalogue,
+                      the metadata of all 1927 indicators of the catalogue,
                       from the local cache: 85 locality dimensions and the 14
                       CAEN dimensions of the four INT109 indicators are the
                       only places it appears, and it never points at an
