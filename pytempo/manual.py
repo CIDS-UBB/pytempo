@@ -307,6 +307,13 @@ def _print_filter(matrix, dimension, big_dimension: int, width: int) -> None:
         levels = len(set(hierarchy.depths(dimension).values()))
         print(f"{pad}{len(dimension.options)} options on {levels} levels")
         for kind in ("groups", "leaves", "total"):
+            if kind == "total" and not any(
+                    territory.is_total_label(o.label) for o in dimension.options):
+                # PTT105A's types of exchange, among 104 indicators: levels
+                # but no total. Asking for it raised, and how() stopped here
+                print(f"{pad}{kind!r:<9}{'-':>4}: none, this dimension has "
+                      f"no total")
+                continue
             kept = hierarchy.pick(dimension, kind)
             print(f"{pad}{kind!r:<9}{len(kept):>4}: {_values(kept)}")
         return

@@ -176,3 +176,36 @@ def test_is_measure_selector(monkeypatch):
     assert manual.is_measure_selector(t.matrix("LOC108B").dimensions[-1])
     assert not manual.is_measure_selector(t.matrix("SCL101B").dimensions[-1])
     assert not manual.is_measure_selector(t.matrix("FOM121A").dimensions[0])
+
+
+# ---------------------------- a hierarchy without a total, PTT105A
+
+PTT105A = json.loads((FIXTURES / "PTT105A_meta.json").read_text(
+    encoding="utf-8"))
+
+
+def _ptt105a(monkeypatch):
+    monkeypatch.setattr(catalog, "_INDEX",
+                        [{"code": "PTT105A", "name": "Indicator PTT105A"}])
+    monkeypatch.setattr(client, "get_json", lambda url, **kw: PTT105A)
+    return t.matrix("PTT105A")
+
+
+def test_how_runs_on_a_hierarchy_without_a_total(monkeypatch, capsys):
+    """104 indicators stopped here: the filter list asked for a total the
+    dimension does not have."""
+    m = _ptt105a(monkeypatch)
+    m.how()
+    m.how(full=True)
+    out = capsys.readouterr().out
+    assert "'total'     -: none, this dimension has no total" in out
+    assert "'groups'" in out and "'leaves'" in out
+    assert "m.how(full=True)" in out
+
+
+def test_and_its_measure_selector_now_shows(monkeypatch, capsys):
+    m = _ptt105a(monkeypatch)
+    m.how()
+    filters = capsys.readouterr().out.split("FILTERS")[1]
+    assert "UM: Numar linii" in filters
+    assert "a selector of measures, not a fixed unit" in filters
