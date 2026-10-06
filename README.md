@@ -12,10 +12,10 @@ University.
 **Status: in use, still young.** It has been used for real downloads, up to
 POP107D's six million rows, through INS rate limiting and server outages, and
 the fixes since, for confidential cells, county rows left out of
-`get(level=None)` and plans of millions of requests for combinations that do
-not exist, came from that use and were each checked across the whole catalogue.
-Check results against the INS site before you rely on them; `df.tempo.spot_check()`
-picks the cells to look up.
+`get(level=None)` and plans of millions of requests for combinations that do not
+exist, came from that use and were each checked across the whole catalogue.
+Check results against the INS site before you rely on them;
+`df.tempo.spot_check()` picks the cells to look up.
 
 ## Install
 
@@ -81,7 +81,9 @@ endpoints answer.
 
 ## Navigating
 
-`t.help()` prints the same guide as this section, from a Python prompt.
+`t.help()` prints a guide for the Python prompt that covers the same ground in
+its own words, not this text, plus a few calls this section leaves to later
+ones, such as `t.download()`, `df.tempo` and the schema functions.
 
 Finding an indicator. `find` and `search` are different tools: `find` is the
 plain keyword search, no filters, answered instantly from the name index.
@@ -480,9 +482,9 @@ It is not missing, and it is not zero.
 `Valoare_confidential` is on every frame, raw ones included, and is `False`
 everywhere INS published the figure. `raw=True` adds no derived columns, but it
 still reads the format correctly, as it reads the comma split and takes the
-column names from `matrix.dimensions` rather than the header: a `c` left as
-text would turn `Valoare` into strings and break every calculation, and the
-flag keeps the fact rather than hiding it. It is always there, not only when a `c`
+column names from `matrix.dimensions` rather than the header: a `c` left as text
+would turn `Valoare` into strings and break every calculation, and the flag
+keeps the fact rather than hiding it. It is always there, not only when a `c`
 turned up, so a download split into many requests has the same columns whichever
 request happened to hold the suppressed cells.
 
@@ -563,16 +565,16 @@ They are not about ages. On AGR101A, land use, `groups` gives `Total`,
 gives the ten kinds of land under them. Any dimension with levels answers.
 
 **Where the levels come from.** Where it was measured, `parentId` points at an
-option of another dimension, never at one of the same dimension. It is
-populated on locality dimensions, where it points at the county, and on the
-CAEN dimensions of INT109A, INT109B, INT109C and INT109E, where one hierarchy
-is split across four or five dimensions. It is null on POP107D and POP105A ages,
-on FOM104F's CAEN, on SCL101B's levels of education, on AGR101A's land use, and
-on hierarchical territory. Measured in October 2026 on the metadata of all 1916
+option of another dimension, never at one of the same dimension. It is populated
+on locality dimensions, where it points at the county, and on the CAEN
+dimensions of INT109A, INT109B, INT109C and INT109E, where one hierarchy is
+split across four or five dimensions. It is null on POP107D and POP105A ages, on
+FOM104F's CAEN, on SCL101B's levels of education, on AGR101A's land use, and on
+hierarchical territory. Measured in October 2026 on the metadata of all 1916
 indicators, those are the only places it appears, and it never points at an
-option of its own dimension.
-`offset` is a plain running order. What INS does carry is the indentation of the label, three
-spaces per level, which is what it renders its own tree from:
+option of its own dimension. `offset` is a plain running order. What INS does
+carry is the indentation of the label, three spaces per level, which is what it
+renders its own tree from:
 
     'Total'
     '   0- 4 ani'
@@ -632,9 +634,9 @@ INT109C and 329 for INT109E, still a job for `download()`. A chain linked only
 partway is not treated as one, since its requests would miss the options left
 unlinked. `how(full=True)` names the strategy, `by_chain`.
 
-Everything else is split on its largest dimension, in pieces sized by how much room the other dimensions
-leave, recursing when even a single option does not fit. The frames are
-concatenated with `ignore_index=True`.
+Everything else is split on its largest dimension, in pieces sized by how much
+room the other dimensions leave, recursing when even a single option does not
+fit. The frames are concatenated with `ignore_index=True`.
 
 `progress="auto"`, the default, reports each request only when there is more
 than one. Above 50 requests `get()` stops and sends you to `download()`, which
