@@ -145,7 +145,8 @@ def test_a_dimension_without_a_total_is_pinned_and_announced(monkeypatch,
     df.tempo.spot_check(seed=1)
     out = capsys.readouterr().out
 
-    assert "fixed Sexe = Masculin   (no total among its 2 values)" in out
+    # the first by label, not the first INS happened to send
+    assert "fixed Sexe = Feminin   (no total among its 2 values)" in out
     assert "2 years:" in out
     assert "more rows than years" not in out
 
@@ -265,3 +266,17 @@ def test_siruta_sorts_as_a_number_and_labels_after_it():
     units = ["Cluj", "10000", "2130", "Alba", "1017"]
     assert sorted(units, key=spotcheck._stable) == [
         "1017", "2130", "10000", "Alba", "Cluj"]
+
+
+def test_a_dimension_without_a_total_is_pinned_the_same_whatever_the_order(
+        monkeypatch):
+    """No total, two values: which one is pinned cannot depend on the order
+    INS sent the rows in, or the same seed shows another series next month."""
+    df = _pop107d(monkeypatch, sexes=("Masculin", "Feminin"))
+    expected = _spot(df, seed=1)
+    assert "(no total among its 2 values)" in expected
+    flipped = _pop107d(monkeypatch, sexes=("Feminin", "Masculin"))
+    assert _spot(flipped, seed=1) == expected
+    for shuffle in (1, 2, 3):
+        mixed = df.sample(frac=1, random_state=shuffle).reset_index(drop=True)
+        assert _spot(mixed, seed=1) == expected

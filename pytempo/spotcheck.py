@@ -26,17 +26,26 @@ def _distinct(values) -> list:
 
 
 def _pin(values) -> tuple:
-    """Which option to fix a dimension on: its total, or the first it has.
+    """Which option to fix a dimension on: its total, or the first by label.
 
     The total is what makes a single readable series on the site. A dimension
-    with no total, and there are plenty, gets its first option and says so:
-    a pinned dimension the reader does not know about is how a spot check ends
-    up comparing two different things.
+    with no total, and there are plenty, gets the first of its values in
+    alphabetical order and says so: a pinned dimension the reader does not
+    know about is how a spot check ends up comparing two different things.
+
+    Alphabetical, because it is the one stable order the frame itself carries.
+    The order of the rows is the order INS answered in, and it changes between
+    downloads. The order INS declares the options in is stable, but it lives in
+    the metadata, which this never sees: carried in df.attrs it would be lost
+    on a CSV round trip or a merge, and the same frame would then pin another
+    option depending on how it got here.
     """
     for value in values:
         if territory.is_total_label(str(value)):
             return value, True
-    return (values[0] if values else None), False
+    if not values:
+        return None, False
+    return min(values, key=lambda v: str(v).strip()), False
 
 
 def _stable(unit) -> tuple:

@@ -833,30 +833,46 @@ and reading the same number off the site.
 
 What makes that tedious is the setup, not the comparison: finding one locality
 among three thousand, and working out which option every other dimension has to
-be on for the site to show a single line. `spot_check()` does the setup:
+be on for the site to show a single line. `spot_check()` does the setup, here
+on FOM106E, the net earnings the tutorials download, in a run from October 2026:
 
-    df.tempo.spot_check(2, seed=7)
+    big = t.matrix("FOM106E").get()
+    big.tempo.spot_check(2, seed=7)
 
-    spot check: 2 of 3182 units, seed 7
-      1. 2130 ALBAC  [Judete: Alba]  siruta 2130
-         fixed Varste si grupe de varsta = Total
+    spot check: 2 of 42 units, seed 7
+      1. Harghita
+         fixed CAEN Rev.2  (activitati ale economiei nationale) = TOTAL
          fixed Sexe = Total
-         3 years:
-           2020  1834.0
-           2021  1802.0
-           2022  1795.0
-      2. 1017 MUNICIPIUL ALBA IULIA  [Judete: Alba]  siruta 1017
+         17 years:
+           2008  998.0
+           2009  1099.0
+           2010  1025.0
+           2011  1054.0
+           2012  1072.0
+           2013  1130.0
+           2014  1251.0
+           2015  1375.0
+           2016  1519.0
+           2017  1796.0
+           2018  2059.0
+           2019  2349.0
+           2020  2483.0
+           2021  2687.0
+           2022  2924.0
+           2023  3490.0
+           2024  3955.0
+      2. Buzau
          ...
       read the same numbers at http://statistici.insse.ro:8077/tempo-online/
       open the same indicator, pick the same options, compare year by year
       a year missing here is a ':' on the site, not a zero
 
-It picks `n` units at random from those that carry a value, names each one with
-its county and its SIRUTA, pins every other dimension on its total so the site
-shows a single series, and prints that series year by year. A dimension with no
-total gets its first option and is named as such, because a pinned dimension
-the reader does not know about is how a spot check ends up comparing two
-different things.
+It picks `n` units at random from those that carry a value, names each one, with
+its county and its SIRUTA when it is a locality, pins every other dimension on
+its total so the site shows a single series, and prints that series year by
+year. A dimension with no total gets the first of its values in alphabetical
+order and is named as such, because a pinned dimension the reader does not know
+about is how a spot check ends up comparing two different things.
 
 `seed=` makes the choice reproducible, so a spot check can live in a script and
 be rerun after a change. Nothing here touches the network: it reads the frame

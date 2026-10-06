@@ -145,7 +145,7 @@ class TempoAccessor:
         pins every other dimension on its total so the site shows a single
         series, says what it pinned and on what, and prints the series year by
         year, ready to read against the screen. A dimension with no total gets
-        its first option and is named as such.
+        the first of its values in alphabetical order and is named as such.
 
         seed makes the choice reproducible. Nothing here touches the network:
         it reads the frame you already downloaded.
