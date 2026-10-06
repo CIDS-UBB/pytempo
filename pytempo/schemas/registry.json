@@ -72707,9 +72707,9 @@
    "slice_cells": 55,
    "status": "ok",
    "total_cells": 1870,
-   "validated_at": "2026-08-13T09:10:59+00:00",
+   "validated_at": "2026-10-06T08:31:01+00:00",
    "validated_version": 1,
-   "validation": "needs_review: the value column carries non numeric markers ['c'], most likely INS flags for suppressed or unavailable data (Column Valoare is not numeric (dtype str). A sign the column mapping slipped.)"
+   "validation": "ok"
   },
   "TEP0472": {
    "dims": [
