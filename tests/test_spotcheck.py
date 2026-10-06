@@ -211,3 +211,57 @@ def test_spot_check_on_a_frame_with_no_values(monkeypatch):
     with pytest.raises(ValueError) as info:
         df.tempo.spot_check()
     assert "nothing to check by hand" in str(info.value)
+
+
+# ----------------------------------- the seed does not depend on INS's order
+
+COUNTIES = ["Alba", "Arad", "Arges", "Bacau", "Bihor", "Bistrita-Nasaud",
+            "Botosani", "Braila", "Brasov", "Buzau", "Calarasi", "Cluj",
+            "Constanta", "Covasna", "Dambovita", "Dolj", "Galati", "Gorj",
+            "Harghita", "Prahova"]
+
+
+def _many(monkeypatch, localities: bool) -> pd.DataFrame:
+    """Twenty units over two years: localities with SIRUTA, or counties
+    without, the locality pinned on TOTAL as level='judet' brings them."""
+    _api(monkeypatch)
+    m = t.matrix("FOM104D")
+    rows = []
+    for i, county in enumerate(COUNTIES):
+        place = f"{1000 + 37 * i} COMUNA {county.upper()}" if localities \
+            else "TOTAL"
+        for an, value in (("Anul 2023", 10.0 + i), ("Anul 2024", 20.0 + i)):
+            rows.append([county, place, an, "Numar persoane", value])
+    return _tidy(m, rows)
+
+
+def _spot(df, seed) -> str:
+    import io
+    import contextlib
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        df.tempo.spot_check(3, seed=seed)
+    return out.getvalue()
+
+
+@pytest.mark.parametrize("localities", [True, False],
+                         ids=["by SIRUTA", "counties, by label"])
+def test_the_same_seed_picks_the_same_units_whatever_the_row_order(
+        monkeypatch, localities):
+    """INS has sent FOM101A starting with Alba one day and with Arges another:
+    the same seed has to land on the same units either way."""
+    df = _many(monkeypatch, localities)
+    expected = _spot(df, seed=7)
+    for shuffle in (1, 2, 3):
+        mixed = df.sample(frac=1, random_state=shuffle).reset_index(drop=True)
+        assert list(mixed.index) == list(range(len(df)))
+        assert _spot(mixed, seed=7) == expected
+    reversed_rows = df.iloc[::-1].reset_index(drop=True)
+    assert _spot(reversed_rows, seed=7) == expected
+
+
+def test_siruta_sorts_as_a_number_and_labels_after_it():
+    from pytempo import spotcheck
+    units = ["Cluj", "10000", "2130", "Alba", "1017"]
+    assert sorted(units, key=spotcheck._stable) == [
+        "1017", "2130", "10000", "Alba", "Cluj"]

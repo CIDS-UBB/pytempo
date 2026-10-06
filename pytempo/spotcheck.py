@@ -39,14 +39,29 @@ def _pin(values) -> tuple:
     return (values[0] if values else None), False
 
 
+def _stable(unit) -> tuple:
+    """A sort key that does not depend on the order INS sent the rows in.
+
+    A SIRUTA sorts as a number, so 2130 comes before 10000. A unit with no
+    SIRUTA, a county or any aggregate, is keyed by its label, which is unique
+    for it, and sorts after the codes, as text.
+    """
+    text = str(unit)
+    return (0, int(text), "") if text.isdigit() else (1, 0, text)
+
+
 def choose_units(df, unit_key, n: int, seed=None) -> list:
     """n distinct units picked at random, out of those that carry a value.
 
     seed makes the choice reproducible, which is what turns a spot check into
-    something you can put in a script and rerun after a change.
+    something you can put in a script and rerun after a change. The units are
+    put in a stable order before the draw, SIRUTA first, then labels: the order
+    of the rows is the order INS answered in, and it changes from one download
+    to the next (FOM101A has come back starting with Alba and starting with
+    Arges), so drawing from it would give the same seed other units.
     """
     with_data = unit_key[df[VALUE_COLUMN].notna()].dropna()
-    units = _distinct(with_data.tolist())
+    units = sorted(_distinct(with_data.tolist()), key=_stable)
     if not units:
         raise ValueError(
             "no row carries a value, so there is nothing to check by hand")
