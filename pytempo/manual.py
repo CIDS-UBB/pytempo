@@ -319,7 +319,7 @@ def print_more(matrix, full: bool) -> None:
     if keys:
         lines.append((f"m.options({keys[0]!r})",
                       "every option of one of them, in full"))
-    lines.append(("m.get(raw=True)", "exactly what INS returns, no extras"))
+    lines.append(("m.get(raw=True)", "no derived columns; a 'c' still reads as NaN plus its flag"))
     if not full:
         lines.append(("m.how(full=True)", "the plan, the strategy, the rest"))
 

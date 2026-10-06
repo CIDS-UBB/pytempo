@@ -38,8 +38,8 @@ gives you `import pytempo` either way.
     m.what()                             # what it measures, in a few lines
     m.how()                              # its own menu, ready to copy
 
-    df = m.get()                         # (4392, 7), counties, tidied
-    df.columns                           # ..., plus _nivel and Ani_an
+    df = m.get()                         # (4392, 8), counties, tidied
+    df.columns                           # ..., Valoare_confidential, _nivel, Ani_an
 
 `get()` prints what it decided before it starts, and names what the default
 left out:
@@ -136,7 +136,7 @@ Fetching the data:
     m.get(level=None)            every level at once, in one frame; <label>_nivel tells them apart
     m.get(select={'Sexe': ['Masculin']})  only some options of a dimension
     m.get(select={'varsta': 'groups'})   or a kind: groups, leaves, total
-    m.get(raw=True)              exactly what INS returned, no derived columns
+    m.get(raw=True)              no derived columns; a 'c' still reads as NaN plus its flag
     m.get(progress=True)         report progress on large indicators
     m.download(folder='data/x')  large ones: through disk, resumable
 
@@ -159,6 +159,8 @@ the rest of the menu with it, in the section below.
 
 If `get()` does stop you, it says the same thing, for that indicator, and it
 says it as guidance rather than as a crash:
+
+    POP107D: all levels, by_county, 380 requests
 
     POP107D IS TOO LARGE FOR get(). Nothing has been downloaded.
       380 requests, over the 50 get() will hold in memory. get() keeps
@@ -242,7 +244,7 @@ things to filter:
                     or one: select={'destinatii': 'total'}
 
       m.options('tipuri')   every option of one of them, in full
-      m.get(raw=True)       exactly what INS returns, no extras
+      m.get(raw=True)       no derived columns; a 'c' still reads as NaN plus its flag
       m.how(full=True)      the plan, the strategy, the rest
 
 Four things about that page are deliberate.
@@ -476,7 +478,11 @@ It is not missing, and it is not zero.
   **`Valoare_confidential` is `True`**.
 
 `Valoare_confidential` is on every frame, raw ones included, and is `False`
-everywhere INS published the figure. It is always there, not only when a `c`
+everywhere INS published the figure. `raw=True` adds no derived columns, but it
+still reads the format correctly, as it reads the comma split and takes the
+column names from `matrix.dimensions` rather than the header: a `c` left as
+text would turn `Valoare` into strings and break every calculation, and the
+flag keeps the fact rather than hiding it. It is always there, not only when a `c`
 turned up, so a download split into many requests has the same columns whichever
 request happened to hold the suppressed cells.
 
@@ -596,7 +602,7 @@ A dimension with no levels inside it, and plenty have none, says so:
     ValueError: select 'groups' on 'Niveluri de educatie': this dimension is
     not hierarchical, its 18 options are all at the same level, so there are no
     groups to keep and no leaves to drop. Name the options you want, as labels
-    or as nomItemIds, or pass a predicate.
+    or as nomItemIds, or pass a predicate. See m.options('Niveluri de educatie').
 
 Dimensions `select` does not name stay whole, and everything downstream works on
 the smaller set: the cell count, the chunking strategy, the query and the tidy
@@ -651,9 +657,9 @@ builds the same plan through the same code. What changes is where the answers
 go: each request is written to its own slice file the moment it arrives.
 
     m = t.matrix('SAN101B')
-    df = m.download(folder='data/san101b')
+    df = m.download(level='localitate', folder='data/san101b')
 
-    SAN101B: level localitate, by_county, 130 requests
+    SAN101B: level localitate (the finest), by_county, 130 requests
       slices as parquet in data/san101b
       1/130: +2418 rows -> _chunk_0001_9f3c1ad2.parquet
       2/130: +1932 rows -> _chunk_0002_44be07e1.parquet
@@ -772,9 +778,9 @@ the frame you give it.
     df = t.get("FOM101A")
 
     df.tempo.coverage()
-    #   Macroregiuni...judete  first_year  last_year  n_years  missing_years  min_value  min_year  max_value  max_year
-    # 0                  Alba        1990       2024       35              0       92.1      2019      246.1      1990
-    # 1                  Arad        1990       2024       35              0      123.1      2022      299.3      2011
+    #   Macroregiuni...judete  first_year  last_year  n_years  missing_years  n_confidential  min_value  min_year  max_value  max_year
+    # 0                  Alba        1990       2024       35              0               0       92.1      2019      246.1      1990
+    # 1                  Arad        1990       2024       35              0               0      123.1      2022      299.3      2011
 
     df.tempo.wide()
     #       Sexe  Macroregiuni...judete   1990   1991   1992
@@ -792,7 +798,8 @@ brings the county rows, rows without SIRUTA are told apart by every territorial
 label on them: on a frame you joined yourself from `level='judet'` and
 `level='localitate'`, earlier versions folded all the county rows and the
 national one into a single row labelled national, so an old report and a new
-one disagree there. On frames straight from `get()` the figures are unchanged. When the frame mixes territorial levels, the level comes first, so a national
+one disagree there. On frames straight from `get()` the figures are unchanged.
+When the frame mixes territorial levels, the level comes first, so a national
 total is never read as if it were a county.
 
 Units are keyed by SIRUTA, never by name. Locality names are not unique in
@@ -878,8 +885,9 @@ The whole pipeline, on FOM101A:
     df.to_sql("fom101a", engine, schema="tempo", if_exists="append",
               index=False)
 
-`m.schema()` generates `CREATE TABLE IF NOT EXISTS tempo.fom104d`, one text
-column per dimension, a numeric value column, and exactly the derived columns
+`m.schema()` generates `CREATE TABLE IF NOT EXISTS tempo.fom101a`, one text
+column per dimension, a numeric value column with its boolean confidentiality
+flag, and exactly the derived columns
 that `get(tidy=True)` produces for that indicator. Nothing is guessed twice:
 the derived set is read from the standardization itself, so the table cannot
 drift away from the DataFrame. A county dimension gets only its level column,

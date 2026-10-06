@@ -709,7 +709,7 @@ class Matrix:
   .get(level='judet')  one territorial level only
   .get(select={{'Sexe': ['Masculin']}})  keep only some options of a dimension
   .get(select={{'varsta': 'groups'}})  or a kind: groups, leaves, total
-  .get(raw=True)       exactly what INS returns, no derived columns
+  .get(raw=True)       no derived columns; a 'c' still reads as NaN plus its flag
   .get(progress=True)  report progress on large indicators
   .download(folder='data/x')   for large ones: to disk, checkpointed,
                        resumable, and it retries when INS times out
@@ -997,10 +997,14 @@ otherwise.""")
         runs on what is left. Selecting a few counties and asking for
         level='judet' gives those counties, not all of them.
 
-        tidy=True adds the derived columns; raw=True returns exactly what INS
-        returned, except that a confidential 'c' is already NaN with its flag,
-        since the flag is what keeps the fact. progress='auto' only speaks when
-        the plan has more than one request.
+        tidy=True adds the derived columns; raw=True adds none. What raw=True
+        still does is read the format correctly, as every path does: the comma
+        split, the column names taken from matrix.dimensions rather than the
+        header, and the INS markers, so a confidential 'c' arrives as NaN with
+        Valoare_confidential beside it. That is reading, not processing: left
+        as text, a 'c' would turn Valoare into strings and break every
+        calculation, and the flag keeps the fact rather than hiding it.
+        progress='auto' only speaks when the plan has more than one request.
 
         Over POLITE_REQUESTS requests it stops before sending anything: it
         prints the guidance, which names download() and the command for this

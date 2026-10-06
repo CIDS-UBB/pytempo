@@ -74,7 +74,7 @@ FETCH the data
   m.get(level=None)            every level at once, the old default; <label>_nivel tells them apart
   m.get(select={'Sexe': ['Masculin']})   keep only some options of a dimension
   m.get(select={'varsta': 'groups'})     or a kind: groups, leaves, total
-  m.get(raw=True)              exactly what INS returns, no derived columns
+  m.get(raw=True)              no derived columns; a 'c' still reads as NaN plus its flag
   t.get('FOM101A')             the same, starting from a code
   m.download(folder='data/x')  for the large ones, see the next section
   t.download('POP107D', folder='data/pop107d')   the same, from a code
@@ -173,8 +173,10 @@ and df.tempo.coverage() shows where the holes are.
 There is a third case, and it is neither: INS writes 'c' for a confidential
 cell, a figure that exists but would identify a reporting unit if published. A
 'c' arrives as a row whose Valoare is NaN and whose Valoare_confidential is
-True. That column is on every frame, False where the figure was published, so a
-download comes back with the same columns wherever its requests were cut.
+True. That column is on every frame, raw=True included, False where the figure
+was published, so a download comes back with the same columns wherever its
+requests were cut. Reading the marker is reading the format, not processing:
+left as text, a 'c' would make Valoare non numeric.
 Reading a 'c' as zero drags totals down; reading it as absent hides that
 something is there. Count df['Valoare_confidential'].sum() before you trust a
 sum.
