@@ -167,7 +167,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -222,7 +222,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -272,7 +272,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "F. UTILITATI PUBLICE SI ADMINISTRAREA TERITORIULUI",
@@ -2785,7 +2785,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 8,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -2846,7 +2846,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 4,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -2906,7 +2906,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -3690,7 +3690,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 4,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -14567,7 +14567,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -16166,7 +16166,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -16222,7 +16222,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -16279,7 +16279,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -16508,7 +16508,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -16564,7 +16564,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -16621,7 +16621,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -16676,7 +16676,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -16732,7 +16732,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 4,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -16789,7 +16789,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 4,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -21489,7 +21489,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 5,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -21583,7 +21583,7 @@
      "dim_code": 3,
      "label": "Unitati de masura specifice",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -27564,7 +27564,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -27614,7 +27614,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -29925,7 +29925,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -29973,7 +29973,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -30017,7 +30017,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -30061,7 +30061,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -30149,7 +30149,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -30191,7 +30191,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -30367,7 +30367,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -30555,7 +30555,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -30599,7 +30599,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -30883,7 +30883,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -31015,7 +31015,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -36502,7 +36502,7 @@
      "dim_code": 6,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -36838,7 +36838,7 @@
      "dim_code": 7,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -36900,7 +36900,7 @@
      "dim_code": 6,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -38300,7 +38300,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -38350,7 +38350,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -38400,7 +38400,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -38498,7 +38498,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "F. UTILITATI PUBLICE SI ADMINISTRAREA TERITORIULUI",
@@ -39244,7 +39244,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "F. UTILITATI PUBLICE SI ADMINISTRAREA TERITORIULUI",
@@ -39846,7 +39846,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "F. UTILITATI PUBLICE SI ADMINISTRAREA TERITORIULUI",
@@ -41351,7 +41351,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 32,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -41395,7 +41395,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 29,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -45497,7 +45497,7 @@
      "dim_code": 9,
      "label": "Unitati de masura (numar,persoane,mii lei, lei RON (incepand cu 2005)",
      "n_options": 4,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -45587,7 +45587,7 @@
      "dim_code": 9,
      "label": "Unitati de masura (numar,persoane,mii lei, lei RON (incepand cu 2005)",
      "n_options": 4,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -45670,7 +45670,7 @@
      "dim_code": 8,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -45747,7 +45747,7 @@
      "dim_code": 7,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -51940,7 +51940,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 4,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "E. MEDIU INCONJURATOR",
@@ -51990,7 +51990,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 4,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "E. MEDIU INCONJURATOR",
@@ -52196,7 +52196,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "E. MEDIU INCONJURATOR",
@@ -53072,7 +53072,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -54439,7 +54439,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -54544,7 +54544,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -59571,7 +59571,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 4,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -59625,7 +59625,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 7,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -59674,7 +59674,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 7,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -61152,7 +61152,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 6,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -61201,7 +61201,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 5,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -61579,7 +61579,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -61689,7 +61689,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -61745,7 +61745,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -61801,7 +61801,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -62641,7 +62641,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -65223,7 +65223,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -65267,7 +65267,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -67913,7 +67913,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -69260,7 +69260,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "A. STATISTICA SOCIALA",
@@ -69354,7 +69354,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -69406,7 +69406,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -69554,7 +69554,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -69604,7 +69604,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -69983,7 +69983,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -70165,7 +70165,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -70262,7 +70262,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -70312,7 +70312,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -70359,7 +70359,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -70456,7 +70456,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -70604,7 +70604,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -70648,7 +70648,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -70791,7 +70791,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -70929,7 +70929,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -71145,7 +71145,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -71200,7 +71200,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -71365,7 +71365,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -71414,7 +71414,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -71518,7 +71518,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -71567,7 +71567,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -71611,7 +71611,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -71659,7 +71659,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -71756,7 +71756,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -71849,7 +71849,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -71943,7 +71943,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -71992,7 +71992,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -72041,7 +72041,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -72088,7 +72088,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -72138,7 +72138,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -72187,7 +72187,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -72497,7 +72497,7 @@
      "dim_code": 6,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -72565,7 +72565,7 @@
      "dim_code": 7,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -73267,7 +73267,7 @@
      "dim_code": 6,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -73320,7 +73320,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -73423,7 +73423,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -73472,7 +73472,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -73516,7 +73516,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -73560,7 +73560,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -73764,7 +73764,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -73978,7 +73978,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -74160,7 +74160,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -74723,7 +74723,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -74966,7 +74966,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -75010,7 +75010,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -78066,7 +78066,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -78154,7 +78154,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -78686,7 +78686,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -78774,7 +78774,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -78818,7 +78818,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -79273,7 +79273,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -79334,7 +79334,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -79437,7 +79437,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -79619,7 +79619,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -79751,7 +79751,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -79951,7 +79951,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -80098,7 +80098,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -80235,7 +80235,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -80285,7 +80285,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -80834,7 +80834,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -80978,7 +80978,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -81072,7 +81072,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -81213,7 +81213,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -81263,7 +81263,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -81567,7 +81567,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -81657,7 +81657,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -81749,7 +81749,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -81887,7 +81887,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -81931,7 +81931,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -81975,7 +81975,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -82019,7 +82019,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -82107,7 +82107,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -82151,7 +82151,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -82387,7 +82387,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -82475,7 +82475,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -82657,7 +82657,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -82701,7 +82701,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -82933,7 +82933,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -82977,7 +82977,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -83021,7 +83021,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 4,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -83165,7 +83165,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -83259,7 +83259,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -83307,7 +83307,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -83357,7 +83357,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -83460,7 +83460,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -83504,7 +83504,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -83548,7 +83548,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -83592,7 +83592,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -83680,7 +83680,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -83768,7 +83768,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -84000,7 +84000,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -84325,7 +84325,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -84550,7 +84550,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -84682,7 +84682,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -86009,7 +86009,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -86391,7 +86391,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "B. STATISTICA ECONOMICA",
@@ -87380,7 +87380,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 3,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -87436,7 +87436,7 @@
      "dim_code": 5,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -87480,7 +87480,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -87524,7 +87524,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -87568,7 +87568,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -87623,7 +87623,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -87672,7 +87672,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -87720,7 +87720,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -87764,7 +87764,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -87808,7 +87808,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -87858,7 +87858,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -88121,7 +88121,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -88165,7 +88165,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -88209,7 +88209,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -88449,7 +88449,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -88493,7 +88493,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -88857,7 +88857,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -88951,7 +88951,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "H. DEZVOLTARE DURABILA - Tinte 2030",
@@ -91409,7 +91409,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 2,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -91453,7 +91453,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -91682,7 +91682,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -91872,7 +91872,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -91916,7 +91916,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -91960,7 +91960,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92004,7 +92004,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92048,7 +92048,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92180,7 +92180,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92224,7 +92224,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92268,7 +92268,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92312,7 +92312,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92400,7 +92400,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92444,7 +92444,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92576,7 +92576,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92620,7 +92620,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92708,7 +92708,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92752,7 +92752,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92840,7 +92840,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92928,7 +92928,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -92978,7 +92978,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -93022,7 +93022,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -93066,7 +93066,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -93110,7 +93110,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -93154,7 +93154,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -93242,7 +93242,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -93286,7 +93286,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -93462,7 +93462,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -93990,7 +93990,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -94034,7 +94034,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -94387,7 +94387,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -94437,7 +94437,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -94481,7 +94481,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -94747,7 +94747,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -94885,7 +94885,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -95017,7 +95017,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -95112,7 +95112,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -95156,7 +95156,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -95200,7 +95200,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -95288,7 +95288,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -95332,7 +95332,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -95376,7 +95376,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -95464,7 +95464,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -95508,7 +95508,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -95558,7 +95558,7 @@
      "dim_code": 4,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",
@@ -96130,7 +96130,7 @@
      "dim_code": 3,
      "label": "Unitati de masura",
      "n_options": 1,
-     "role": "alt"
+     "role": "um"
     }
    ],
    "domain": "G. DEZVOLTARE DURABILA - Orizont 2020",

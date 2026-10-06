@@ -10,7 +10,7 @@ every method says so rather than guessing.
 """
 import pandas as pd
 
-from . import spotcheck
+from . import spotcheck, territory
 from .parse import CONFIDENTIAL_COLUMN, VALUE_COLUMN
 
 NOT_TIDY = ("this DataFrame does not look like pytempo tidy output; "
@@ -60,7 +60,7 @@ class TempoAccessor:
                 continue
             if column == time_base:
                 continue
-            if column.strip().upper().startswith("UM:") and \
+            if territory.is_unit_label(column) and \
                     df[column].nunique(dropna=False) <= 1:
                 continue
             keep.append(column)
@@ -127,7 +127,7 @@ class TempoAccessor:
                 continue
             if column in territorial or column == time_base:
                 continue
-            if column.strip().upper().startswith("UM:") and \
+            if territory.is_unit_label(column) and \
                     df[column].nunique(dropna=False) <= 1:
                 continue
             keep.append(column)

@@ -6,10 +6,10 @@ downstream runs it. That keeps the dependency list at requests and pandas, and
 keeps the loading policy where it belongs, with whoever owns the database.
 
 The model: one table per indicator, one text column per dimension, plus the
-numeric value and its confidentiality flag, plus exactly the derived columns that get(tidy=True) produces
-for that indicator. The derived set is not guessed twice: it is read from
-standardize itself, run over the real option labels, so the DDL cannot drift
-away from the DataFrame.
+numeric value and its confidentiality flag, plus exactly the derived columns
+that get(tidy=True) produces for that indicator. The derived set is not guessed
+twice: it is read from standardize itself, run over the real option labels, so
+the DDL cannot drift away from the DataFrame.
 """
 import re
 import unicodedata
@@ -157,7 +157,7 @@ def table_ddl(matrix, schema: str = "tempo",
         out.append(
             f"COMMENT ON TABLE {table} IS "
             f"{_quote(matrix.name + '. ' + _first_sentence(matrix.definition))};")
-        units = [d.label.strip().split(":", 1)[-1].strip()
+        units = [territory.unit_text(d)
                  for d in matrix.dimensions if d.role == "um"]
         if units:
             out.append(

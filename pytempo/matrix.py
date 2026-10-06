@@ -380,8 +380,8 @@ class Matrix:
         if definition:
             first_sentence = re.split(r"\.\s", definition, maxsplit=1)[0].strip()
             print(f"  {first_sentence}.")
-        units = [_clean(d.label).split(":", 1)[-1].strip()
-              for d in self.dimensions if d.role == "um"]
+        units = [_clean(territory.unit_text(d)) for d in self.dimensions
+                 if d.role == "um"]
         if units:
             print(f"  unit        : {', '.join(units)}")
         if self.periodicity:

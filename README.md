@@ -310,7 +310,9 @@ locality nomenclator are marked in `details`, but the common case is a single
 hierarchical dimension holding macroregions, regions and counties together, and
 there `details` is sometimes silent. A third route, described below, reads the
 options themselves when neither of the first two says anything. CAEN works the
-same way, from either the flags or the label.
+same way, from either the flags or the label. The unit of measure is read from
+the label alone, in the two ways INS writes it: `UM: Numar persoane`, with the
+unit after the colon, or `Unitati de masura`, with the units as its options.
 
 `m.levels` lists the territorial levels present, from coarse to fine, out of
 `national`, `macroregiune`, `regiune`, `judet`, `localitate` and `necunoscut`.

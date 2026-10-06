@@ -186,6 +186,35 @@ def is_caen(dimension, details: dict) -> bool:
     return "caen" in _norm(dimension.label)
 
 
+def is_unit_label(label: str) -> bool:
+    """Is this the unit of measure dimension, by its label?
+
+    INS writes it two ways: 'UM: Numar persoane', with the unit after the
+    colon, on 1690 dimensions of the catalogue, and 'Unitati de masura', with
+    the units as its options, on 226 more (two qualified, '(numar,persoane,...'
+    and 'specifice'). The label, lowercased, without diacritics and with runs
+    of spaces folded to one, has to start with 'um:' or with the whole phrase
+    'unitati de masura'. Starting with the phrase is what keeps out the near
+    misses measured across the catalogue: 'Unitati, capacitate, cheltuieli',
+    'Unitati de asistenta speciala', 'Masura in care fac fata cheltuielilor'.
+    """
+    text = re.sub(r"\s+", " ", _norm((label or "").strip()))
+    return text.startswith("um:") or text.startswith("unitati de masura")
+
+
+def unit_text(dimension) -> str:
+    """The units a unit of measure dimension stands for, in words.
+
+    'UM: Numar, mp suprafata utila' names them after the colon, as it always
+    has. 'Unitati de masura' names only itself; its units are its options,
+    'Numar persoane' and 'Lei' on FOM121A, so those are what is said.
+    """
+    label = (dimension.label or "").strip()
+    if _norm(label).startswith("um:"):
+        return label.split(":", 1)[1].strip()
+    return ", ".join(o.label.strip() for o in dimension.options)
+
+
 def assign_roles(dimensions: list, details: dict) -> None:
     """Assign d.role, and for territorial ones d.finest_level, in place.
 
@@ -206,7 +235,7 @@ def assign_roles(dimensions: list, details: dict) -> None:
             d.role = "timp"
         elif is_caen(d, details):
             d.role = "caen"
-        elif d.label.strip().lower().startswith("um:"):
+        elif is_unit_label(d.label):
             d.role = "um"
         else:
             d.role = "alt"
