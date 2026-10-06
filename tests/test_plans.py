@@ -16,6 +16,14 @@ equivalent: the same payloads, in the same order. A plan that asks for the same
 cells in a different order would still change slice names, and with them what
 resume finds on disk.
 
+One deliberate change since: the four level=None cases with county and
+locality as separate dimensions (FOM104D, GOS102A, TUR101C, POP107D) never
+asked the county level, the rows with the locality on its total, although
+level=None promises every level. Those four now end with the requests
+level='judet' sends, one for FOM104D, GOS102A and TUR101C, five for POP107D;
+every payload before them is unchanged and in place. Nothing else in the file
+moved.
+
 The second half covers the chains: INT109B, whose CAEN Rev.1 hierarchy is split
 across five dimensions linked through parentId, planned one request per node
 with children.
@@ -209,3 +217,126 @@ def test_the_registry_counts_the_chain_on_the_tree(monkeypatch):
     assert chunking.chain_summary(m) == {
         "dims": [d.label.strip() for d in m.dimensions[:5]], "requests": 283}
 
+
+# ---------------------------- the county level next to localities, level=None
+
+# Generated from the code of the last commit, before the county level was
+# added to level=None: the two paths every real download so far has used.
+BY_LEVEL = json.loads((FIXTURES / "plans_by_level_before_county_fix.json")
+                      .read_text(encoding="utf-8"))
+
+# the header exactly as INS sends it for FOM104D, the space before the comma
+# included; (Alba, TOTAL, 2024) = 96718 is the real figure, asked on its own
+FOM104D_HEADER = "Judete, Localitati , Ani, UM: Numar persoane, Valoare\n"
+
+
+def _fom104d_answers(payload, **kw):
+    """National, county and locality rows, each from the request that asks."""
+    blocks = payload["encQuery"].split(":")
+    if blocks[0] == "112":
+        return FOM104D_HEADER + "TOTAL, TOTAL, Anul 2024, Numar persoane, 5000000\n"
+    if blocks[1] == "112":
+        return (FOM104D_HEADER
+                + "Alba, TOTAL, Anul 2024, Numar persoane, 96718\n"
+                + "Cluj, TOTAL, Anul 2024, Numar persoane, 250000\n")
+    if blocks[0] == "3064":
+        return (FOM104D_HEADER
+                + "Alba, 1017 MUNICIPIUL ALBA IULIA, Anul 2024, "
+                  "Numar persoane, 30818\n")
+    return FOM104D_HEADER
+
+
+@pytest.mark.parametrize("key", sorted(BY_LEVEL))
+def test_level_localitate_and_judet_are_untouched(monkeypatch, key):
+    """The fix adds to level=None only: these plans stay payload for payload."""
+    cod, level = key.split("|")
+    _api(monkeypatch, CODES)
+    _, _, _, requests = t.matrix(cod)._plan_requests(level, None, None)
+    assert requests == BY_LEVEL[key]
+
+
+def test_level_none_asks_the_county_level(monkeypatch):
+    """The county rows, locality on TOTAL, at the end of the plan."""
+    _api(monkeypatch, CODES)
+    m = t.matrix("FOM104D")
+    _, _, _, requests = m._plan_requests(None, None, None)
+    counties = [o.nom_item_id for o in m.dimensions[0].options
+                if o.label.strip() != "TOTAL"]
+    county_level = [p for p in requests
+                    if p["encQuery"].split(":")[1] == "112"
+                    and p["encQuery"].split(":")[0] != "112"]
+    assert len(county_level) == 1
+    assert county_level[0] == requests[-1]
+    assert county_level[0]["encQuery"].split(":")[0] == ",".join(
+        map(str, counties))
+
+
+def test_level_none_frame_holds_the_county_row(monkeypatch):
+    _api(monkeypatch, CODES)
+    monkeypatch.setattr(client, "post_pivot", _fom104d_answers)
+    df = t.matrix("FOM104D").get(level=None, progress=False)
+    alba = df[(df["Judete"] == "Alba") & (df["Localitati"] == "TOTAL")
+              & (df["Ani_an"] == 2024)]
+    assert alba["Valoare"].tolist() == [96718.0]
+
+
+def test_level_localitate_frame_has_no_county_rows(monkeypatch):
+    """One row per locality, the county a column beside it."""
+    _api(monkeypatch, CODES)
+    monkeypatch.setattr(client, "post_pivot", _fom104d_answers)
+    df = t.matrix("FOM104D").get(level="localitate", progress=False)
+    assert (df["Localitati"] != "TOTAL").all()
+    assert (df["Localitati_nivel"] == "localitate").all()
+    assert df[["Judete", "Localitati_siruta"]].values.tolist() == [
+        ["Alba", 1017]]
+
+
+def test_level_none_levels_separate_on_the_locality_level(monkeypatch):
+    """No double counting: each row says its level, and summing the
+    localities never meets the county row it already adds up to."""
+    _api(monkeypatch, CODES)
+    monkeypatch.setattr(client, "post_pivot", _fom104d_answers)
+    df = t.matrix("FOM104D").get(level=None, progress=False)
+    by_level = {lv: part for lv, part in df.groupby("Localitati_nivel")}
+    assert sorted(by_level) == ["judet", "localitate", "national"]
+    assert by_level["national"]["Valoare"].tolist() == [5000000.0]
+    assert sorted(by_level["judet"]["Judete"]) == ["Alba", "Cluj"]
+    assert (by_level["judet"]["Localitati"] == "TOTAL").all()
+    assert (by_level["localitate"]["Localitati"] != "TOTAL").all()
+    # the two level columns agree on every aggregate row
+    aggregates = df[df["Localitati"] == "TOTAL"]
+    assert (aggregates["Judete_nivel"] == aggregates["Localitati_nivel"]).all()
+
+
+def test_coverage_keeps_county_rows_apart_from_the_national_one(monkeypatch):
+    """All of them say TOTAL in the locality column; the county column is
+    what tells them apart."""
+    _api(monkeypatch, CODES)
+    monkeypatch.setattr(client, "post_pivot", _fom104d_answers)
+    cov = t.matrix("FOM104D").get(level=None, progress=False).tempo.coverage()
+    assert len(cov) == 4
+    totals = cov[cov["Localitati_nume"] == "TOTAL"].set_index("Judete")
+    assert totals.loc["Alba", "max_value"] == 96718.0
+    assert totals.loc["TOTAL", "Localitati_nivel"] == "national"
+    assert totals.loc["Cluj", "Localitati_nivel"] == "judet"
+
+
+def test_a_select_without_the_locality_total_adds_nothing(monkeypatch):
+    """No TOTAL left in the locality dimension: the county level cannot be
+    asked without bringing localities back a second time, so it is not."""
+    _api(monkeypatch, CODES)
+    m = t.matrix("FOM104D")
+    some = [o.label.strip() for o in m.dimensions[1].options[1:4]]
+    _, _, _, requests = m._plan_requests(None, None, {"Localitati": some})
+    assert all(p["encQuery"].split(":")[1] != "112" for p in requests)
+
+
+def test_levels_judet_and_localitate_asks_both(monkeypatch):
+    """Named together, both levels come back: the localities as before, the
+    county rows appended, exactly what level='judet' asks on its own."""
+    _api(monkeypatch, CODES)
+    m = t.matrix("FOM104D")
+    _, _, _, requests = m._plan_requests(
+        "finest", ["judet", "localitate"], None)
+    assert requests[:-1] == BY_LEVEL["FOM104D|localitate"]
+    assert requests[-1:] == BY_LEVEL["FOM104D|judet"]

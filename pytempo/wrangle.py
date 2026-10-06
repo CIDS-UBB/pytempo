@@ -177,10 +177,20 @@ class TempoAccessor:
         share a name across counties, mixing their series into one. Rows with
         no SIRUTA, which is every aggregate, fall back to the original label,
         which still carries the code when there is one.
+
+        With a second territorial dimension the fallback takes every
+        territorial label on the row: from get(level=None) on FOM104D the
+        national row and each county row all say TOTAL in the locality column,
+        and only the county column tells (Alba, TOTAL) from (Cluj, TOTAL) and
+        both from the country.
         """
         df = self._df
         siruta = f"{base}_siruta"
         labels = df[base].astype("string")
+        others = [b for b in self._territorial_bases() if b != base]
+        if others:
+            labels = df[others + [base]].astype("string").agg(
+                " / ".join, axis=1).astype("string")
         if siruta in df.columns:
             return df[siruta].astype("string").fillna(labels)
         return labels

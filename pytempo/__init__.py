@@ -71,7 +71,7 @@ FETCH the data
   df = m.get()                 the finest level, tidied, with progress
   m.get(level='judet')         one territorial level only
   m.get(levels=['judet','regiune'])   several levels
-  m.get(level=None)            every level at once, the old default
+  m.get(level=None)            every level at once, the old default; <label>_nivel tells them apart
   m.get(select={'Sexe': ['Masculin']})   keep only some options of a dimension
   m.get(select={'varsta': 'groups'})     or a kind: groups, leaves, total
   m.get(raw=True)              exactly what INS returns, no derived columns

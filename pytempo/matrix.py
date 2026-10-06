@@ -860,7 +860,51 @@ otherwise.""")
         target = selection.restrict(self, select) if select else self
         wanted = target._wanted_levels(level, levels, plan)
         chosen = target._build_selection(wanted)
-        return target, wanted, plan, chunking.plan_requests(target, chosen)
+        requests = chunking.plan_requests(target, chosen)
+        # all levels, or localities plus others by name: the county by county
+        # split only pairs a county with its own localities, so the rows with
+        # the locality on its total, the county level itself, have to be asked
+        # apart. Appended, so the payloads before them keep their places, and
+        # with them the slice names resume looks for.
+        if level is None and not levels:
+            beside = [lv for lv in target.levels
+                      if lv not in ("national", "localitate")]
+        elif "localitate" in wanted and len(wanted) > 1:
+            beside = [lv for lv in wanted if lv != "localitate"]
+        else:
+            beside = []
+        requests += target._levels_beside_localities(beside, requests)
+        return target, wanted, plan, requests
+
+    def _levels_beside_localities(self, beside: list[str],
+                                  already: list[dict]) -> list[dict]:
+        """The requests for county level rows next to a locality download.
+
+        Only for county and locality kept as two dimensions, and only when the
+        result is unambiguous: the locality dimension pinned to its total, the
+        county one holding no total of its own. Otherwise, after a select that
+        dropped the locality TOTAL or kept only the county TOTAL, the same
+        request would bring back locality rows or the national row a second
+        time, and a level asked twice is counted twice.
+        """
+        loc = chunking._locality_index(self)
+        if not beside or loc is None or not any(
+                d.role == "teritoriu" for i, d in enumerate(self.dimensions)
+                if i != loc):
+            return []
+        chosen = self._build_selection(beside)
+        totals = {o.nom_item_id for o in self.dimensions[loc].options
+                  if _is_total(o)}
+        if not totals or not set(chosen[loc]) <= totals:
+            return []
+        for i, d in enumerate(self.dimensions):
+            if i != loc and d.role == "teritoriu":
+                ids = {o.nom_item_id for o in d.options if _is_total(o)}
+                if ids & set(chosen[i]):
+                    return []
+        seen = {p["encQuery"] for p in already}
+        return [p for p in chunking.plan_requests(self, chosen)
+                if p["encQuery"] not in seen]
 
     def _announce(self, target, wanted, plan, requests) -> None:
         """The decision, in the shape both get() and download() print it."""
@@ -936,7 +980,8 @@ otherwise.""")
 
         level='finest' (the default) takes the finest level the indicator
         actually reaches; for non territorial matrices it filters nothing.
-        level=None asks for everything. A specific level is named as such,
+        level=None asks for everything, every level in one frame, which the
+        <label>_nivel columns tell apart. A specific level is named as such,
         for example level='judet'.
 
         select={'Grupe de varsta': ['25-34 ani']} keeps only some options of a

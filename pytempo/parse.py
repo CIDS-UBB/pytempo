@@ -211,4 +211,32 @@ def standardize(df: pd.DataFrame, matrix) -> pd.DataFrame:
         elif dim.role == "timp":
             out[f"{col}_an"] = pd.array(
                 [_year_of(v) for v in out[col]], dtype="Int64")
+    return _locality_total_takes_the_county_level(out, matrix)
+
+
+def _locality_total_takes_the_county_level(out: pd.DataFrame,
+                                           matrix) -> pd.DataFrame:
+    """With county and locality as two dimensions, a locality TOTAL is the
+    total of the county on the same row, so it is at that county's level.
+
+    Read on its own, the label TOTAL says national, and (Alba, TOTAL), the
+    county row get(level=None) and get(level='judet') bring back, would carry
+    'judet' in one level column and 'national' in the other. Taking the
+    county's level makes the locality <label>_nivel name the level of the whole
+    row, national, judet or localitate, so the levels of a mixed frame separate
+    on that one column.
+    """
+    territorial = [d for d in matrix.dimensions
+                   if d.role == "teritoriu" and d.label.strip() in out.columns]
+    localities = [d for d in territorial
+                  if territory.is_locality_dimension(d, matrix.details)]
+    if len(localities) != 1 or len(territorial) < 2:
+        return out
+    loc = localities[0].label.strip()
+    county = next(d.label.strip() for d in territorial if d is not localities[0])
+    is_total = out[loc].map(lambda v: territory.is_total_label(str(v)))
+    if is_total.any():
+        level = out[f"{loc}_nivel"].copy()
+        level[is_total] = out.loc[is_total, f"{county}_nivel"]
+        out[f"{loc}_nivel"] = level
     return out
