@@ -215,6 +215,13 @@ class TempoAccessor:
 
         When the frame mixes territorial levels, the level of the dimension
         being grouped comes first, so an aggregate is never read as a unit.
+
+        Earlier versions grouped rows without SIRUTA by the locality label
+        alone, so on a frame joined by hand from level='judet' and
+        level='localitate' every county row and the national one, all TOTAL in
+        the locality column, came out as one row labelled national. Such a
+        frame now gives one row per county; frames straight from get() give
+        the same figures as before.
         """
         self._check()
         if self._year_col is None:

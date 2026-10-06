@@ -164,8 +164,9 @@ you find them without hardcoding either spelling.
 The data is sparse, and deliberately so: INS writes ':' when it has no figure
 and '0' when it measured a zero, which are different statements. pytempo keeps
 them apart. A ':' arrives as no row at all, so the combination is absent from
-the result; a '0' arrives as a row whose Valoare is 0.0. Never read an absent
-year or an absent locality as a zero, and do not assume a complete grid when
+the result; a '0' arrives as a row whose Valoare is 0.0. In a large unit, such
+as millions of lei, a 0 can be a small value rounded down: INT105D says so in
+its observations. Never read an absent year or an absent locality as a zero, and do not assume a complete grid when
 joining or averaging: what to do with what is missing is your decision to make,
 and df.tempo.coverage() shows where the holes are.
 

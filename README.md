@@ -9,9 +9,13 @@ Online API.
 Developed at the Center for Interdisciplinary Data Science, Babes-Bolyai
 University.
 
-**Status: still under test.** The library works end to end and is covered by
-tests, but it has not been through real use yet. Check results against the INS
-site before you rely on them.
+**Status: in use, still young.** It has been used for real downloads, up to
+POP107D's six million rows, through INS rate limiting and server outages, and
+the fixes since, for confidential cells, county rows left out of
+`get(level=None)` and plans of millions of requests for combinations that do
+not exist, came from that use and were each checked across the whole catalogue.
+Check results against the INS site before you rely on them; `df.tempo.spot_check()`
+picks the cells to look up.
 
 ## Install
 
@@ -439,6 +443,12 @@ pytempo keeps them apart, in the only way that keeps them apart honestly:
   frame;
 * a `0` arrives as a **row whose `Valoare` is `0.0`**.
 
+One caution on the zero: in a large unit, millions of lei and the like, a `0`
+can be a small value rounded down rather than a measured zero. INT105D and
+INT105E say so in their observations ("Valoarea 0 provine din transformarea la
+unitatea de masura milioane lei"); they are the only two in the catalogue that
+do, so for any indicator in a large unit read `describe()` before averaging.
+
 A small commune therefore looks like this, and both facts are visible:
 
     df[df["Localitati_siruta"] == 2130][["Ani_an", "Valoare"]]
@@ -777,7 +787,12 @@ span of years it has, how many of the years seen anywhere in the frame are
 missing for it, how many of its rows INS suppressed as confidential
 (`n_confidential`), and the smallest and largest value with the year each
 occurred. A confidential year counts as covered, because the figure exists, but
-it never sets a minimum or a maximum. When the frame mixes territorial levels, the level comes first, so a national
+it never sets a minimum or a maximum. Since the version where `get(level=None)`
+brings the county rows, rows without SIRUTA are told apart by every territorial
+label on them: on a frame you joined yourself from `level='judet'` and
+`level='localitate'`, earlier versions folded all the county rows and the
+national one into a single row labelled national, so an old report and a new
+one disagree there. On frames straight from `get()` the figures are unchanged. When the frame mixes territorial levels, the level comes first, so a national
 total is never read as if it were a county.
 
 Units are keyed by SIRUTA, never by name. Locality names are not unique in
