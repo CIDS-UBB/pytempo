@@ -17,6 +17,11 @@ way it already left out 'UM: ...' on LOC108B. Those two entries were
 regenerated after the fix; the rest are as they were before it. Nothing else
 moved: not the roles of the 'UM:' dimensions, not wide() or spot_check() here,
 and not the call how() puts first.
+
+A second one followed: a unit with more than one option is a selector of
+measures, and how() lists it again among the filters, marked as such. FOM121A,
+FOM118G and LOC108B were regenerated for that, a block added and nothing else;
+SCL101B and TUR101B, with a single unit, are unchanged.
 """
 import json
 from pathlib import Path
@@ -131,3 +136,43 @@ def test_a_constant_unitati_de_masura_leaves_the_wide_index(monkeypatch):
     frame[parse.CONFIDENTIAL_COLUMN] = False
     acc = parse.standardize(frame, m).tempo
     assert "Unitati de masura" not in acc._index_columns()
+
+
+# ------------------------------------ the unit that selects among measures
+
+def test_a_measure_selector_is_listed_and_named_as_one(monkeypatch, capsys):
+    _api(monkeypatch)
+    for cod, key in (("FOM121A", "unitati"), ("LOC108B", "numar")):
+        t.matrix(cod).how()
+        out = capsys.readouterr().out
+        filters = out.split("FILTERS")[1]
+        assert f"    {key}" in filters
+        assert "a selector of measures, not a fixed unit" in filters
+        assert "not comparable" in filters
+
+
+def test_a_unit_with_one_option_stays_out_of_the_filters(monkeypatch, capsys):
+    _api(monkeypatch)
+    for cod in ("SCL101B", "TUR101B"):
+        t.matrix(cod).how()
+        out = capsys.readouterr().out
+        assert "selector of measures" not in out
+        assert "UM:" not in out.split("FILTERS")[1]
+
+
+def test_the_selector_stays_out_of_the_suggested_call(monkeypatch, capsys):
+    """FOM121A's units go with its first dimension, counts with 'Numar
+    persoane', wages with 'Lei': pinning one would drop half of it."""
+    _api(monkeypatch)
+    t.matrix("FOM121A").how()
+    call = capsys.readouterr().out.split("THE CALL")[1].splitlines()[1]
+    assert "unitati" not in call
+
+
+def test_is_measure_selector(monkeypatch):
+    from pytempo import manual
+    _api(monkeypatch)
+    assert manual.is_measure_selector(t.matrix("FOM121A").dimensions[-1])
+    assert manual.is_measure_selector(t.matrix("LOC108B").dimensions[-1])
+    assert not manual.is_measure_selector(t.matrix("SCL101B").dimensions[-1])
+    assert not manual.is_measure_selector(t.matrix("FOM121A").dimensions[0])

@@ -294,6 +294,14 @@ uses. The suggested call is planned too, filter included, which is why on
 POP107D it says 42 requests rather than the 380 the indicator costs whole: the
 filter is what makes it reachable.
 
+A unit of measure with a single option is a label and stays out of the
+filters. One with several is a selector of measures, LOC108B's count of permits
+or square metres, and is listed like any other filter, marked as such, since
+values under different options are not comparable. It stays out of the
+suggested call: the unit often goes with another dimension, FOM121A's counts
+with `Numar persoane` and its wages with `Lei`, so pinning one measure would
+drop half of the dimension the call varies.
+
 An indicator with nothing but territory and time says so, rather than showing
 an empty section:
 

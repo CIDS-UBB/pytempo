@@ -250,3 +250,41 @@ def test_normalized_periods_sort_as_text_only_within_one_granularity():
     # across granularities text order is not time order: the year ends last
     assert sorted(["2024", "2024-Q1", "2024-05"]) == \
         ["2024", "2024-05", "2024-Q1"]
+
+
+# ---------------------------- the data table and the frame get() returns
+
+def _answers_with_every_option(m):
+    """pivot answering with every option of every dimension, as INS would."""
+    frame = schema._sample_frame(m)
+    # INS strips commas out of labels, in the header as in the values
+    header = ", ".join(d.label.replace(",", " ") for d in m.dimensions) \
+        + ", Valoare"
+    lines = [", ".join(str(v).replace(",", " ") for v in row) + ", 1.0"
+             for row in frame.drop(columns=["Valoare"]).itertuples(index=False)]
+    text = header + "\n" + "\n".join(lines) + "\n"
+    return lambda payload, **kw: text
+
+
+def test_table_ddl_and_the_renamed_frame_have_the_same_columns(monkeypatch):
+    """Two pieces of code that have to agree: the CREATE TABLE and the frame
+    renamed by column_mapping. If they drift, the first insert fails."""
+    _api(monkeypatch)
+    for code in ("GOS102A", "LOC108B", "FOM121A", "FOM104D", "FOM101A"):
+        m = t.matrix(code)
+        monkeypatch.setattr(client, "post_pivot", _answers_with_every_option(m))
+        df = m.get(level=None, progress=False, confirm=False)
+        renamed = df.rename(columns=t.column_mapping(m))
+        ddl = m.schema(include_comments=False)
+        assert list(renamed.columns) == _columns(ddl, code.lower()), code
+
+        con = sqlite3.connect(":memory:")
+        _create(con, ddl)
+        sample = renamed.head(3).astype(object).where(renamed.head(3).notna(),
+                                                      None)
+        con.executemany(
+            f"INSERT INTO {code.lower()} ({', '.join(sample.columns)}) VALUES "
+            f"({', '.join('?' * len(sample.columns))})",
+            [tuple(row) for row in sample.itertuples(index=False)])
+        assert con.execute(f"SELECT count(*) FROM {code.lower()}").fetchone()[0] == 3
+        con.close()

@@ -112,6 +112,30 @@ def filterable(matrix) -> list:
             if d.role not in ("teritoriu", "timp", "um")]
 
 
+def is_measure_selector(dimension) -> bool:
+    """A unit of measure with more than one option: a choice, not a label."""
+    return dimension.role == "um" and len(dimension.options) > 1
+
+
+def listed(matrix) -> list:
+    """The dimensions the filter list shows: filterable, plus the units that
+    select among measures.
+
+    A unit with one option is a constant label and stays out. A unit with
+    several is the dimension that says what is measured, LOC108B's count of
+    permits or square metres, and leaving it out of the list was hiding the one
+    filter whose options do not add up.
+
+    It stays out of the suggested call, which works from filterable(): the
+    unit often goes with another dimension, FOM121A's 'Numar persoane' with
+    its count of employees and 'Lei' with its two wages, so pinning one measure
+    would quietly drop half of the dimension the call varies.
+    """
+    return [d for d in matrix.dimensions
+            if d.role not in ("teritoriu", "timp", "um")
+            or is_measure_selector(d)]
+
+
 def biggest_hierarchy(matrix):
     """The hierarchical dimension worth trimming first, or None."""
     hierarchical = [d for d in filterable(matrix)
@@ -274,6 +298,11 @@ def _print_filter(matrix, dimension, big_dimension: int, width: int) -> None:
 
     print()
     print(f"    {key:<{width}}  {dimension.label.strip()}")
+    if is_measure_selector(dimension):
+        said = ("a selector of measures, not a fixed unit: values under "
+                "different options are not comparable, so do not add them")
+        for line in textwrap.wrap(said, 66):
+            print(f"{pad}{line}")
     if hierarchy.is_hierarchical(dimension):
         levels = len(set(hierarchy.depths(dimension).values()))
         print(f"{pad}{len(dimension.options)} options on {levels} levels")
@@ -297,7 +326,7 @@ def _print_filter(matrix, dimension, big_dimension: int, width: int) -> None:
 
 def print_filters(matrix, big_dimension: int) -> None:
     """The optional filters, one block each, named by what you would type."""
-    dimensions = filterable(matrix)
+    dimensions = listed(matrix)
     print()
     if not dimensions:
         print("  FILTERS: none to add. This indicator is territory and time "
@@ -314,7 +343,7 @@ def print_filters(matrix, big_dimension: int) -> None:
 
 def print_more(matrix, full: bool) -> None:
     """Where the rest is, for whoever wants it."""
-    keys = [alias_for(matrix, d) for d in filterable(matrix)]
+    keys = [alias_for(matrix, d) for d in listed(matrix)]
     lines = []
     if keys:
         lines.append((f"m.options({keys[0]!r})",
