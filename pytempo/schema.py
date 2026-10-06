@@ -44,6 +44,15 @@ def sql_ident(label: str, taken: set | None = None) -> str:
     Diacritics are folded, everything that is not a letter or a digit becomes
     an underscore, and an identifier that would start with a digit gets a
     prefix. When `taken` is given, a numeric suffix keeps the name unique.
+
+    The normalization is a public contract: the column names of every database
+    built from pytempo come out of it, so changing it is a breaking change,
+    and an existing table would meet differently named columns.
+    tests/test_catalog_sql.py pins it on the hard cases. Across the whole catalogue, 1916
+    indicators, no two dimensions of one indicator fold to the same name, nor
+    to the value columns, so the suffix is never needed on real data. Were it
+    needed, order would decide: column_mapping() goes through the dimensions
+    in dimensionsMap order, so the later of two colliding labels gets '_2'.
     """
     folded = unicodedata.normalize("NFKD", str(label or ""))
     folded = "".join(c for c in folded if not unicodedata.combining(c))
@@ -116,6 +125,118 @@ def column_mapping(matrix) -> dict:
     return mapping
 
 
+# what sql_columns() answers, always all of them, in this order
+SQL_COLUMN_ROLES = ("value", "confidential", "period", "year", "territory",
+                    "siruta", "level", "name", "unit", "unit_options")
+
+
+def sql_columns(matrix) -> dict:
+    """Which SQL column holds what, by meaning rather than by name.
+
+    column_mapping() says how every column is renamed; this says where the
+    value is, where the year is, where SIRUTA is, without knowing that GOS102A
+    calls its localities 'Municipii si orase'. Every key in SQL_COLUMN_ROLES is
+    always there, None when the indicator has no such column, so the same code
+    works on every indicator and a missing role is a None to test, not a
+    KeyError.
+
+        value          the numeric value
+        confidential   True where INS suppressed the figure ('c')
+        period         the original time column, 'Anul 2024', 'Luna mai 2026'
+        year           the year of that period, smallint
+        territory      the original column of the finest territory
+        siruta         its SIRUTA code, for localities
+        level          its territorial level, national ... localitate
+        name           its clean name: the derived one where the label carried
+                       a SIRUTA prefix, the original column otherwise
+        unit           the unit of measure column
+        unit_options   how many options that column has
+
+    unit_options above 1 means the unit is a selector of measures, not a
+    label: LOC108B has every year twice, once as a count of building permits,
+    once as square metres. Summing over it adds the two.
+    """
+    matrix._ensure_meta()
+    mapping = column_mapping(matrix)
+    out = dict.fromkeys(SQL_COLUMN_ROLES)
+    out["value"] = mapping[VALUE_COLUMN]
+    out["confidential"] = mapping[CONFIDENTIAL_COLUMN]
+
+    time = [d for d in matrix.dimensions if d.role == "timp"]
+    if time:
+        column = time[0].label.strip()
+        out["period"] = mapping[column]
+        out["year"] = mapping.get(f"{column}_an")
+
+    fine = matrix.territory_columns()
+    if fine:
+        out["territory"] = mapping.get(fine["label"])
+        out["siruta"] = mapping.get(fine.get("siruta"))
+        out["level"] = mapping.get(fine.get("nivel"))
+        out["name"] = mapping.get(fine.get("nume")) or out["territory"]
+
+    units = [d for d in matrix.dimensions if d.role == "um"]
+    if units:
+        out["unit"] = mapping[units[0].label.strip()]
+        out["unit_options"] = len(units[0].options)
+    return out
+
+
+def catalog_rows(matrix) -> dict:
+    """The rows this indicator contributes to the catalogue tables.
+
+    {'indicator': {...}, 'dimensions': [{...}, ...]}, keyed exactly like the
+    columns catalog_ddl() declares, ready to insert. One call for both tables:
+    they are filled at the same moment, from the same metadata, by the same
+    caller, and two calls could drift apart.
+
+    Everything comes from the indicator's own metadata, so the rows are filled
+    as each indicator is loaded rather than all at once from a catalogue: the
+    definitions, methodologies and observations are only in the live metadata,
+    and the prose stays whole, the way INS wrote it.
+    """
+    from .matrix import _clean  # local: matrix imports this module lazily
+
+    matrix._ensure_meta()
+    mapping = column_mapping(matrix)
+    time = [d for d in matrix.dimensions if d.role == "timp"]
+    latest, latest_label = (parse.latest_period(o.label for o in time[0].options)
+                            if time else (None, None))
+    total_cells = 1
+    for d in matrix.dimensions:
+        total_cells *= len(d.options)
+    sources = [" ".join(p for p in (s.get("nume"), f"({s['tip']})"
+                                    if s.get("tip") else None) if p)
+               for s in (matrix.sources or []) if isinstance(s, dict)]
+
+    indicator = {
+        "code": matrix.code,
+        "name": matrix.name,
+        "domain": (_clean(matrix.ancestors[0].get("name", ""))
+                   if matrix.ancestors else None),
+        "periodicity": ", ".join(matrix.periodicity or []) or None,
+        "last_updated": matrix.last_updated or None,
+        "total_cells": total_cells if matrix.dimensions else 0,
+        "has_siruta": matrix.has_siruta,
+        "definition": matrix.definition or None,
+        "methodology": matrix.methodology or None,
+        "sources": "; ".join(sources) or None,
+        "observations": matrix.observations or None,
+        "latest_period": latest,
+        "latest_period_label": latest_label,
+    }
+    dimensions = [{
+        "code": matrix.code,
+        "position": d.dim_index,
+        "label": d.label.strip(),
+        "sql_name": mapping[d.label.strip()],
+        "role": d.role,
+        "level": d.finest_level or None,
+        "n_options": len(d.options),
+    } for d in matrix.dimensions]
+    return {"indicator": indicator, "dimensions": dimensions}
+
+
 def _first_sentence(text: str) -> str:
     first = re.split(r"\.\s", (text or "").strip(), maxsplit=1)[0].strip()
     return first[:400]
@@ -183,11 +304,20 @@ def table_ddl(matrix, schema: str = "tempo",
 
 
 def catalog_ddl(schema: str = "tempo") -> str:
-    """DDL for the shared infrastructure tables, from the registry.
+    """DDL for the shared infrastructure tables.
 
     Three tables: indicators and dimensions describe the catalogue, territory
     is the SIRUTA lookup you fill from the data you extract. No hard foreign
     keys point at the per indicator tables, because those may not exist yet.
+    The rows for the first two come from m.catalog_rows(), one indicator at a
+    time, keyed like these columns; nothing here reads the internal registry.
+
+    latest_period is normalized, '2024', '2024-Q1', '2026-05', and sorts
+    lexicographically only within one granularity: '2024' < '2024-05' <
+    '2024-Q1' as text, though the year ends last. Compare periods of different
+    granularity by when they end, not as strings. latest_period_label keeps the
+    INS label it came from, the one thing to rebuild it from if a form is ever
+    read wrong.
     """
     out = [f"CREATE SCHEMA IF NOT EXISTS {schema};"]
 
@@ -196,22 +326,32 @@ def catalog_ddl(schema: str = "tempo") -> str:
         f"    code text PRIMARY KEY,\n"
         f"    name text NOT NULL,\n"
         f"    domain text,\n"
-        f"    family text,\n"
         f"    periodicity text,\n"
         f"    last_updated text,\n"
         f"    total_cells bigint,\n"
-        f"    has_siruta boolean\n"
+        f"    has_siruta boolean,\n"
+        f"    definition text,\n"
+        f"    methodology text,\n"
+        f"    sources text,\n"
+        f"    observations text,\n"
+        f"    latest_period text,\n"
+        f"    latest_period_label text\n"
         f");")
     out.append(
         f"COMMENT ON TABLE {schema}.indicators IS "
-        f"{_quote('One row per TEMPO indicator, from the pytempo registry.')};")
+        f"{_quote('One row per TEMPO indicator, from its own metadata: m.catalog_rows().')};")
+    out.append(
+        f"COMMENT ON COLUMN {schema}.indicators.latest_period IS "
+        f"{_quote('The period that ends last, normalized: 2024, 2024-Q1, 2026-05. Sorts as text only within one granularity.')};")
 
     out.append(
         f"CREATE TABLE IF NOT EXISTS {schema}.dimensions (\n"
         f"    code text NOT NULL REFERENCES {schema}.indicators (code),\n"
         f"    position smallint NOT NULL,\n"
         f"    label text NOT NULL,\n"
+        f"    sql_name text NOT NULL,\n"
         f"    role text,\n"
+        f"    level text,\n"
         f"    n_options integer,\n"
         f"    PRIMARY KEY (code, position)\n"
         f");")

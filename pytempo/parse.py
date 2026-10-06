@@ -160,6 +160,76 @@ def pivot_csv_to_dataframe(csv_text: str, matrix) -> pd.DataFrame:
     return _confidential_out(df)
 
 
+_MONTHS = {name: number for number, name in enumerate(
+    ("ianuarie februarie martie aprilie mai iunie iulie august septembrie "
+     "octombrie noiembrie decembrie").split(), 1)}
+_QUARTERS = {"I": 1, "II": 2, "III": 3, "IV": 4}
+_PERIOD_FORMS = (
+    (re.compile(r"Anul (\d{4})"), "year"),
+    (re.compile(r"Trimestrul (IV|III|II|I) (\d{4})"), "quarter"),
+    (re.compile(r"Luna (\w+) (\d{4})", re.IGNORECASE), "month"),
+    (re.compile(r"Anii (\d{4}) ?- ?(\d{4})"), "years"),
+)
+# at the same end, the finer period says more: a month over its quarter over
+# its year
+_FINENESS = {"years": 0, "year": 1, "quarter": 2, "month": 3}
+
+
+def period_of(label) -> tuple | None:
+    """A TEMPO period label, normalized, with the month it ends in.
+
+    Returns (normalized, (end_year, end_month, fineness)), or None for a label
+    of none of the four forms measured across the catalogue:
+
+        'Anul 2024'           '2024'        ends December 2024
+        'Trimestrul I 2024'   '2024-Q1'     ends March 2024
+        'Luna mai 2026'       '2026-05'     ends May 2026
+        'Anii 1901 - 2000'    '1901-2000'   ends December 2000
+
+    The last is a single case, ZDP1321, a climate baseline averaged over the
+    century; it is kept as the range it is rather than forced into a year.
+    """
+    text = str(label or "").strip()
+    for pattern, kind in _PERIOD_FORMS:
+        m = pattern.fullmatch(text)
+        if not m:
+            continue
+        if kind == "year":
+            year = int(m.group(1))
+            return str(year), (year, 12, _FINENESS[kind])
+        if kind == "quarter":
+            year, quarter = int(m.group(2)), _QUARTERS[m.group(1)]
+            return f"{year}-Q{quarter}", (year, 3 * quarter, _FINENESS[kind])
+        if kind == "month":
+            month = _MONTHS.get(m.group(1).lower())
+            if month is None:
+                return None
+            year = int(m.group(2))
+            return f"{year}-{month:02d}", (year, month, _FINENESS[kind])
+        first, last = int(m.group(1)), int(m.group(2))
+        return f"{first}-{last}", (last, 12, _FINENESS[kind])
+    return None
+
+
+def latest_period(labels) -> tuple:
+    """The period that ends last, as (normalized, INS label), or (None, None).
+
+    Not the last option: INS lists PPA102C's months before its quarters, so
+    the last option is 'Trimestrul I 2026' while 'Luna mai 2026' exists, and
+    132 time dimensions mix years with quarters or months. At the same end the
+    finer period wins: 'Luna decembrie 2025' over 'Trimestrul IV 2025' over
+    'Anul 2025'. A label of no known form is left out rather than guessed.
+    """
+    best = None
+    for label in labels:
+        parsed = period_of(label)
+        if parsed is not None and (best is None or parsed[1] > best[0][1]):
+            best = (parsed, str(label).strip())
+    if best is None:
+        return None, None
+    return best[0][0], best[1]
+
+
 def _year_of(label) -> int | None:
     """The year inside a period name: 'Anul 2024' gives 2024."""
     m = _YEAR.search(str(label))

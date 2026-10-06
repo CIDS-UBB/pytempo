@@ -907,29 +907,81 @@ The whole pipeline, on FOM101A:
 
 `m.schema()` generates `CREATE TABLE IF NOT EXISTS tempo.fom101a`, one text
 column per dimension, a numeric value column with its boolean confidentiality
-flag, and exactly the derived columns
-that `get(tidy=True)` produces for that indicator. Nothing is guessed twice:
-the derived set is read from the standardization itself, so the table cannot
-drift away from the DataFrame. A county dimension gets only its level column,
-a locality dimension gets SIRUTA as `integer`, the type, the clean name and the
-level, and time dimensions get the year as `smallint`. Indexes are generated on
-SIRUTA and on the year where they exist.
+flag, and exactly the derived columns that `get(tidy=True)` produces for that
+indicator. Nothing is guessed twice: the derived set is read from the
+standardization itself, so the table cannot drift away from the DataFrame. A
+county dimension gets only its level column, a locality dimension gets SIRUTA as
+`integer`, the type, the clean name and the level, and time dimensions get the
+year as `smallint`. Indexes are generated on SIRUTA and on the year where they
+exist.
 
 `t.column_mapping(m)` gives the mapping from DataFrame column names to SQL
 identifiers, so renaming is one line. Identifiers are folded to snake_case
 without diacritics, truncated to fit Postgres, and made unique with a numeric
-suffix on collision.
+suffix on collision. That folding is a public contract: every database built
+from pytempo takes its column names from it, so changing it is a breaking
+change, and an existing table would meet other names. Across all 1916
+indicators no two dimensions of one indicator fold to the same name, nor to
+`valoare` or `valoare_confidential`, so the suffix never comes into play.
+
+`m.sql_columns()` answers the question a pipeline actually has: which column
+holds what. Downstream cannot assume the localities are called `Localitati`;
+GOS102A calls them `Municipii si orase`. So it is asked by meaning:
+
+    t.matrix("GOS102A").sql_columns()
+    {'value': 'valoare', 'confidential': 'valoare_confidential',
+     'period': 'ani', 'year': 'ani_an',
+     'territory': 'municipii_si_orase', 'siruta': 'municipii_si_orase_siruta',
+     'level': 'municipii_si_orase_nivel', 'name': 'municipii_si_orase_nume',
+     'unit': 'um_ha', 'unit_options': 1}
+
+Every key is always there, `None` where the indicator has no such column, so
+the same code works on all of them. `unit_options` above 1 means the unit is a
+selector of measures, not a label: 204 indicators have one, LOC108B among them,
+where every year appears twice, once as building permits and once as square
+metres.
 
 `t.schema_catalog()` generates the shared infrastructure: `indicators` and
 `dimensions` describe the catalogue, and `territory` is a SIRUTA lookup keyed
 by the code, which you fill from the data you extract. There are no hard
 foreign keys pointing at the per indicator tables, because those may not exist
-yet.
+yet. The rows of the first two come from `m.catalog_rows()`, keyed like the
+columns, as each indicator is loaded:
+
+    rows = m.catalog_rows()
+    rows["indicator"]       # one row of tempo.indicators
+    rows["dimensions"]      # its rows of tempo.dimensions, with sql_name and level
+
+Everything in them comes from the indicator's own metadata, the prose of the
+definition, methodology, sources and observations whole, the way INS wrote it.
+`latest_period` is the period that ends last, normalized as `2024`, `2024-Q1`
+or `2026-05`, with the INS label beside it in `latest_period_label`. It sorts
+as text only within one granularity: `'2024' < '2024-05' < '2024-Q1'`, though
+the year ends last, so compare periods of different granularity by when they
+end. What pytempo gives is the facts, `last_updated` and `latest_period`;
+deciding when to reload is the pipeline's.
 
 Both functions take `schema="..."` if you do not want the `tempo` schema, and
 `m.schema(include_comments=False)` drops the `COMMENT ON` statements. The
 comments carry the full INS name, the first sentence of the definition, and the
 unit of measure, so the meaning travels with the table.
+
+Four things SQL will not warn you about:
+
+* **Sparsity.** A `:` is an absent row, not `NULL` and not zero. `AVG(valoare)`
+  averages the observations that exist without saying that periods are
+  missing.
+* **Mixed granularity.** A table loaded with `level=None` holds the national
+  total, regions, counties and localities at once. Filter every aggregate on
+  the level column, or totals are added to their own parts.
+* **The unit as a dimension.** When the unit column has several options it
+  tells measures apart. It is not a label to leave out of a `GROUP BY`.
+* **Row order is not stable.** INS sent the counties in a different order in
+  August and in October 2026, the same 43 units, checked live. Nothing should
+  depend on the order rows arrive in: no comparison, no `LIMIT` without
+  `ORDER BY`. The structure of the metadata, by contrast, held: of 30 indicators
+  compared between August and October, 25 were identical and the rest had only
+  new periods added at the end.
 
 ## Development
 

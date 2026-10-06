@@ -548,6 +548,27 @@ class Matrix:
         return schema_mod.table_ddl(self, schema=schema,
                                     include_comments=include_comments)
 
+    def sql_columns(self) -> dict:
+        """Which SQL column holds the value, the year, SIRUTA, the unit.
+
+        By meaning, not by name: every role is a key, None where the indicator
+        has no such column. unit_options above 1 means the unit selects among
+        measures. See schema.sql_columns for the roles.
+        """
+        from . import schema as schema_mod
+
+        return schema_mod.sql_columns(self)
+
+    def catalog_rows(self) -> dict:
+        """The rows for tempo.indicators and tempo.dimensions, from metadata.
+
+        {'indicator': {...}, 'dimensions': [...]}, keyed like the columns of
+        t.schema_catalog(), to insert as each indicator is loaded.
+        """
+        from . import schema as schema_mod
+
+        return schema_mod.catalog_rows(self)
+
     def related(self, limit: int = 25) -> MatrixList:
         """The other indicators under the same parent node."""
         self._ensure_meta()

@@ -128,6 +128,8 @@ LOAD it into PostgreSQL, pytempo writes the SQL, you run it
   m.schema()                   CREATE TABLE for this indicator, as text
   t.schema_catalog()           the shared indicators, dimensions and territory
   t.column_mapping(m)          DataFrame names to SQL names, for df.rename
+  m.sql_columns()              which SQL column holds the value, year, SIRUTA, unit
+  m.catalog_rows()             the rows for tempo.indicators and tempo.dimensions
 
 get() executes the plan from the registry: it reads the strategy, runs it and
 applies tidy. By default it takes the finest level the indicator reaches and
