@@ -20,10 +20,11 @@ WHAT THE DATA ACTUALLY CARRIES, measured before writing any of this:
                       education (0 of 18), AGR101A land use (0 of 14), and the
                       hierarchical territory of SCL101B, macroregion plus
                       region plus county (0 of 55). Measured in October 2026 on
-                      the 164 registry indicators above MAX_CELLS: those are
-                      the only places it appears among them. The metadata of
-                      the rest of the catalogue was not requested, so nothing
-                      is claimed about it.
+                      the metadata of all 1916 indicators of the catalogue,
+                      from the local cache: 85 locality dimensions and the 14
+                      CAEN dimensions of the four INT109 indicators are the
+                      only places it appears, and it never points at an
+                      option of its own dimension.
     offset            a plain 1, 2, 3 running order on those dimensions. No
                       depth in it.
     details           carries dimension roles and flags, nothing about the tree
@@ -38,7 +39,12 @@ is what the live catalogue actually has today. Indentation is a layout signal,
 not a naming pattern: it says nothing about what the option is called, only
 about where it sits, which is why it survives dimensions this module has never
 seen. It is still a fallback, and if INS ever stops indenting, the keywords
-report a flat dimension rather than guessing.
+report a flat dimension rather than guessing. The same holds where INS indents
+incoherently, the total pushed below the options it adds up: measured in
+October 2026 over the whole catalogue, 11 dimensions in 9 indicators (the CAEN
+Rev.1 groups and classes of INT101I to INT101L, INT109A and INT109B, and the
+Combined Nomenclature groups of EXP101F, EXP102F and TQZ1553), each a flat list
+with only its total indented. Better flat and said plainly than a tree made up.
 
 A dimension with no signal at all, and there are many, CAEN Rev.2 among them,
 is flat as far as anyone can tell, and asking for its groups is an error that
@@ -92,13 +98,41 @@ def _from_indentation(dimension) -> dict | None:
 
     The widths are ranked rather than divided: three spaces per level is what
     INS uses, but ranking the distinct widths works whatever the step is.
+
+    A difference in indentation is not always a difference in level: when the
+    total sits deeper than the options it adds up, the signal is unusable for
+    that dimension and it is reported flat (_total_pushed_below).
     """
     widths = sorted({_indent(o.label) for o in dimension.options})
     if len(widths) < 2:
         return None
+    if _total_pushed_below(dimension):
+        return None
     depth_of = {width: rank for rank, width in enumerate(widths)}
     return {o.nom_item_id: depth_of[_indent(o.label)]
             for o in dimension.options}
+
+
+def _total_pushed_below(dimension) -> bool:
+    """Is the one total of the dimension indented deeper than its other options?
+
+    The total is the root of a dimension; that much is known for certain. When
+    the indentation puts it below options that are not totals, the indentation
+    contradicts the one thing known, so it is not describing a tree there.
+    INT109B's groups are the case: '    Total' with four spaces over 197 groups
+    with none, a flat list that ranking the widths would turn upside down, the
+    total as a leaf under its own groups.
+
+    Only with a single total. PTT104B labels six options 'Total trafic ...' or
+    'total trafic ...', at both depths of a real two level dimension: they are
+    subtotals, there is no root among them, and the premise does not hold.
+    """
+    totals = [o for o in dimension.options if territory.is_total_label(o.label)]
+    others = [o for o in dimension.options
+              if not territory.is_total_label(o.label)]
+    if len(totals) != 1 or not others:
+        return False
+    return _indent(totals[0].label) > min(_indent(o.label) for o in others)
 
 
 def depths(dimension) -> dict | None:

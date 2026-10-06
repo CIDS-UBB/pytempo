@@ -57,8 +57,9 @@ def _dim(monkeypatch, cod, label):
 def test_the_age_dimension_has_no_parent_ids(monkeypatch):
     """The foundation, checked rather than assumed.
 
-    parentId is null on this dimension, and on every dimension measured except
-    the localities, so the hierarchy cannot come from there. The indentation
+    parentId is null on this dimension, so the hierarchy cannot come from
+    there; where it is populated, on localities and on the CAEN chains of
+    INT109x, it points at another dimension. The indentation
     is what INS actually carries, and it is what the fallback reads.
     """
     varste = _dim(monkeypatch, "POP107D", VARSTA)
@@ -344,3 +345,86 @@ def test_a_plain_label_that_is_not_a_keyword_is_still_a_label(monkeypatch):
     varste = t.matrix("POP107D")._find_dimension(VARSTA)
     kept = selection.choose_options(varste, "25-29 ani")
     assert [o.label.strip() for o in kept] == ["25-29 ani"]
+
+
+# ------------------------------- a total indented below what it adds up
+
+INT109B = json.loads((FIXTURES / "INT109B_meta.json").read_text(
+    encoding="utf-8"))
+GRUPE = "CAEN Rev.1 - grupe"
+
+# POP107D ages as pick() gave them before the guard: the 19 groups by
+# nomItemId, the leaves being every other option of the 104
+POP107D_GROUPS = [1, 2, 8, 14, 20, 26, 32, 38, 44, 50, 56, 62, 68, 74, 80, 86,
+                  92, 98, 104]
+
+
+def _int109b_dim(monkeypatch, label):
+    _api(monkeypatch, {**META, "INT109B": INT109B})
+    return t.matrix("INT109B")._find_dimension(label)
+
+
+def test_int109b_groups_is_flat_not_upside_down(monkeypatch):
+    """'    Total' with four spaces over 197 groups with none: ranked, the
+    widths made the total a leaf under its own groups."""
+    grupe = _int109b_dim(monkeypatch, GRUPE)
+    total = [o for o in grupe.options if o.label.strip() == "Total"]
+    assert len(total) == 1 and total[0].label.startswith("    ")
+    assert hierarchy.depths(grupe) is None
+    assert hierarchy.is_hierarchical(grupe) is False
+    with pytest.raises(ValueError, match="not hierarchical"):
+        hierarchy.pick(grupe, "leaves")
+    # the total is still found by name
+    assert hierarchy.pick(grupe, "total") == total
+
+
+def test_options_kind_groups_on_int109b_says_it_is_flat(monkeypatch):
+    _api(monkeypatch, {**META, "INT109B": INT109B})
+    with pytest.raises(ValueError) as info:
+        t.matrix("INT109B").options("grupe", kind="groups")
+    assert "not hierarchical" in str(info.value)
+    assert "198 options are all at the same level" in str(info.value)
+
+
+def test_how_full_on_int109b_runs(monkeypatch, capsys):
+    """It used to stop on the upside down groups, inside the filter listing."""
+    _api(monkeypatch, {**META, "INT109B": INT109B})
+    t.matrix("INT109B").how(full=True)
+    out = capsys.readouterr().out
+    assert "283 requests" in out
+    assert "CAEN Rev.1 - grupe" in out
+
+
+def test_pop107d_ages_are_exactly_what_they_were(monkeypatch):
+    """The total is the least indented there, so the guard changes nothing:
+    the same 19 groups and the same 85 leaves, option for option."""
+    varste = _dim(monkeypatch, "POP107D", VARSTA)
+    groups = [o.nom_item_id for o in hierarchy.pick(varste, "groups")]
+    leaves = [o.nom_item_id for o in hierarchy.pick(varste, "leaves")]
+    assert groups == POP107D_GROUPS
+    assert leaves == [i for i in range(1, 105) if i not in POP107D_GROUPS]
+
+
+def _dimension(labels):
+    from pytempo.models import Dimension, Option
+    return Dimension(label="Test", dim_code=1, dim_index=0, options=[
+        Option(label=label, nom_item_id=i) for i, label in enumerate(labels, 1)])
+
+
+def test_a_total_indented_below_its_options_reads_flat():
+    built = _dimension(["A", "B", "  Total", "C"])
+    assert hierarchy.depths(built) is None
+
+
+def test_a_total_at_the_root_still_reads_a_tree():
+    built = _dimension(["Total", "  A", "    A1", "  B"])
+    assert hierarchy.depths(built) == {1: 0, 2: 1, 3: 2, 4: 1}
+
+
+def test_several_totals_are_subtotals_not_a_root():
+    """PTT104B's shape: totals at both depths of a real two level dimension.
+    No single root to contradict, so the indentation is read as before."""
+    built = _dimension(["Fix - total", "   din care: persoane fizice",
+                        "Total trafic fix", "   total trafic mobil",
+                        "   trafic international"])
+    assert hierarchy.depths(built) == {1: 0, 2: 1, 3: 0, 4: 1, 5: 1}

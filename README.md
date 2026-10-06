@@ -552,9 +552,9 @@ populated on locality dimensions, where it points at the county, and on the
 CAEN dimensions of INT109A, INT109B, INT109C and INT109E, where one hierarchy
 is split across four or five dimensions. It is null on POP107D and POP105A ages,
 on FOM104F's CAEN, on SCL101B's levels of education, on AGR101A's land use, and
-on hierarchical territory. Those are the only places it appears among the 164
-indicators above `MAX_CELLS`, measured in October 2026; the metadata of the
-rest of the catalogue was not requested, so nothing is claimed about it.
+on hierarchical territory. Measured in October 2026 on the metadata of all 1916
+indicators, those are the only places it appears, and it never points at an
+option of its own dimension.
 `offset` is a plain running order. What INS does carry is the indentation of the label, three
 spaces per level, which is what it renders its own tree from:
 
@@ -568,6 +568,9 @@ indentation is a layout signal rather than a naming pattern: it says nothing
 about what an option is called, only about where it sits, which is why it works
 on dimensions this library has never seen. It is still a fallback, and if INS
 stopped indenting, the words would report a flat dimension rather than guess.
+The same where it indents incoherently: when the one total sits deeper than the
+options it adds up, as `'    Total'` over the 197 flat groups of INT109B, the
+dimension is reported flat instead of as a tree with its total for a leaf.
 
 **A kind is a level, not a count of children.** `85 ani si peste` has no single
 ages under it, since INS does not list ages past 85 one by one, and
