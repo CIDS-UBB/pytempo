@@ -8,13 +8,22 @@ nothing about structure.
 
 WHAT THE DATA ACTUALLY CARRIES, measured before writing any of this:
 
-    parentId          populated ONLY on locality dimensions, where it points at
-                      the county, that is at an option of a DIFFERENT dimension.
-                      Null on every other dimension measured: POP107D and
-                      POP105A ages (0 of 104), FOM104F CAEN (0 of 68), SCL101B
-                      levels of education (0 of 18), AGR101A land use (0 of 14),
-                      and even the hierarchical territory of SCL101B, macroregion
-                      plus region plus county (0 of 55).
+    parentId          where it was measured, it points at an option of a
+                      DIFFERENT dimension, never at one of the same dimension.
+                      It is populated on locality dimensions, where it points
+                      at the county, and on the CAEN dimensions of INT109A,
+                      INT109B, INT109C and INT109E, where one hierarchy is
+                      split across four or five dimensions, each option
+                      pointing at its parent in the dimension before (see
+                      chunking.find_chain). Null on: POP107D and POP105A ages
+                      (0 of 104), FOM104F CAEN (0 of 68), SCL101B levels of
+                      education (0 of 18), AGR101A land use (0 of 14), and the
+                      hierarchical territory of SCL101B, macroregion plus
+                      region plus county (0 of 55). Measured in October 2026 on
+                      the 164 registry indicators above MAX_CELLS: those are
+                      the only places it appears among them. The metadata of
+                      the rest of the catalogue was not requested, so nothing
+                      is claimed about it.
     offset            a plain 1, 2, 3 running order on those dimensions. No
                       depth in it.
     details           carries dimension roles and flags, nothing about the tree

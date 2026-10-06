@@ -45434,6 +45434,16 @@
    "total_cells": 1632
   },
   "INT109A": {
+   "chain": {
+    "dims": [
+     "CAEN Rev.1 (activitati ale economiei nationale - sectiuni)",
+     "CAEN Rev.1 - subsectiuni",
+     "CAEN Rev.1 (activitati ale economiei nationale)",
+     "CAEN Rev.1 - grupe",
+     "CAEN Rev.1 - clase"
+    ],
+    "requests": 290
+   },
    "dims": [
     {
      "dim_code": 1,
@@ -45495,8 +45505,8 @@
    "family": "neteritorial",
    "fetch_plan": {
     "default_level": null,
-    "est_requests": 468,
-    "strategy": "split:CAEN Rev.1 - clase",
+    "est_requests": 290,
+    "strategy": "by_chain",
     "tidy_ready": true
    },
    "fetched_at": "2026-08-13T07:45:03+00:00",
@@ -45514,6 +45524,16 @@
    "total_cells": 2130048700416
   },
   "INT109B": {
+   "chain": {
+    "dims": [
+     "CAEN Rev.1 (activitati ale economiei nationale - sectiuni)",
+     "CAEN Rev.1 - subsectiuni",
+     "CAEN Rev.1 (activitati ale economiei nationale)",
+     "CAEN Rev.1 - grupe",
+     "CAEN Rev.1 - clase"
+    ],
+    "requests": 283
+   },
    "dims": [
     {
      "dim_code": 1,
@@ -45575,8 +45595,8 @@
    "family": "neteritorial",
    "fetch_plan": {
     "default_level": null,
-    "est_requests": 461,
-    "strategy": "split:CAEN Rev.1 - clase",
+    "est_requests": 283,
+    "strategy": "by_chain",
     "tidy_ready": true
    },
    "fetched_at": "2026-08-13T07:45:03+00:00",
@@ -45594,6 +45614,15 @@
    "total_cells": 877145068800
   },
   "INT109C": {
+   "chain": {
+    "dims": [
+     "CAEN Rev.2  (activitati ale economiei nationale - sectiuni)",
+     "CAEN Rev.2  (activitati ale economiei nationale - diviziuni)",
+     "CAEN Rev.2 - (activitati ale economiei nationale - grupe)",
+     "CAEN Rev.2 - (activitati ale economiei nationale - clase)"
+    ],
+    "requests": 331
+   },
    "dims": [
     {
      "dim_code": 1,
@@ -45649,8 +45678,8 @@
    "family": "neteritorial",
    "fetch_plan": {
     "default_level": null,
-    "est_requests": 532,
-    "strategy": "split:CAEN Rev.2 - (activitati ale economiei nationale - clase)",
+    "est_requests": 331,
+    "strategy": "by_chain",
     "tidy_ready": true
    },
    "fetched_at": "2026-08-13T07:45:03+00:00",
@@ -45668,6 +45697,15 @@
    "total_cells": 676943834112
   },
   "INT109E": {
+   "chain": {
+    "dims": [
+     "CAEN Rev.2  (activitati ale economiei nationale-sectiuni)",
+     "CAEN Rev.2  (activitati ale economiei nationale - diviziuni)",
+     "CAEN Rev.2 - (activitati ale economiei nationale - grupe)",
+     "CAEN Rev.2 - (activitati ale economiei nationale - clase)"
+    ],
+    "requests": 329
+   },
    "dims": [
     {
      "dim_code": 1,
@@ -45717,8 +45755,8 @@
    "family": "neteritorial",
    "fetch_plan": {
     "default_level": null,
-    "est_requests": 531,
-    "strategy": "split:CAEN Rev.2 - (activitati ale economiei nationale - clase)",
+    "est_requests": 329,
+    "strategy": "by_chain",
     "tidy_ready": true
    },
    "fetched_at": "2026-08-13T07:45:03+00:00",

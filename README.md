@@ -546,12 +546,16 @@ They are not about ages. On AGR101A, land use, `groups` gives `Total`,
 `Agricola`, `Terenuri neagricole total` and `Alte suprafete`, and `leaves`
 gives the ten kinds of land under them. Any dimension with levels answers.
 
-**Where the levels come from.** Measured across the catalogue before any of
-this was written: `parentId` is populated only on locality dimensions, where it
-points at the county, that is at an option of another dimension. It is null on
-POP107D and POP105A ages, on FOM104F's CAEN, on SCL101B's levels of education,
-on AGR101A's land use, and even on hierarchical territory. `offset` is a plain
-running order. What INS does carry is the indentation of the label, three
+**Where the levels come from.** Where it was measured, `parentId` points at an
+option of another dimension, never at one of the same dimension. It is
+populated on locality dimensions, where it points at the county, and on the
+CAEN dimensions of INT109A, INT109B, INT109C and INT109E, where one hierarchy
+is split across four or five dimensions. It is null on POP107D and POP105A ages,
+on FOM104F's CAEN, on SCL101B's levels of education, on AGR101A's land use, and
+on hierarchical territory. Those are the only places it appears among the 164
+indicators above `MAX_CELLS`, measured in October 2026; the metadata of the
+rest of the catalogue was not requested, so nothing is claimed about it.
+`offset` is a plain running order. What INS does carry is the indentation of the label, three
 spaces per level, which is what it renders its own tree from:
 
     'Total'
@@ -595,8 +599,21 @@ A single POST is capped at `MAX_CELLS`, currently 100000 cells. Above that,
 more requests.
 
 Indicators that carry a locality dimension are downloaded one county at a time,
-using `parentId`, which ties a locality to its county. Everything else is split
-on its largest dimension, in pieces sized by how much room the other dimensions
+using `parentId`, which ties a locality to its county.
+
+Some indicators split one hierarchy across several dimensions. INT109B keeps
+CAEN Rev.1 in five, section, subsection, division, group and class, each option
+pointing through `parentId` at its parent in the dimension before. Multiplied
+as if they were independent, they come to 877 billion cells and a plan of
+9,127,800 requests, almost all of it combinations that cannot exist. pytempo
+recognizes such a chain when every link is complete, and asks for each node's
+children with the path above it fixed and the levels below on `Total`, which is
+how INS writes an aggregate: 283 requests for INT109B, 290 for INT109A, 331 for
+INT109C and 329 for INT109E, still a job for `download()`. A chain linked only
+partway is not treated as one, since its requests would miss the options left
+unlinked. `how(full=True)` names the strategy, `by_chain`.
+
+Everything else is split on its largest dimension, in pieces sized by how much room the other dimensions
 leave, recursing when even a single option does not fit. The frames are
 concatenated with `ignore_index=True`.
 

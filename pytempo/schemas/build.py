@@ -13,7 +13,7 @@ import datetime
 import json
 import pathlib
 
-from .. import client, endpoints, territory
+from .. import chunking, client, endpoints, territory
 from ..chunking import MAX_CELLS
 from .classify import FAMILIES, classify
 
@@ -88,6 +88,9 @@ def _entry_from_matrix(m) -> dict:
     from ..matrix import _clean
     entry["domain"] = _clean(entry["domain"])
     entry["family"] = classify(entry)
+    chain = chunking.chain_summary(m) if cells_needed > MAX_CELLS else None
+    if chain:
+        entry["chain"] = chain
     entry["fetch_plan"] = plan_for(entry)
     return entry
 
@@ -113,8 +116,10 @@ def plan_for(entry: dict) -> dict:
     applies tidy. No decisions at runtime, no cost arithmetic at request time.
 
     strategy: 'single' under the threshold; 'by_county' for matrices with
-    localities that also have a county dimension; 'split:<label>' otherwise,
-    on the dimension with the most options.
+    localities that also have a county dimension; 'by_chain' for dimensions
+    chained through parentId, whose request count was counted on the tree when
+    the record was built; 'split:<label>' otherwise, on the dimension with the
+    most options.
     """
     dims = entry.get("dims") or []
     levels = entry.get("levels") or []
@@ -137,6 +142,15 @@ def plan_for(entry: dict) -> dict:
     if counties:
         plan["strategy"] = "by_county"
         plan["est_requests"] = counties.get("n_options") or 1
+        return plan
+
+    # a hierarchy split across dimensions: the option counts would multiply
+    # combinations that do not exist, INT109B into 9,127,800 requests, so the
+    # count is the one made on the tree
+    chain = entry.get("chain")
+    if chain:
+        plan["strategy"] = "by_chain"
+        plan["est_requests"] = chain.get("requests") or 1
         return plan
 
     # over the threshold with no county plus locality pair: split on the

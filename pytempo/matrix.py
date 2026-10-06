@@ -823,6 +823,7 @@ otherwise.""")
             "family": ("judet_localitate"
                        if any(territory.is_locality_dimension(d, self.details)
                               for d in self.dimensions) else "alt"),
+            "chain": chunking.chain_summary(self),
         })
 
     def _wanted_levels(self, level, levels, plan) -> list[str]:
