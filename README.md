@@ -281,8 +281,8 @@ with what each one costs:
 
       TERRITORIAL LEVEL, pick one:
         national          1 unit,     1 request   m.get(level='national')
-        judet           42 units,     5 requests  m.get(level='judet')
-        localitate    3181 units,   379 requests  m.download(level='localitate', folder='data/pop107d')   default, the finest
+        judet           42 units,    5 requests   m.get(level='judet')
+        localitate    3181 units,  379 requests   m.download(level='localitate', folder='data/pop107d')   default, the finest
         every level at once                       m.get(level=None)
 
 Every number is read off that indicator, not off a template. The units per
@@ -301,6 +301,14 @@ values under different options are not comparable. It stays out of the
 suggested call: the unit often goes with another dimension, FOM121A's counts
 with `Numar persoane` and its wages with `Lei`, so pinning one measure would
 drop half of the dimension the call varies.
+
+One known limitation: on CDP104F and CDP104I, `how()` still stops with a
+`ValueError`. Their `Surse de finantare` dimension has only options named
+`Totale - din fonduri publice` and the like at its finest level, which the
+library reads as totals because they start with `Total`, so there are no leaves
+to list. The data downloads normally with `get()`; only the menu fails. Telling
+a subtotal from a total by name touches `select=`, `spot_check` and the
+territorial levels, so it waits for a measurement across the catalogue.
 
 An indicator with nothing but territory and time says so, rather than showing
 an empty section:
@@ -533,6 +541,7 @@ dimension and says which of its options to keep:
     POP107D: level judet, single, 1 request
       select: Varste si grupe de varsta limited to 2 of 104 options
       select: Sexe limited to 1 of 3 options
+      for every level, including national and localitate, use get(level=None)
 
     df.shape                          # (2940, 10), two age groups, 42 counties
 
