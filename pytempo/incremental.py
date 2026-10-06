@@ -84,9 +84,17 @@ def _read_slice(path: Path, matrix) -> pd.DataFrame:
     everywhere else in the package.
     """
     if path.suffix == ".parquet":
-        return pd.read_parquet(path)
-    labels = {d.label.strip(): str for d in matrix.dimensions}
-    return pd.read_csv(path, sep=CSV_SEP, encoding="utf-8", dtype=labels)
+        df = pd.read_parquet(path)
+    else:
+        labels = {d.label.strip(): str for d in matrix.dimensions}
+        df = pd.read_csv(path, sep=CSV_SEP, encoding="utf-8", dtype=labels)
+    if parse.CONFIDENTIAL_COLUMN not in df.columns:
+        # a slice left on disk by a version before the flag existed. Such a
+        # slice cannot hold a 'c', which used to stop the parse, so False is
+        # the truth, and resume mixes it with new slices without a gap
+        df[parse.CONFIDENTIAL_COLUMN] = False
+    df[parse.CONFIDENTIAL_COLUMN] = df[parse.CONFIDENTIAL_COLUMN].astype(bool)
+    return df
 
 
 def _tidied(df: pd.DataFrame, matrix, tidy: bool, raw: bool) -> pd.DataFrame:
@@ -103,7 +111,8 @@ def _ordered_columns(matrix, seen: set) -> list[str]:
     and needs it in the order the whole frame would have had, otherwise the CSV
     written without loading everything would differ from the frame returned.
     """
-    ordered = [d.label.strip() for d in matrix.dimensions] + [parse.VALUE_COLUMN]
+    ordered = [d.label.strip() for d in matrix.dimensions] + [
+        parse.VALUE_COLUMN, parse.CONFIDENTIAL_COLUMN]
     ordered = [c for c in ordered if c in seen]
     for d in matrix.dimensions:
         col = d.label.strip()

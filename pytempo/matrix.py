@@ -952,8 +952,9 @@ otherwise.""")
         level='judet' gives those counties, not all of them.
 
         tidy=True adds the derived columns; raw=True returns exactly what INS
-        returned. progress='auto' only speaks when the plan has more than one
-        request.
+        returned, except that a confidential 'c' is already NaN with its flag,
+        since the flag is what keeps the fact. progress='auto' only speaks when
+        the plan has more than one request.
 
         Over POLITE_REQUESTS requests it stops before sending anything: it
         prints the guidance, which names download() and the command for this
@@ -968,6 +969,11 @@ otherwise.""")
         row whose Valoare is 0.0. The frame is therefore not a complete grid,
         and joining or averaging over it is a decision: an absent year is
         unknown, not zero, unless you decide otherwise.
+
+        Confidential is a third case. INS writes 'c' where the figure exists
+        but would identify a reporting unit. It arrives as a row whose Valoare
+        is NaN and whose Valoare_confidential is True; the column is on every
+        frame, False where the figure was published.
         """
         target, wanted, plan, requests = self._plan_requests(level, levels,
                                                              select)

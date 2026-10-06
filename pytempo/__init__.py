@@ -169,6 +169,15 @@ year or an absent locality as a zero, and do not assume a complete grid when
 joining or averaging: what to do with what is missing is your decision to make,
 and df.tempo.coverage() shows where the holes are.
 
+There is a third case, and it is neither: INS writes 'c' for a confidential
+cell, a figure that exists but would identify a reporting unit if published. A
+'c' arrives as a row whose Valoare is NaN and whose Valoare_confidential is
+True. That column is on every frame, False where the figure was published, so a
+download comes back with the same columns wherever its requests were cut.
+Reading a 'c' as zero drags totals down; reading it as absent hides that
+something is there. Count df['Valoare_confidential'].sum() before you trust a
+sum.
+
 Indicators that do not fit one POST are downloaded in several requests
 and concatenated: county by county for those with localities, otherwise split on
 the largest dimension. Above 50 requests get() stops and points at download(),

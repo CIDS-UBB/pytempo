@@ -15,6 +15,11 @@ matrix.dimensions, in order, not from the header.
 The CSV is sparse. Combinations with no data are absent as whole rows, not
 present as blanks, for real administrative reasons (Ilfov did not exist before
 1996). So we do not validate on row counts and do not assume a complete grid.
+
+The value column is not always a number. INS writes 'c' for a confidential cell:
+the figure exists, but publishing it would identify a reporting unit. That is
+neither ':' (no figure, which arrives as no row) nor '0' (a measured zero). It
+arrives as a row whose Valoare is NaN and whose Valoare_confidential is True.
 """
 import io
 import re
@@ -25,7 +30,71 @@ from . import territory
 
 VALUE_COLUMN = "Valoare"
 
+# True on the rows INS suppressed for confidentiality. Present on every frame
+# pivot_csv_to_dataframe returns, False throughout when nothing was suppressed:
+# a column that appeared only in slices with a 'c' would make the same download
+# come back with different columns depending on where the chunking cut.
+CONFIDENTIAL_COLUMN = f"{VALUE_COLUMN}_confidential"
+
+# what INS writes in the value column instead of a number, and what it means.
+# The single place the package knows these: the parser cleans them out, and the
+# registry validation uses the same list to tell a known marker from a stray
+# string. The TEMPO legend lists ':' for missing and 'c' for confidential; ':'
+# never reaches the CSV, the row is left out instead. Checked against live
+# responses in October 2026: a stratified sample of 144 indicators from the
+# registry, 35 of them at locality level, 1,021,501 rows, plus 28 CAEN
+# indicators before that. 'c' is the only textual value that appeared. The
+# matrix metadata never define it; the meaning rests on the TEMPO legend. Any
+# other string is unknown and still stops the parse, as it should.
+CONFIDENTIAL_MARKERS = frozenset({"c"})
+
 _YEAR = re.compile(r"\b(\d{4})\b")
+
+
+def unknown_markers(values) -> list[str]:
+    """The values that are neither a number nor a marker INS is known to use.
+
+    Empty means the column is clean once the markers are taken out. Anything
+    left is not INS speaking but the column mapping slipping.
+    """
+    found = set()
+    for v in values:
+        if pd.isna(v):
+            continue
+        text = str(v).strip()
+        if text in CONFIDENTIAL_MARKERS:
+            continue
+        try:
+            float(text)
+        except ValueError:
+            found.add(text)
+    return sorted(found)
+
+
+def _confidential_out(df: pd.DataFrame) -> pd.DataFrame:
+    """Valoare as float64 and the confidentiality flag beside it.
+
+    A 'c' becomes NaN, so any calculation runs, and the flag keeps the fact
+    that a figure exists there. Valoare is cast to float64 whatever came in,
+    for the same reason the flag always exists: a slice of whole numbers would
+    otherwise be int64 and its neighbour with a 'c' float64.
+    """
+    values = df[VALUE_COLUMN]
+    flag = pd.Series(False, index=df.index, dtype=bool)
+    if not pd.api.types.is_numeric_dtype(values):
+        text = values.astype("string").str.strip()
+        flag = text.isin(CONFIDENTIAL_MARKERS).fillna(False).astype(bool)
+        if not unknown_markers(values[~flag]):
+            values = pd.to_numeric(text.mask(flag), errors="raise")
+    if not pd.api.types.is_numeric_dtype(values):
+        # what is left once the markers are out is not INS speaking
+        raise ValueError(
+            f"Column {VALUE_COLUMN} is not numeric (dtype {values.dtype}), "
+            f"values such as {unknown_markers(values)[:3]}. A sign the column "
+            f"mapping slipped.")
+    df[VALUE_COLUMN] = values.astype("float64")
+    df[CONFIDENTIAL_COLUMN] = flag.to_numpy(dtype=bool)
+    return df
 
 
 class EmptyResponse(ValueError):
@@ -84,12 +153,11 @@ def pivot_csv_to_dataframe(csv_text: str, matrix) -> pd.DataFrame:
         df[VALUE_COLUMN] = df[VALUE_COLUMN].astype("float64")
         for col in df.columns[:-1]:
             df[col] = df[col].astype(str)
-    elif not pd.api.types.is_numeric_dtype(df[VALUE_COLUMN]):
-        raise ValueError(
-            f"Column {VALUE_COLUMN} is not numeric (dtype "
-            f"{df[VALUE_COLUMN].dtype}). A sign the column mapping slipped."
-        )
-    return df
+        df[CONFIDENTIAL_COLUMN] = pd.Series(dtype=bool)
+        return df
+    # the dtype guard runs inside, after the markers are out, so it still
+    # catches a slipped mapping and nothing else
+    return _confidential_out(df)
 
 
 def _year_of(label) -> int | None:

@@ -248,20 +248,37 @@ def test_unparsable_csv_is_needs_review_not_error(monkeypatch, tmp_path):
     """A broken CSV is about what INS sent, so it goes to a human."""
     cale = _registry(monkeypatch, tmp_path)
     stricat = dict(CSV)
-    # a value column carrying the INS confidentiality marker
+    # a value column carrying a string that is not a known INS marker
     stricat["SOM101B"] = ("Macroregiuni  regiuni de dezvoltare si judete, Ani, "
                           "UM: Numar persoane, Valoare\n"
-                          "Bihor, Anul 2020, Numar persoane, c\n")
+                          "Bihor, Anul 2020, Numar persoane, x\n")
     _post(monkeypatch, raspunsuri=stricat)
     date = v.validate(progress=False, delay=0, path=cale)
 
     starea = date["entries"]["SOM101B"]["validation"]
     assert starea.startswith("needs_review:")
-    assert "non numeric markers" in starea and "'c'" in starea
+    assert "not a known INS marker" in starea and "'x'" in starea
     assert "not numeric" in starea          # the parse error is kept too
     assert date["entries"]["SOM101B"]["slice_cells"] > 0
     # the others are unaffected
     assert date["entries"]["FOM104D"]["validation"] == "ok"
+
+
+def test_confidential_marker_is_not_needs_review(monkeypatch, tmp_path):
+    """'c' is INS speaking, not a broken CSV: the slice validates, and the
+    point check is made on a published cell."""
+    cale = _registry(monkeypatch, tmp_path)
+    cu_c = dict(CSV)
+    cu_c["SOM101B"] = ("Macroregiuni  regiuni de dezvoltare si judete, Ani, "
+                       "UM: Numar persoane, Valoare\n"
+                       "TOTAL, Anul 2020, Numar persoane, 100.0\n"
+                       "Bihor, Anul 2020, Numar persoane, c\n")
+    punctual = {"SOM101B": ("Macroregiuni  regiuni de dezvoltare si judete, "
+                            "Ani, UM: Numar persoane, Valoare\n"
+                            "TOTAL, Anul 2020, Numar persoane, 100.0\n")}
+    _post(monkeypatch, raspunsuri=cu_c, punctual=punctual)
+    date = v.validate(progress=False, delay=0, path=cale)
+    assert date["entries"]["SOM101B"]["validation"] == "ok"
 
 
 def test_needs_review_is_listed_apart_in_the_report(monkeypatch, tmp_path,

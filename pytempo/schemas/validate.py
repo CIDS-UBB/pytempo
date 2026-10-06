@@ -118,8 +118,14 @@ def _norm_label(text) -> str:
 
 
 def _point_check(m, df) -> str | None:
-    """Ask for a single cell of the slice and compare. None when it matches."""
-    row = df.iloc[len(df) // 2]
+    """Ask for a single cell of the slice and compare. None when it matches.
+
+    A published cell is picked when there is one: a confidential cell has no
+    value to compare, only the flag, which says less.
+    """
+    published = df[~df[parse.CONFIDENTIAL_COLUMN]]
+    pool = published if len(published) else df
+    row = pool.iloc[len(pool) // 2]
     selection = []
     for d in m.dimensions:
         label_text = _norm_label(row[d.label.strip()])
@@ -134,6 +140,12 @@ def _point_check(m, df) -> str | None:
     single_cell = parse.pivot_csv_to_dataframe(text, m)
     if len(single_cell) != 1:
         return f"the point cell returned {len(single_cell)} rows, expected 1"
+    flag = parse.CONFIDENTIAL_COLUMN
+    if bool(row[flag]) != bool(single_cell.iloc[0][flag]):
+        return (f"point cell differs: confidential {bool(row[flag])} in the "
+                f"slice, {bool(single_cell.iloc[0][flag])} on its own")
+    if row[flag]:
+        return None
     a, b = row["Valoare"], single_cell.iloc[0]["Valoare"]
     if a != b:
         return f"point cell differs: {a} in the slice, {b} on its own"
@@ -161,19 +173,20 @@ def _why_unparsable(m, text: str) -> str:
 
     Both cases seen so far are quirks of what INS sends, not of our request:
     a dimension label containing a newline, which breaks the header across two
-    lines, and the confidentiality marker in the value column.
+    lines, and a string in the value column. The confidentiality marker 'c' is
+    no longer one of them, the parser cleans it out; what the parser knows as a
+    marker is asked of parse, so a value left here is one nobody recognizes.
     """
     if any("\n" in (d.label or "") for d in m.dimensions):
         return ("a dimension label contains a newline, so the CSV header "
                 "spans two lines")
     rows = [r for r in text.split("\n") if r.strip()][1:]
-    values_seen = {r.rsplit(",", 1)[-1].strip() for r in rows if "," in r}
-    non_numeric = {x for x in values_seen
-                   if x and not x.replace(".", "", 1).lstrip("-").isdigit()}
-    if non_numeric:
-        return (f"the value column carries non numeric markers "
-                f"{sorted(non_numeric)[:3]}, most likely INS flags for "
-                f"suppressed or unavailable data")
+    unknown = parse.unknown_markers(
+        r.rsplit(",", 1)[-1].strip() for r in rows if "," in r)
+    if unknown:
+        return (f"the value column carries non numeric values {unknown[:3]} "
+                f"that are not a known INS marker "
+                f"{sorted(parse.CONFIDENTIAL_MARKERS)}")
     return "unrecognized response shape"
 
 

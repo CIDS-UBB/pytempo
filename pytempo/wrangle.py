@@ -11,7 +11,7 @@ every method says so rather than guessing.
 import pandas as pd
 
 from . import spotcheck
-from .parse import VALUE_COLUMN
+from .parse import CONFIDENTIAL_COLUMN, VALUE_COLUMN
 
 NOT_TIDY = ("this DataFrame does not look like pytempo tidy output; "
             "use m.get() (tidy is on by default)")
@@ -47,7 +47,8 @@ class TempoAccessor:
     def _index_columns(self) -> list[str]:
         """The original dimension columns that make a row unique in a wide table.
 
-        Left out: the derived columns, the value, the original time column
+        Left out: the derived columns, the value and its confidentiality
+        flag, the original time column
         (its year column says the same thing), and a unit of measure column
         that never varies, which would only pad the index.
         """
@@ -55,7 +56,7 @@ class TempoAccessor:
         time_base = (_base_of(self._year_col, "_an") if self._year_col else None)
         keep = []
         for column in df.columns:
-            if column == VALUE_COLUMN or _derived(column):
+            if column in (VALUE_COLUMN, CONFIDENTIAL_COLUMN) or _derived(column):
                 continue
             if column == time_base:
                 continue
@@ -122,7 +123,7 @@ class TempoAccessor:
         territorial = set(self._territorial_bases())
         keep = []
         for column in df.columns:
-            if column == VALUE_COLUMN or _derived(column):
+            if column in (VALUE_COLUMN, CONFIDENTIAL_COLUMN) or _derived(column):
                 continue
             if column in territorial or column == time_base:
                 continue
@@ -188,8 +189,14 @@ class TempoAccessor:
         """What each territorial unit actually covers, and where the holes are.
 
         One row per unit: the first and last year it has, how many years, how
-        many of the years seen anywhere in the frame are missing for it, and
-        the smallest and largest value with the year each occurred.
+        many of the years seen anywhere in the frame are missing for it, how
+        many rows INS suppressed as confidential, and the smallest and largest
+        value with the year each occurred.
+
+        A confidential row counts as covered: the figure exists, INS only did
+        not publish it. It has no value, so it never sets min or max, and
+        n_confidential is there so a unit with years but no numbers is not
+        mistaken for one with nothing to report.
 
         Units are keyed by SIRUTA when the frame carries it, never by name.
         The name and, where a second territorial dimension exists, the county
@@ -245,6 +252,9 @@ class TempoAccessor:
             row["last_year"] = max(years) if years else pd.NA
             row["n_years"] = len(years)
             row["missing_years"] = len(all_years - years)
+            row["n_confidential"] = (int(part[CONFIDENTIAL_COLUMN].sum())
+                                     if CONFIDENTIAL_COLUMN in part.columns
+                                     else 0)
             if len(valid):
                 low = valid.loc[valid[VALUE_COLUMN].idxmin()]
                 high = valid.loc[valid[VALUE_COLUMN].idxmax()]

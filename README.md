@@ -455,6 +455,34 @@ which is a claim INS did not make. `df.tempo.coverage()` reports, per unit,
 which years are there and how many are missing, so the holes are visible before
 they turn into numbers.
 
+### Confidential is neither
+
+INS has a third mark, and it means something else again. `c` is a confidential
+cell: the figure **exists**, but publishing it would identify a reporting unit,
+a single firm in a county or a single hotel in a resort, so INS suppresses it.
+It is not missing, and it is not zero.
+
+* a `c` arrives as a **row whose `Valoare` is `NaN`** and whose
+  **`Valoare_confidential` is `True`**.
+
+`Valoare_confidential` is on every frame, raw ones included, and is `False`
+everywhere INS published the figure. It is always there, not only when a `c`
+turned up, so a download split into many requests has the same columns whichever
+request happened to hold the suppressed cells.
+
+    df = t.matrix("INT105D").get()
+    df["Valoare_confidential"].sum()     # 193 cells INS suppressed
+    (df["Valoare"] == 0).sum()           # 73 measured zeros, a different statement
+    # extractive industry, Bihor, 2013: the row is there, Valoare is NaN
+
+The two wrong readings fail in opposite directions. Read as zero, a `c` drags
+sums and averages down. Read as absent, it hides that there is activity there:
+a county with a confidential cell is one where something happened, often a
+single large unit. The `NaN` means pandas leaves it out of sums and means, so
+always count `df["Valoare_confidential"].sum()` before you trust a total.
+`coverage()` counts a confidential year as covered and reports
+`n_confidential` per unit.
+
 Column names come from `matrix.dimensions`, not from the CSV header. The API
 replaces commas inside a dimension label with spaces, so the header arrives with
 the comma gone. The parser checks the column count against the number of
@@ -726,8 +754,10 @@ the frame you give it.
 
 `coverage()` is the first look at a series: one row per territorial unit, the
 span of years it has, how many of the years seen anywhere in the frame are
-missing for it, and the smallest and largest value with the year each occurred.
-When the frame mixes territorial levels, the level comes first, so a national
+missing for it, how many of its rows INS suppressed as confidential
+(`n_confidential`), and the smallest and largest value with the year each
+occurred. A confidential year counts as covered, because the figure exists, but
+it never sets a minimum or a maximum. When the frame mixes territorial levels, the level comes first, so a national
 total is never read as if it were a county.
 
 Units are keyed by SIRUTA, never by name. Locality names are not unique in

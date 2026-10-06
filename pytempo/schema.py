@@ -6,7 +6,7 @@ downstream runs it. That keeps the dependency list at requests and pandas, and
 keeps the loading policy where it belongs, with whoever owns the database.
 
 The model: one table per indicator, one text column per dimension, plus the
-numeric value, plus exactly the derived columns that get(tidy=True) produces
+numeric value and its confidentiality flag, plus exactly the derived columns that get(tidy=True) produces
 for that indicator. The derived set is not guessed twice: it is read from
 standardize itself, run over the real option labels, so the DDL cannot drift
 away from the DataFrame.
@@ -19,6 +19,7 @@ import pandas as pd
 from . import parse, territory
 
 VALUE_COLUMN = parse.VALUE_COLUMN
+CONFIDENTIAL_COLUMN = parse.CONFIDENTIAL_COLUMN
 
 # Postgres truncates identifiers at 63 bytes. We keep the base shorter so the
 # longest derived suffix still fits.
@@ -105,6 +106,7 @@ def column_mapping(matrix) -> dict:
         bases[label] = sql_ident(label, taken)
         mapping[label] = bases[label]
     mapping[VALUE_COLUMN] = sql_ident(VALUE_COLUMN, taken)
+    mapping[CONFIDENTIAL_COLUMN] = sql_ident(CONFIDENTIAL_COLUMN, taken)
 
     for column in derived_columns(matrix):
         for label, base in bases.items():
@@ -139,6 +141,7 @@ def table_ddl(matrix, schema: str = "tempo",
     for d in matrix.dimensions:
         body.append(f"    {mapping[d.label.strip()]} text")
     body.append(f"    {mapping[VALUE_COLUMN]} numeric")
+    body.append(f"    {mapping[CONFIDENTIAL_COLUMN]} boolean")
 
     derived = derived_columns(matrix)
     for column in derived:
@@ -160,6 +163,9 @@ def table_ddl(matrix, schema: str = "tempo",
             out.append(
                 f"COMMENT ON COLUMN {table}.{mapping[VALUE_COLUMN]} IS "
                 f"{_quote('Measured in ' + ', '.join(units))};")
+        out.append(
+            f"COMMENT ON COLUMN {table}.{mapping[CONFIDENTIAL_COLUMN]} IS "
+            f"{_quote('True where INS suppressed the figure as confidential (c): it exists but is not published, so the value is NULL')};")
 
     for column in derived:
         if column not in mapping:

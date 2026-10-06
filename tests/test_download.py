@@ -639,7 +639,81 @@ def test_get_on_a_small_matrix_is_untouched(monkeypatch):
         "matMaxDim": 5, "matUMSpec": None}
     assert list(df.columns) == [
         "Macroregiuni, regiuni de dezvoltare si judete", "Ani",
-        "UM: Numar persoane", "Valoare",
+        "UM: Numar persoane", "Valoare", "Valoare_confidential",
         "Macroregiuni, regiuni de dezvoltare si judete_nivel", "Ani_an"]
     assert df["Valoare"].tolist() == [12.5, 18.0]
     assert list(df.index) == [0, 1]
+
+
+# ------------------------------------------------- confidential cells ('c')
+
+CSV_FOM104D_C = (
+    "Judete, Localitati, Ani, UM: Numar persoane, Valoare\n"
+    "Alba, 1017 MUNICIPIUL ALBA IULIA, Anul 2024, Numar persoane, c\n"
+    "Alba, 2130 ALBAC, Anul 2024, Numar persoane, 1.2\n"
+)
+
+
+def _post_c_in_second_slice(monkeypatch):
+    """Three requests; only the second answer carries a 'c'."""
+    cereri = []
+
+    def fake_post(payload, **kw):
+        cereri.append(payload)
+        return CSV_FOM104D_C if len(cereri) == 2 else CSV_FOM104D
+
+    monkeypatch.setattr(client, "post_pivot", fake_post)
+    return cereri
+
+
+@pytest.mark.parametrize("fmt", ["csv", "parquet"])
+def test_a_c_in_one_slice_keeps_the_download_consistent(monkeypatch, tmp_path,
+                                                         fmt):
+    """Same columns and types as get(), whichever slice the 'c' fell in."""
+    if fmt == "parquet":
+        pytest.importorskip("pyarrow")
+    _setup(monkeypatch)
+    _post_c_in_second_slice(monkeypatch)
+    prin_memorie = t.matrix("FOM104D").get(progress=False)
+
+    _setup(monkeypatch)
+    _post_c_in_second_slice(monkeypatch)
+    monkeypatch.setattr(incremental, "slice_format", lambda: fmt)
+    prin_disc = t.matrix("FOM104D").download(folder=tmp_path / fmt,
+                                             progress=False)
+
+    pd.testing.assert_frame_equal(prin_disc, prin_memorie)
+    assert str(prin_disc["Valoare_confidential"].dtype) == "bool"
+    assert prin_disc["Valoare_confidential"].sum() == 1
+    assert prin_disc["Valoare"].isna().sum() == 1
+
+
+def test_streamed_csv_puts_the_flag_next_to_the_value(monkeypatch, tmp_path):
+    """The CSV written without loading everything has get()'s column order."""
+    _setup(monkeypatch)
+    _post_c_in_second_slice(monkeypatch)
+    prin_memorie = t.matrix("FOM104D").get(progress=False)
+
+    _setup(monkeypatch)
+    _post_c_in_second_slice(monkeypatch)
+    cale = t.matrix("FOM104D").download(folder=tmp_path / "d",
+                                        return_df=False, progress=False)
+    scris = pd.read_csv(cale, sep=incremental.CSV_SEP)
+    assert list(scris.columns) == list(prin_memorie.columns)
+
+
+def test_a_slice_from_before_the_flag_resumes_cleanly(monkeypatch, tmp_path):
+    """A slice written by an older version has no flag; it reads back False."""
+    folder = tmp_path / "d"
+    _setup(monkeypatch)
+    monkeypatch.setattr(incremental, "slice_format", lambda: "csv")
+    _keep_slices(monkeypatch)
+    t.matrix("FOM104D").download(folder=folder, progress=False)
+    vechi = folder / _slices(folder)[0]
+    frame = pd.read_csv(vechi, sep=incremental.CSV_SEP)
+    frame.drop(columns="Valoare_confidential").to_csv(
+        vechi, sep=incremental.CSV_SEP, index=False)
+
+    df = t.matrix("FOM104D").download(folder=folder, progress=False)
+    assert str(df["Valoare_confidential"].dtype) == "bool"
+    assert not df["Valoare_confidential"].any()

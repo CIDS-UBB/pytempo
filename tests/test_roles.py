@@ -297,7 +297,8 @@ CSV_FOM104D_MIC = (
 
 
 def test_get_columns_are_exactly_what_they_were(monkeypatch):
-    """Nothing was renamed, nothing was added to the output frame."""
+    """Nothing was renamed, and the only addition is the confidentiality flag,
+    which is there on purpose and on every frame."""
     _api(monkeypatch)
     monkeypatch.setattr(client, "post_pivot",
                         lambda payload, **kw: CSV_FOM104D_MIC)
@@ -305,7 +306,7 @@ def test_get_columns_are_exactly_what_they_were(monkeypatch):
     df = t.matrix("FOM104D").get(level="localitate", progress=False)
     assert list(df.columns) == [
         "Judete", "Localitati", "Ani", "UM: Numar persoane", "Valoare",
-        "Judete_nivel",
+        "Valoare_confidential", "Judete_nivel",
         "Localitati_siruta", "Localitati_nivel", "Localitati_tip",
         "Localitati_nume", "Ani_an"]
 

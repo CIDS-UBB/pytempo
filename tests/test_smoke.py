@@ -2,6 +2,7 @@
 import json
 
 import pandas as pd
+import pytest
 
 import pytempo as t
 from pytempo import (catalog, chunking, client, endpoints, parse, schemas,
@@ -573,12 +574,14 @@ def test_parse_pivot_csv(monkeypatch):
     m = t.matrix("FOM101A")
     df = parse.pivot_csv_to_dataframe(CSV_FOM101A, m)
 
-    assert df.shape == (5, 5)
-    assert df.shape[1] == len(m.dimensions) + 1
+    assert df.shape == (5, 6)
+    # one per dimension, the value, and the confidentiality flag
+    assert df.shape[1] == len(m.dimensions) + 2
     # names come from the dimensions, not from the header INS cleaned
     assert df.columns.tolist() == [
         "Sexe", "Macroregiuni, regiuni de dezvoltare si judete", "Ani",
-        "UM: Mii persoane", "Valoare"]
+        "UM: Mii persoane", "Valoare", "Valoare_confidential"]
+    assert not df["Valoare_confidential"].any()
     assert str(df["Valoare"].dtype) == "float64"
     assert df["Valoare"].tolist() == [13216.9, 13544.0, 102.4, 6512.3, 96.1]
     # pandas 2 gives 'object' for text, pandas 3 gives 'str'; all that matters
@@ -604,8 +607,9 @@ def test_parse_empty_csv_is_not_an_error(monkeypatch):
                   "UM: Mii persoane, Valoare\n")
     df = parse.pivot_csv_to_dataframe(doar_antet, t.matrix("FOM101A"))
     assert df.empty
-    assert df.shape[1] == 5
+    assert df.shape[1] == 6
     assert str(df["Valoare"].dtype) == "float64"
+    assert str(df["Valoare_confidential"].dtype) == "bool"
 
 
 def test_parse_nothing_at_all_is_the_server_not_the_data(monkeypatch):
@@ -674,6 +678,86 @@ def test_parse_value_column_not_numeric(monkeypatch):
         raise AssertionError("trebuia ValueError la Valoare ne-numerica")
 
 
+# INS writes 'c' for a confidential cell: the figure exists, it is not published
+CSV_FOM101A_C = (
+    "Sexe, Macroregiuni  regiuni de dezvoltare si judete, Ani, UM: Mii persoane, Valoare\n"
+    "Total, TOTAL, Anul 1990, Mii persoane, 13216.9\n"
+    "Total, TOTAL, Anul 2003, Mii persoane, c\n"
+    "Total, Ilfov, Anul 1990, Mii persoane, 0\n"
+    "Feminin, TOTAL, Anul 1990, Mii persoane, c\n"
+    "Feminin, Vrancea, Anul 2024, Mii persoane, 96.1\n"
+)
+
+
+def test_parse_confidential_c_is_nan_and_flagged(monkeypatch):
+    """'c' parses, becomes NaN, and the flag marks exactly those rows."""
+    _fake_api(monkeypatch)
+    df = parse.pivot_csv_to_dataframe(CSV_FOM101A_C, t.matrix("FOM101A"))
+
+    assert str(df["Valoare"].dtype) == "float64"
+    assert str(df["Valoare_confidential"].dtype) == "bool"
+    assert df["Valoare_confidential"].tolist() == [
+        False, True, False, True, False]
+    assert df["Valoare"].isna().tolist() == [False, True, False, True, False]
+    publicate = df.loc[~df["Valoare_confidential"], "Valoare"].tolist()
+    assert publicate == [13216.9, 0.0, 96.1]
+
+
+def test_parse_real_zero_and_c_are_not_confused(monkeypatch):
+    """A measured zero stays 0.0 and unflagged; only the 'c' is NaN."""
+    _fake_api(monkeypatch)
+    df = parse.pivot_csv_to_dataframe(CSV_FOM101A_C, t.matrix("FOM101A"))
+    zero = df[df["Macroregiuni, regiuni de dezvoltare si judete"] == "Ilfov"]
+    assert zero["Valoare"].tolist() == [0.0]
+    assert not zero["Valoare_confidential"].any()
+    assert not df.loc[df["Valoare_confidential"], "Valoare"].eq(0).any()
+    # a ':' is still no row at all: five lines in, five rows out
+    assert len(df) == 5
+
+
+def test_parse_slices_with_and_without_c_concatenate_cleanly(monkeypatch):
+    """Where the chunking cuts must not decide the columns or their types.
+
+    One slice with a 'c' and one without, the second all whole numbers, which
+    pandas would otherwise read as int64 next to the float64 of the first.
+    """
+    _fake_api(monkeypatch)
+    m = t.matrix("FOM101A")
+    cu_c = parse.pivot_csv_to_dataframe(CSV_FOM101A_C, m)
+    fara_c = parse.pivot_csv_to_dataframe(
+        "Sexe, Macroregiuni  regiuni de dezvoltare si judete, Ani, UM: Mii persoane, Valoare\n"
+        "Total, Cluj, Anul 1990, Mii persoane, 12\n"
+        "Total, Alba, Anul 1990, Mii persoane, 7\n", m)
+    gol = parse.pivot_csv_to_dataframe(
+        "Sexe, Macroregiuni  regiuni de dezvoltare si judete, Ani, UM: Mii persoane, Valoare\n",
+        m)
+
+    assert list(cu_c.columns) == list(fara_c.columns) == list(gol.columns)
+    assert cu_c.dtypes.to_dict() == fara_c.dtypes.to_dict() \
+        == gol.dtypes.to_dict()
+    impreuna = pd.concat([cu_c, fara_c, gol], ignore_index=True)
+    assert impreuna.dtypes.to_dict() == cu_c.dtypes.to_dict()
+    assert impreuna["Valoare_confidential"].sum() == 2
+
+
+def test_parse_slipped_mapping_still_raises_next_to_a_c(monkeypatch):
+    """Cleaning the markers out does not launder a stray string."""
+    _fake_api(monkeypatch)
+    text = (
+        "Sexe, Terr, Ani, UM, Valoare\n"
+        "Total, TOTAL, Anul 1990, Mii persoane, c\n"
+        "Total, TOTAL, Anul 1991, Mii persoane, nu e numar\n"
+    )
+    with pytest.raises(ValueError, match="is not numeric.*nu e numar"):
+        parse.pivot_csv_to_dataframe(text, t.matrix("FOM101A"))
+
+
+def test_unknown_markers_knows_c_and_numbers():
+    assert parse.unknown_markers(["1.5", "-2", "0", " c", "c "]) == []
+    assert parse.unknown_markers(["c", "x", "1", "nu e numar"]) == [
+        "nu e numar", "x"]
+
+
 def test_build_encquery():
     assert chunking.build_encquery([[105, 106], [112], [4247, 4266]]) == \
         "105,106:112:4247,4266"
@@ -700,7 +784,8 @@ def test_get_builds_payload_and_parses(monkeypatch):
     # four dimensions, so three dimension separators
     assert trimis["encQuery"].count(":") == 3
     assert trimis["encQuery"].split(":")[1] == "1,2,3,4,5"
-    assert df.shape == (5, 5)
+    # raw keeps the flag too: without it a 'c' would be a NaN with no story
+    assert df.shape == (5, 6)
 
 
 # the SOM101B fixture has 3 dimensions, so 4 columns

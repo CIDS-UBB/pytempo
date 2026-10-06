@@ -112,6 +112,34 @@ def test_coverage_counts_years_and_holes():
     assert report.loc["Cluj", "last_year"] == 2022
 
 
+def _with_a_c():
+    """Cluj 2021 suppressed by INS: the row is there, the figure is not."""
+    frame = tidy_frame()
+    flag = [False, True, False, False, False, False]
+    frame.loc[[f for f in range(6) if flag[f]], "Valoare"] = float("nan")
+    frame.insert(frame.columns.get_loc("Valoare") + 1,
+                 "Valoare_confidential", flag)
+    return frame
+
+
+def test_wide_does_not_index_on_the_confidential_flag():
+    """The flag is about the value, not a dimension: one row per county."""
+    wide = _with_a_c().tempo.wide()
+    assert len(wide) == 2
+    assert "Valoare_confidential" not in wide.columns
+    assert pd.isna(wide[wide[TERR] == "Cluj"].iloc[0][2021])
+
+
+def test_coverage_counts_a_confidential_year_as_covered():
+    cov = _with_a_c().tempo.coverage().set_index(TERR)
+    assert cov.loc["Cluj", "n_years"] == 3
+    assert cov.loc["Cluj", "missing_years"] == 0
+    assert cov.loc["Cluj", "n_confidential"] == 1
+    assert cov.loc["Alba", "n_confidential"] == 0
+    # the suppressed year sets neither extreme
+    assert cov.loc["Cluj", "min_value"] == 300.0
+
+
 def test_coverage_reports_extremes_with_their_year():
     report = tidy_frame().tempo.coverage().set_index(TERR)
     assert report.loc["Alba", "min_value"] == 100.0
